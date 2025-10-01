@@ -307,17 +307,40 @@ components:
         phone:
           type: string
           description: |
-            Taiwan phone number. Accepted formats:
-              - Mobile: 09XX-XXX-XXX (where XX is 10-99, not 00-09)
-              - Landline: 0X-XXXX-XXXX (area codes: 02-08, 049)
-              - International: +886-X-XXXX-XXXX or +886-9XX-XXX-XXX
-            Pattern breakdown:
-              - \\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}: International landline (+886), valid area codes
-              - \\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}: International mobile (+886), valid prefixes 910-999
-              - 0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}: Landline with valid Taiwan area codes (02-08, 049)
-              - 09[1-9][0-9]-?[0-9]{3}-?[0-9]{3}: Mobile with valid prefixes (091x-099x)
-            Server validates format.
+            Taiwan phone number validation (see x-phone-validation for pattern components).
+
+            Accepted formats:
+              • Mobile: 09XX-XXX-XXX (prefixes: 091x-099x, excludes 090x)
+              • Landline: 0X-XXXX-XXXX (area codes: 02, 03, 04, 05, 06, 07, 08, 049)
+              • International: +886-X-XXXX-XXXX or +886-9XX-XXX-XXX
+
+            Examples: 0912-345-678, 02-2345-6789, 049-123-4567, +886-2-2345-6789
+
+            Server performs additional validation.
           pattern: "^(\\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}|0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|09[1-9][0-9]-?[0-9]{3}-?[0-9]{3})$"
+          x-phone-validation:
+            components:
+              international-landline:
+                pattern: "\\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}"
+                description: "International format with Taiwan area codes"
+                examples: ["+886-2-2345-6789", "+88622345678", "+886-49-123-4567"]
+              international-mobile:
+                pattern: "\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}"
+                description: "International mobile format (prefixes 910-999)"
+                examples: ["+886-912-345-678", "+886912345678"]
+              domestic-landline:
+                pattern: "0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}"
+                description: "Domestic landline with area code"
+                examples: ["02-2345-6789", "022345678", "049-123-4567"]
+              domestic-mobile:
+                pattern: "09[1-9][0-9]-?[0-9]{3}-?[0-9]{3}"
+                description: "Domestic mobile (prefixes 091x-099x)"
+                examples: ["0912-345-678", "0912345678"]
+            notes:
+              - "All dashes (-) are optional throughout"
+              - "Area code 049 is for Nantou County"
+              - "Mobile prefixes 090x are invalid and excluded"
+              - "Area codes 00, 01, 09 are invalid for landlines"
         email:
           type: string
           format: email
