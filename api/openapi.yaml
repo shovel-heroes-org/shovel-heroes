@@ -316,7 +316,7 @@ components:
               - 0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: Landline with area code
               - 09[0-9]{2}-?[0-9]{3}-?[0-9]{3}: Mobile number
             Server validates format.
-          pattern: "^(\\\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
+          pattern: "^(\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
         email:
           type: string
           format: email
@@ -336,7 +336,7 @@ components:
           maxLength: 100
           nullable: true
           description: Preferred work location (e.g., city or district name)
-      x-shovel-heroes-idempotency-window-seconds: 600  # align with "10 minutes cooldown" in product spec
+      x-shovel-heroes-idempotency-window-seconds: 600  # aligns with "10 minutes cooldown" in product spec
       example:
         name: "張小明"
         phone: "0912-345-678"
