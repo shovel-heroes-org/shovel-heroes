@@ -18,7 +18,7 @@
 3. 每個 PR 盡量聚焦單一目的；如僅更新 `package.json`，請與功能變更分開 PR（回應 PR #1 的維護者建議）。
 
 ## 程式碼風格與品質
-- Lint：本專案已含 `eslint.config.js`，請在提交前執行 `npm run lint`（如果尚未定義腳本，可先跑 `npx eslint .`）。
+- Lint：本專案已含 `eslint.config.js`，請在提交前執行 `npm run lint`。
 - 型別／錯誤處理：建立 `Result` 風格回傳或一致的錯誤邏輯，避免在 UI 泄漏內部錯誤細節。
 - UI：Tailwind CSS 已配置，請沿用既有樣式系統與設計 Token。
 

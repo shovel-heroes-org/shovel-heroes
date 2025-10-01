@@ -294,6 +294,10 @@ components:
     VolunteerSignup:
       type: object
       required: [name, phone]
+      description: |
+        Volunteer signup schema with idempotent submission support.
+        Custom extension x-shovel-heroes-idempotency-window-seconds (600 seconds)
+        defines the deduplication window for preventing duplicate signups.
       properties:
         name:
           type: string
@@ -312,7 +316,7 @@ components:
               - 0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: Landline with area code
               - 09[0-9]{2}-?[0-9]{3}-?[0-9]{3}: Mobile number
             Server validates format.
-          pattern: "^(\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
+          pattern: "^(\\\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
         email:
           type: string
           format: email
