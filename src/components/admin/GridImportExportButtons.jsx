@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Upload, FileText } from 'lucide-react';
-import { exportGridsCSV, importGridsCSV } from '@/api/functions/all';
+// Fixed: corrected import path (file is functions.js, not functions/all)
+import { exportGridsCSV, importGridsCSV } from '@/api/functions';
 
 export default function GridImportExportButtons({ onImportSuccess }) {
   const [importing, setImporting] = useState(false);
