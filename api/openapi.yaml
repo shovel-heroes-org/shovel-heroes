@@ -225,7 +225,7 @@ components:
         email: { type: string, format: email, nullable: true }
         skills: { type: array, items: { type: string }, nullable: true }
         locationPref: { type: string, nullable: true }
-      x-idempotency-window-seconds: 600  # align with “10 minutes cooldown” in product spec
+      x-shovel-heroes-idempotency-window-seconds: 600  # align with "10 minutes cooldown" in product spec
 
     VolunteerSignupReceipt:
       type: object
