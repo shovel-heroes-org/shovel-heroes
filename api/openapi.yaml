@@ -229,7 +229,7 @@ components:
               - Landline: (0X)-XXXX-XXXX
               - International: +886-9XX-XXX-XXX
             Pattern breakdown:
-              - \+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: International (+886), optional dashes
+              - \\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: International (+886), optional dashes
               - 0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: Landline with area code
               - 09[0-9]{2}-?[0-9]{3}-?[0-9]{3}: Mobile number
             Server validates format.
