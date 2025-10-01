@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: Shovel Heroes API
+  description: >
+    API for disaster relief coordination: tasks, volunteer sign-ups, check-ins, and resource points.
+    Includes server-side rate limiting, idempotent POSTs, and security headers guidance.
+  version: 0.1.0
+  contact:
+    name: Maintainers
+    email: please-fill-maintainer-email@example.org
+servers:
+  - url: https://api.shovel-heroes.example.org
+    description: Production (placeholder)
+  - url: https://staging.api.shovel-heroes.example.org
+    description: Staging (placeholder)
+
+tags:
+  - name: Health
+  - name: Tasks
+  - name: Volunteers
+  - name: Checkins
+  - name: ResourcePoints
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+                  uptimeSec: { type: number }
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [open, assigned, done, cancelled] }
+        - in: query
+          name: bbox
+          description: Filter by bounding box [minLon,minLat,maxLon,maxLat]
+          schema:
+            type: array
+            minItems: 4
+            maxItems: 4
+            items: { type: number }
+            style: form
+            explode: false
+      responses:
+        '200':
+          description: Task list
+          headers:
+            RateLimit: { schema: { type: string }, description: Draft IETF RateLimit header }
+            RateLimit-Policy: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+                  nextCursor: { type: string, nullable: true }
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Get one task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /volunteers/signups:
+    post:
+      tags: [Volunteers]
+      summary: Create a volunteer signup (idempotent)
+      description: >
+        Accepts an optional `Idempotency-Key` header to deduplicate identical submissions within a 10-minute window.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VolunteerSignup' }
+      responses:
+        '201':
+          description: Created
+          headers:
+            RateLimit: { schema: { type: string } }
+            RateLimit-Policy: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VolunteerSignupReceipt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: Duplicate submission detected within idempotency window
+          headers:
+            Retry-After:
+              description: Seconds until the window resets
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /checkins:
+    post:
+      tags: [Checkins]
+      summary: Field check-in
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Checkin' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckinReceipt' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /resource-points:
+    get:
+      tags: [ResourcePoints]
+      summary: List resource points (shelters, supply depots)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ResourcePoint' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Rate limit exceeded or duplicate submission within cooldown
+      headers:
+        Retry-After:
+          description: Seconds until requests can resume
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Task:
+      type: object
+      required: [id, title, status, location]
+      properties:
+        id: { type: string }
+        title: { type: string, maxLength: 140 }
+        description: { type: string, maxLength: 4000, nullable: true }
+        status: { type: string, enum: [open, assigned, done, cancelled] }
+        skills: { type: array, items: { type: string }, nullable: true }
+        location:
+          type: object
+          required: [lat, lon]
+          properties:
+            lat: { type: number, minimum: -90, maximum: 90 }
+            lon: { type: number, minimum: -180, maximum: 180 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    VolunteerSignup:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string, maxLength: 80 }
+        phone: { type: string, description: "E.164 or local; server validates" }
+        email: { type: string, format: email, nullable: true }
+        skills: { type: array, items: { type: string }, nullable: true }
+        locationPref: { type: string, nullable: true }
+      x-idempotency-window-seconds: 600  # align with “10 minutes cooldown” in product spec
+
+    VolunteerSignupReceipt:
+      type: object
+      required: [id, receivedAt]
+      properties:
+        id: { type: string, description: "Server-issued UUID" }
+        receivedAt: { type: string, format: date-time }
+
+    Checkin:
+      type: object
+      required: [position]
+      properties:
+        position:
+          type: object
+          required: [lat, lon]
+          properties:
+            lat: { type: number, minimum: -90, maximum: 90 }
+            lon: { type: number, minimum: -180, maximum: 180 }
+        note: { type: string, maxLength: 500, nullable: true }
+
+    CheckinReceipt:
+      type: object
+      required: [id, at]
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+
+    ResourcePoint:
+      type: object
+      required: [id, name, kind, location]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [shelter, supply, medical, other] }
+        location:
+          type: object
+          required: [lat, lon]
+          properties:
+            lat: { type: number }
+            lon: { type: number }
+        address: { type: string, nullable: true }
+        hours: { type: string, nullable: true }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        traceId: { type: string, nullable: true }
+
+x-guidelines:
+  rateLimit:
+    defaultPolicy: "100 requests/30s; 1000 requests/day"
+    headers: ["RateLimit", "RateLimit-Policy", "Retry-After(429)"]
+  securityHeaders:
+    - "HSTS"
+    - "CORS strict"
+    - "No detailed stack traces to clients"
