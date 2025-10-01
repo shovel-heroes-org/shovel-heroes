@@ -309,15 +309,15 @@ components:
           description: |
             Taiwan phone number. Accepted formats:
               - Mobile: 09XX-XXX-XXX (where XX is 10-99, not 00-09)
-              - Landline: 0X-XXXX-XXXX (area codes: 02-08)
+              - Landline: 0X-XXXX-XXXX (area codes: 02-08, 049)
               - International: +886-X-XXXX-XXXX or +886-9XX-XXX-XXX
             Pattern breakdown:
-              - \\+886-(2|3|4|5|6|7|8)-?[0-9]{3,4}-?[0-9]{4}: International landline (+886), valid area codes
-              - \\+886-9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}: International mobile (+886), valid prefixes 910-999
-              - 0[2-8]-?[0-9]{3,4}-?[0-9]{4}: Landline with valid Taiwan area codes (02-08)
+              - \\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}: International landline (+886), valid area codes
+              - \\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}: International mobile (+886), valid prefixes 910-999
+              - 0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}: Landline with valid Taiwan area codes (02-08, 049)
               - 09[1-9][0-9]-?[0-9]{3}-?[0-9]{3}: Mobile with valid prefixes (091x-099x)
             Server validates format.
-          pattern: "^(\\+886-?[2-8]-?[0-9]{3,4}-?[0-9]{4}|\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}|0[2-8]-?[0-9]{3,4}-?[0-9]{4}|09[1-9][0-9]-?[0-9]{3}-?[0-9]{3})$"
+          pattern: "^(\\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}|0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|09[1-9][0-9]-?[0-9]{3}-?[0-9]{3})$"
         email:
           type: string
           format: email
