@@ -1,4 +1,4 @@
-# Shovel Heroes Monorepo
+# Shevel-Heros
 
 前端：Vite + React + Tailwind  
 後端：Fastify (Node.js) + PostgreSQL  
@@ -226,3 +226,4 @@ npm run build
 ---
 
 For more information and support, please contact Base44 support at app@base44.com.
+
