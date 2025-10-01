@@ -1,6 +1,9 @@
-嗨 我是TANYA
+ 我是TANYA
 
 這是鏟子英雄的開源地址，我們來看看群眾的力量憋 :D
+=======
+# Shevel-Heros
+
 
 
 ## Running the app
@@ -15,3 +18,6 @@ npm run dev
 ```bash
 npm run build
 ```
+
+For more information and support, please contact Base44 support at app@base44.com.
+
