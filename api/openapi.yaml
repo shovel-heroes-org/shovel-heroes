@@ -223,7 +223,16 @@ components:
         name: { type: string, maxLength: 80 }
         phone:
           type: string
-          description: "Taiwan phone number: mobile (09XX-XXX-XXX), landline ((0X)-XXXX-XXXX), or international (+886-9XX-XXX-XXX). Server validates format."
+          description: |
+            Taiwan phone number. Accepted formats:
+              - Mobile: 09XX-XXX-XXX
+              - Landline: (0X)-XXXX-XXXX
+              - International: +886-9XX-XXX-XXX
+            Pattern breakdown:
+              - \+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: International (+886), optional dashes
+              - 0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}: Landline with area code
+              - 09[0-9]{2}-?[0-9]{3}-?[0-9]{3}: Mobile number
+            Server validates format.
           pattern: "^(\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
         email: { type: string, format: email, nullable: true }
         skills: { type: array, items: { type: string }, nullable: true }
@@ -288,3 +297,7 @@ x-guidelines:
     - "HSTS"
     - "CORS strict"
     - "No detailed stack traces to clients"
+  customExtensions:
+    x-shovel-heroes-idempotency-window-seconds:
+      description: "Specifies the time window (in seconds) for idempotency key deduplication. Used on POST endpoints to prevent duplicate submissions."
+      usage: "Server maintains idempotency keys for this duration. Duplicate requests within the window return 409 Conflict with Retry-After header."
