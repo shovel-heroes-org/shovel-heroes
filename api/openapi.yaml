@@ -7,7 +7,7 @@ info:
   version: 0.1.0
   contact:
     name: Maintainers
-    email: please-fill-maintainer-email@example.org
+    email: shovel-heroes@noreply.github.com
 servers:
   - url: https://api.shovel-heroes.example.org
     description: Production (placeholder)
@@ -47,13 +47,13 @@ paths:
         - in: query
           name: bbox
           description: Filter by bounding box [minLon,minLat,maxLon,maxLat]
+          style: form
+          explode: false
           schema:
             type: array
             minItems: 4
             maxItems: 4
             items: { type: number }
-            style: form
-            explode: false
       responses:
         '200':
           description: Task list
@@ -264,8 +264,8 @@ components:
           type: object
           required: [lat, lon]
           properties:
-            lat: { type: number }
-            lon: { type: number }
+            lat: { type: number, minimum: -90, maximum: 90 }
+            lon: { type: number, minimum: -180, maximum: 180 }
         address: { type: string, nullable: true }
         hours: { type: string, nullable: true }
 
