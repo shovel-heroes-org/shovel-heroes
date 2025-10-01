@@ -16,33 +16,45 @@ servers:
 
 tags:
   - name: Health
+    description: System health and status monitoring
   - name: Tasks
+    description: Disaster relief task management
   - name: Volunteers
+    description: Volunteer registration and management
   - name: Checkins
+    description: Field check-in tracking for volunteers
   - name: ResourcePoints
+    description: Resource point locations (shelters, supplies, medical)
 
 paths:
   /health:
     get:
       tags: [Health]
       summary: Health check
+      description: Check API service health and uptime
       responses:
         '200':
-          description: OK
+          description: Service is healthy
           content:
             application/json:
               schema:
                 type: object
+                required: [status, uptimeSec]
                 properties:
                   status: { type: string, enum: [ok] }
-                  uptimeSec: { type: number }
+                  uptimeSec: { type: number, minimum: 0 }
+              example:
+                status: ok
+                uptimeSec: 3600
   /tasks:
     get:
       tags: [Tasks]
       summary: List tasks
+      description: Retrieve list of disaster relief tasks with optional filtering
       parameters:
         - in: query
           name: status
+          description: Filter tasks by status
           schema: { type: string, enum: [open, assigned, done, cancelled] }
         - in: query
           name: bbox
@@ -54,16 +66,24 @@ paths:
             minItems: 4
             maxItems: 4
             items: { type: number }
+          example: [121.5, 24.0, 121.6, 24.1]
       responses:
         '200':
           description: Task list
           headers:
-            RateLimit: { schema: { type: string }, description: Draft IETF RateLimit header }
-            RateLimit-Policy: { schema: { type: string } }
+            RateLimit:
+              description: Number of requests remaining in current window
+              schema: { type: string }
+              example: "100"
+            RateLimit-Policy:
+              description: Rate limit policy in effect
+              schema: { type: string }
+              example: "100;w=30"
           content:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
@@ -73,14 +93,16 @@ paths:
     get:
       tags: [Tasks]
       summary: Get one task
+      description: Retrieve detailed information for a specific task
       parameters:
         - in: path
           name: id
           required: true
-          schema: { type: string }
+          description: Task UUID
+          schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Task
+          description: Task details
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Task' }
@@ -91,12 +113,19 @@ paths:
       tags: [Volunteers]
       summary: Create a volunteer signup (idempotent)
       description: >
-        Accepts an optional `Idempotency-Key` header to deduplicate identical submissions within a 10-minute window.
+        Register a new volunteer. Accepts an optional `Idempotency-Key` header
+        to deduplicate identical submissions within a 10-minute window.
       parameters:
         - in: header
           name: Idempotency-Key
           required: false
-          schema: { type: string, maxLength: 128 }
+          description: UUID v4 for idempotent submission (prevents duplicate signups within 10 minutes)
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+            minLength: 36
+          example: "123e4567-e89b-12d3-a456-426614174000"
       requestBody:
         required: true
         content:
@@ -104,10 +133,14 @@ paths:
             schema: { $ref: '#/components/schemas/VolunteerSignup' }
       responses:
         '201':
-          description: Created
+          description: Volunteer signup created successfully
           headers:
-            RateLimit: { schema: { type: string } }
-            RateLimit-Policy: { schema: { type: string } }
+            RateLimit:
+              description: Requests remaining in current window
+              schema: { type: string }
+            RateLimit-Policy:
+              description: Rate limit policy
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VolunteerSignupReceipt' }
@@ -116,7 +149,7 @@ paths:
           description: Duplicate submission detected within idempotency window
           headers:
             Retry-After:
-              description: Seconds until the window resets
+              description: Seconds until the idempotency window resets
               schema: { type: integer }
           content:
             application/json:
@@ -127,13 +160,19 @@ paths:
     post:
       tags: [Checkins]
       summary: Field check-in
+      description: Record volunteer location check-in (requires authentication)
       security:
         - bearerAuth: []
       parameters:
         - in: header
           name: Idempotency-Key
           required: false
-          schema: { type: string, maxLength: 128 }
+          description: UUID v4 for idempotent submission
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+            minLength: 36
       requestBody:
         required: true
         content:
@@ -141,7 +180,7 @@ paths:
             schema: { $ref: '#/components/schemas/Checkin' }
       responses:
         '201':
-          description: Created
+          description: Check-in recorded successfully
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CheckinReceipt' }
@@ -151,14 +190,16 @@ paths:
   /resource-points:
     get:
       tags: [ResourcePoints]
-      summary: List resource points (shelters, supply depots)
+      summary: List resource points
+      description: Retrieve locations of shelters, supply depots, and medical facilities
       responses:
         '200':
-          description: OK
+          description: Resource point list
           content:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
@@ -170,20 +211,21 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT token for authenticated requests
 
   responses:
     BadRequest:
-      description: Bad request
+      description: Invalid request parameters or body
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Unauthorized:
-      description: Unauthorized
+      description: Authentication required or invalid token
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     NotFound:
-      description: Not found
+      description: Resource not found
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -202,25 +244,62 @@ components:
       type: object
       required: [id, title, status, location]
       properties:
-        id: { type: string }
-        title: { type: string, maxLength: 140 }
-        description: { type: string, maxLength: 4000, nullable: true }
-        status: { type: string, enum: [open, assigned, done, cancelled] }
-        skills: { type: array, items: { type: string }, nullable: true }
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+        title:
+          type: string
+          maxLength: 140
+          minLength: 1
+          description: Task title
+        description:
+          type: string
+          maxLength: 4000
+          nullable: true
+          description: Detailed task description
+        status:
+          type: string
+          enum: [open, assigned, done, cancelled]
+          description: Current task status
+        skills:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+          nullable: true
+          description: Required skills for the task
         location:
           type: object
           required: [lat, lon]
           properties:
             lat: { type: number, minimum: -90, maximum: 90 }
             lon: { type: number, minimum: -180, maximum: 180 }
+          description: Task location coordinates
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+      example:
+        id: "123e4567-e89b-12d3-a456-426614174000"
+        title: "清理街道淤泥"
+        description: "中山路一段需要清理淤泥約50公尺"
+        status: "open"
+        skills: ["體力勞動", "鏟子使用"]
+        location:
+          lat: 23.9739
+          lon: 121.6056
+        createdAt: "2025-10-02T10:00:00Z"
+        updatedAt: "2025-10-02T10:00:00Z"
 
     VolunteerSignup:
       type: object
       required: [name, phone]
       properties:
-        name: { type: string, maxLength: 80 }
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          description: Volunteer full name
         phone:
           type: string
           description: |
@@ -234,17 +313,48 @@ components:
               - 09[0-9]{2}-?[0-9]{3}-?[0-9]{3}: Mobile number
             Server validates format.
           pattern: "^(\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
-        email: { type: string, format: email, nullable: true }
-        skills: { type: array, items: { type: string }, nullable: true }
-        locationPref: { type: string, nullable: true }
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          nullable: true
+          description: Contact email address
+        skills:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+          nullable: true
+          description: Volunteer skills and expertise
+        locationPref:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Preferred work location (e.g., city or district name)
       x-shovel-heroes-idempotency-window-seconds: 600  # align with "10 minutes cooldown" in product spec
+      example:
+        name: "張小明"
+        phone: "0912-345-678"
+        email: "example@email.com"
+        skills: ["醫療", "重機具操作"]
+        locationPref: "花蓮市"
 
     VolunteerSignupReceipt:
       type: object
       required: [id, receivedAt]
       properties:
-        id: { type: string, description: "Server-issued UUID" }
-        receivedAt: { type: string, format: date-time }
+        id:
+          type: string
+          format: uuid
+          description: Server-issued unique volunteer identifier
+        receivedAt:
+          type: string
+          format: date-time
+          description: Timestamp when signup was received
+      example:
+        id: "987fcdeb-51a2-43d7-b456-426614174999"
+        receivedAt: "2025-10-02T10:30:00Z"
 
     Checkin:
       type: object
@@ -256,38 +366,99 @@ components:
           properties:
             lat: { type: number, minimum: -90, maximum: 90 }
             lon: { type: number, minimum: -180, maximum: 180 }
-        note: { type: string, maxLength: 500, nullable: true }
+          description: Check-in GPS coordinates
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional check-in note or status update
+      example:
+        position:
+          lat: 23.9739
+          lon: 121.6056
+        note: "已抵達物資集散點"
 
     CheckinReceipt:
       type: object
       required: [id, at]
       properties:
-        id: { type: string }
-        at: { type: string, format: date-time }
+        id:
+          type: string
+          format: uuid
+          description: Unique check-in record identifier
+        at:
+          type: string
+          format: date-time
+          description: Server timestamp of check-in
+      example:
+        id: "456e7890-a12b-34c5-d678-901234567890"
+        at: "2025-10-02T11:00:00Z"
 
     ResourcePoint:
       type: object
       required: [id, name, kind, location]
       properties:
-        id: { type: string }
-        name: { type: string }
-        kind: { type: string, enum: [shelter, supply, medical, other] }
+        id:
+          type: string
+          format: uuid
+          description: Unique resource point identifier
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          description: Resource point name
+        kind:
+          type: string
+          enum: [shelter, supply, medical, other]
+          description: Type of resource point
         location:
           type: object
           required: [lat, lon]
           properties:
             lat: { type: number, minimum: -90, maximum: 90 }
             lon: { type: number, minimum: -180, maximum: 180 }
-        address: { type: string, nullable: true }
-        hours: { type: string, nullable: true }
+          description: Resource point GPS coordinates
+        address:
+          type: string
+          maxLength: 300
+          nullable: true
+          description: Physical address
+        hours:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Operating hours
+      example:
+        id: "abc12345-def6-7890-ghij-klmnopqrstuv"
+        name: "花蓮市立體育館避難所"
+        kind: "shelter"
+        location:
+          lat: 23.9739
+          lon: 121.6056
+        address: "花蓮縣花蓮市中山路123號"
+        hours: "24小時開放"
 
     Error:
       type: object
       required: [code, message]
       properties:
-        code: { type: string }
-        message: { type: string }
-        traceId: { type: string, nullable: true }
+        code:
+          type: string
+          maxLength: 50
+          description: Machine-readable error code
+        message:
+          type: string
+          maxLength: 500
+          description: Human-readable error message
+        traceId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Request trace ID for debugging
+      example:
+        code: "VALIDATION_ERROR"
+        message: "電話號碼格式不正確"
+        traceId: "trace-123e4567-e89b-12d3-a456-426614174000"
 
 x-guidelines:
   rateLimit:
