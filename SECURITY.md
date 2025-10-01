@@ -32,7 +32,7 @@
 - **第三方地圖／外掛**：僅允許必要來源，使用 SRI/版本鎖定，避免動態注入 HTML。
 
 ## 漏洞通報（Vulnerability Disclosure）
-- 請優先使用 GitHub 的 **Security Advisories** 私下回報（若有權限），或寄信至 **[請填維護者聯絡信箱]**。
+- 請優先使用 GitHub 的 **Security Advisories** 私下回報（若有權限），或寄信至 **shovel-heroes@noreply.github.com**。
 - 我們承諾：
   - **72 小時內**回覆初步受理。
   - **7–30 天**內提供修補或緩解計畫（依嚴重度）。
