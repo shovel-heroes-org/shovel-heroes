@@ -221,7 +221,10 @@ components:
       required: [name, phone]
       properties:
         name: { type: string, maxLength: 80 }
-        phone: { type: string, description: "E.164 or local; server validates" }
+        phone:
+          type: string
+          description: "Phone number in E.164 (+1234567890) or local format; server validates. Pattern allows digits, spaces, dashes, parentheses, and plus sign."
+          pattern: "^(\\+\\d{1,15}|[\\d\\s\\-\\(\\)]+)$"
         email: { type: string, format: email, nullable: true }
         skills: { type: array, items: { type: string }, nullable: true }
         locationPref: { type: string, nullable: true }
