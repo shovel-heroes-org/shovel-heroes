@@ -223,8 +223,8 @@ components:
         name: { type: string, maxLength: 80 }
         phone:
           type: string
-          description: "Phone number in E.164 (+1234567890) or local format; server validates. Pattern allows digits, spaces, dashes, parentheses, and plus sign."
-          pattern: "^(\\+\\d{1,15}|[\\d\\s\\-\\(\\)]+)$"
+          description: "Taiwan phone number: mobile (09XX-XXX-XXX), landline ((0X)-XXXX-XXXX), or international (+886-9XX-XXX-XXX). Server validates format."
+          pattern: "^(\\+886-?[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|0[0-9]{1,2}-?[0-9]{3,4}-?[0-9]{4}|09[0-9]{2}-?[0-9]{3}-?[0-9]{3})$"
         email: { type: string, format: email, nullable: true }
         skills: { type: array, items: { type: string }, nullable: true }
         locationPref: { type: string, nullable: true }
