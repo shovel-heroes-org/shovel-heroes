@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop, feature/**, hotfix/** ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+permissions:
+  contents: read
+  # (add others like packages: write if later needed)
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-lint:
+    name: Install, Lint & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate OpenAPI types (codegen)
+        run: npm run codegen
+
+      - name: Check for codegen drift
+        run: |
+          if ! git diff --quiet --exit-code; then
+            echo "❌ Generated files are not committed. Run 'npm run codegen' locally and commit the changes." >&2
+            git diff --name-only >&2
+            exit 1
+          fi
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: OpenAPI Lint (Spectral)
+        run: npm run openapi:lint
+
+      - name: Bundle OpenAPI (Redocly)
+        run: npm run openapi:bundle
+
+      - name: Build backend (tsc)
+        run: npm run build:api
+
+      - name: Build frontend (Vite)
+        run: npm run build
+
+      - name: Upload OpenAPI bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-bundle
+          path: api-spec/dist/openapi.bundle.yaml
+          if-no-files-found: warn
+
+  # Placeholder for future tests (unit/integration)
+  # tests:
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-lint
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - run: npm test --workspaces
