@@ -6,13 +6,13 @@ const CreateSchema = z.object({
   grid_id: z.string(),
   user_id: z.string().optional(),
   volunteer_name: z.string().min(1).optional(),
-  volunteer_phone: z.string().optional(),
-  volunteer_email: z.string().email().optional(),
-  available_time: z.string().optional(),
+  volunteer_phone: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().optional()),
+  volunteer_email: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().email().optional()),
+  available_time: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().optional()),
   skills: z.array(z.string()).optional(),
   equipment: z.array(z.string()).optional(),
-  status: z.string().optional(),
-  notes: z.string().optional()
+  status: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().optional()),
+  notes: z.preprocess(v => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().optional())
 }).refine(
   (data) => data.user_id || data.volunteer_name,
   {
