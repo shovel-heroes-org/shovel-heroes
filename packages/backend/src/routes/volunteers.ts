@@ -27,7 +27,18 @@ interface RawRow {
  * Otherwise returns an empty array.
  */
 function ensureArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : (value || []);
+  if (Array.isArray(value)) return value;
+  // Attempt to parse JSON strings that might represent an array
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  // Per spec: if not already an array, return empty array (do NOT wrap single values)
+  return [];
 }
 
 export function registerVolunteersRoutes(app: FastifyInstance) {
