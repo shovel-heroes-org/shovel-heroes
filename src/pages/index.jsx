@@ -14,6 +14,8 @@ import GridMonitor from "./GridMonitor";
 
 import RequestHelp from "./RequestHelp";
 
+import NotFound from "./NotFound";
+
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
 const PAGES = {
@@ -73,6 +75,7 @@ function PagesContent() {
                 
                 <Route path="/RequestHelp" element={<RequestHelp />} />
                 
+                <Route path="*" element={<NotFound />} />
             </Routes>
         </Layout>
     );
