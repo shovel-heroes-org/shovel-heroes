@@ -31,10 +31,8 @@ servers:
     description: Production
   - url: http://localhost:8787
     description: Local Dev
-# Global security disabled for easier development/testing
-# Individual endpoints can still specify security requirements
-# security:
-#   - bearerAuth: []
+security:
+  - bearerAuth: []
 components:
   securitySchemes:
     bearerAuth:
