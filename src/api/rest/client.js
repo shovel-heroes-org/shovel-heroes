@@ -1,7 +1,7 @@
 // Lightweight REST client to replace @base44/sdk usage.
 // Uses fetch; can be swapped for axios easily.
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://your.api.server';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 async function request(path, { method = 'GET', headers = {}, body } = {}) {
   const options = { method, headers: { 'Content-Type': 'application/json', ...headers } };

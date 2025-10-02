@@ -32,23 +32,29 @@ export default function Layout({ children, currentPageName }) {
     };
     loadData();
 
-    // Google Analytics - Add tracking script to head
+    // Google Analytics - Load from environment variable
+    const GA_ID = import.meta.env.VITE_GA_TRACKING_ID;
+    if (!GA_ID) {
+      console.warn('GA tracking ID not configured');
+      return;
+    }
+
     const gaScriptId = 'google-analytics-script';
     if (!document.getElementById(gaScriptId)) {
+      // Load gtag script
       const script1 = document.createElement('script');
       script1.id = gaScriptId;
       script1.async = true;
-      script1.src = "https://www.googletagmanager.com/gtag/js?id=G-DJE7FZLCHG";
+      script1.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
       document.head.appendChild(script1);
 
-      const script2 = document.createElement('script');
-      script2.innerHTML = `
+      // Initialize gtag without innerHTML
+      script1.onload = () => {
         window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-DJE7FZLCHG');
-      `;
-      document.head.appendChild(script2);
+        window.gtag = window.gtag || function() { dataLayer.push(arguments); };
+        window.gtag('js', new Date());
+        window.gtag('config', GA_ID);
+      };
     }
   }, []);
 
