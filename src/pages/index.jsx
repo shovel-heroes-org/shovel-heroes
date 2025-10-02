@@ -10,6 +10,8 @@ import Admin from "./Admin";
 
 import About from "./About";
 
+import Privacy from "./Privacy";
+
 import GridMonitor from "./GridMonitor";
 
 import RequestHelp from "./RequestHelp";
@@ -29,6 +31,8 @@ const PAGES = {
     Admin: Admin,
     
     About: About,
+
+    Privacy: Privacy,
     
     GridMonitor: GridMonitor,
     
@@ -70,6 +74,8 @@ function PagesContent() {
                 <Route path="/Admin" element={<Admin />} />
                 
                 <Route path="/About" element={<About />} />
+
+                <Route path="/Privacy" element={<Privacy />} />
                 
                 <Route path="/GridMonitor" element={<GridMonitor />} />
                 

@@ -45,8 +45,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
     setSubmitting(true);
 
     try {
-      const grid = await Grid.get(selectedGridId);
-      const updatedSupplies = [...grid.supplies_needed];
+  const grid = await Grid.get(selectedGridId);
+  const baseSupplies = Array.isArray(grid.supplies_needed) ? grid.supplies_needed : [];
+  const updatedSupplies = [...baseSupplies];
 
       for (const supply of supplies) {
         const existingSupplyIndex = updatedSupplies.findIndex(s => s.name === supply.name);
