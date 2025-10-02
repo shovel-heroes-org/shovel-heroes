@@ -13,7 +13,13 @@ const CreateSchema = z.object({
   equipment: z.array(z.string()).optional(),
   status: z.string().optional(),
   notes: z.string().optional()
-});
+}).refine(
+  (data) => data.user_id || data.volunteer_name,
+  {
+    message: 'Either user_id or volunteer_name must be provided for registration',
+    path: ['user_id']
+  }
+);
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
   app.get('/volunteer-registrations', async () => {
