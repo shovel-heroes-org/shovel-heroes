@@ -75,6 +75,52 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
   const [currentUser, setCurrentUser] = useState(null);
   const [addressQuery, setAddressQuery] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || window?.__TURNSTILE_SITE_KEY__;
+
+  // Load Cloudflare Turnstile script when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!turnstileSiteKey) return; // no site key configured
+    if (typeof window === 'undefined') return;
+    if (window.turnstile) {
+      // Already loaded, render widget (defer to next tick)
+      setTimeout(() => {
+        const container = document.getElementById('turnstile-widget-add-grid');
+        if (container && !container.dataset.rendered) {
+          window.turnstile.render('#turnstile-widget-add-grid', {
+            sitekey: turnstileSiteKey,
+            callback: (token) => setTurnstileToken(token),
+            'error-callback': () => setTurnstileToken(''),
+            'expired-callback': () => setTurnstileToken(''),
+          });
+          container.dataset.rendered = 'true';
+        }
+      }, 0);
+      return;
+    }
+    // Dynamically inject script
+    const scriptId = 'turnstile-script';
+    if (!document.getElementById(scriptId)) {
+      const s = document.createElement('script');
+      s.id = scriptId;
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__turnstileOnLoad';
+      s.async = true;
+      window.__turnstileOnLoad = () => {
+        const container = document.getElementById('turnstile-widget-add-grid');
+        if (container && !container.dataset.rendered) {
+          window.turnstile.render('#turnstile-widget-add-grid', {
+            sitekey: turnstileSiteKey,
+            callback: (token) => setTurnstileToken(token),
+            'error-callback': () => setTurnstileToken(''),
+            'expired-callback': () => setTurnstileToken(''),
+          });
+          container.dataset.rendered = 'true';
+        }
+      };
+      document.head.appendChild(s);
+    }
+  }, [isOpen, turnstileSiteKey]);
 
   useEffect(() => {
     // Re-initialize Leaflet icons when the modal is open
@@ -199,6 +245,10 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       setError('請填寫完整資訊（包含聯絡資訊）。');
       return;
     }
+    if (turnstileSiteKey && !turnstileToken) {
+      setError('請先完成機器人驗證 (Turnstile)。');
+      return;
+    }
     
     // Check for duplicate grid code
     try {
@@ -244,7 +294,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       }
       // 注意：不設置 grid_manager_id 時，該欄位將為空
       
-      await Grid.create(payload);
+      await Grid.create({ ...payload, __turnstile_token: turnstileToken });
       onSuccess();
     } catch (err) {
       console.error('Failed to create grid:', err);
@@ -361,14 +411,20 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
           </div>
         </div>
+        {turnstileSiteKey && (
+          <div className="mt-2 flex flex-col items-center space-y-1">
+            <div id="turnstile-widget-add-grid" className="" />
+            {!turnstileToken && <p className="text-xs text-gray-500">請完成下方的驗證以啟用建立按鈕。</p>}
+          </div>
+        )}
         {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
         <DialogFooter className="mt-6 flex flex-col items-stretch space-y-2">
           <div className="flex justify-end gap-2 w-full">
             <Button variant="outline" onClick={onClose}>取消</Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !currentUser}
-              className={!currentUser ? 'bg-gray-400 cursor-not-allowed' : ''}
+              disabled={submitting || !currentUser || (turnstileSiteKey && !turnstileToken)}
+              className={!currentUser || (turnstileSiteKey && !turnstileToken) ? 'bg-gray-400 cursor-not-allowed' : ''}
             >
               {submitting ? '建立中...' : '建立網格'}
             </Button>
