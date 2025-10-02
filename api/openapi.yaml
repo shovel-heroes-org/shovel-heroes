@@ -1,40 +1,51 @@
 openapi: 3.1.0
 info:
-  title: Shovel Heroes API
-  description: >
+  title: Shovel Heroes Public API
+  version: 0.1.0
+  description: |
+    REST endpoints replacing previous Base44 SDK usage.
+    This spec is inferred from the frontend code. Adjust field types and required properties to match your backend.
+    
     API for disaster relief coordination: tasks, volunteer sign-ups, check-ins, and resource points.
     Includes server-side rate limiting, idempotent POSTs, and security headers guidance.
-  version: 0.1.0
   contact:
     name: Maintainers
     email: shovel-heroes@noreply.github.com
 servers:
-  - url: https://api.shovel-heroes.example.org
-    description: Production (placeholder)
-  - url: https://staging.api.shovel-heroes.example.org
-    description: Staging (placeholder)
+  - url: https://your.api.server
+    description: Production
+  - url: http://localhost:8787
+    description: Local Dev
 
 tags:
+  - name: DisasterAreas
+    description: 災區相關查詢與維護
+  - name: Grids
+    description: 救援/資源網格 CRUD 與狀態
+  - name: VolunteerRegistrations
+    description: 志工報名與取消
+  - name: SupplyDonations
+    description: 物資捐贈紀錄
+  - name: GridDiscussions
+    description: 網格討論留言
+  - name: Announcements
+    description: 系統公告 / 廣播訊息
+  - name: Volunteers
+    description: 志工名單或聚合資訊
+  - name: Users
+    description: 使用者與登入資訊
+  - name: Functions
+    description: 匯入匯出 / 後端批次或延伸功能
+  - name: Legacy
+    description: 與舊系統資料同步的 v2 相容端點
   - name: Health
     description: System health and status monitoring
   - name: Tasks
     description: Disaster relief task management
-  - name: Volunteers
-    description: Volunteer registration and management
   - name: Checkins
     description: Field check-in tracking for volunteers
   - name: ResourcePoints
     description: Resource point locations (shelters, supplies, medical)
-  - name: Announcements
-    description: System-wide announcements and safety information
-  - name: DisasterAreas
-    description: Disaster area management and geographic zones
-  - name: Grids
-    description: Work area subdivisions within disaster areas
-  - name: GridDiscussions
-    description: Communication and discussions within grids
-  - name: SupplyDonations
-    description: Supply donation tracking and coordination
 
 paths:
   /health:
@@ -515,27 +526,262 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /volunteer-registrations:
+    get:
+      summary: List volunteer registrations
+      description: 取得所有志工報名紀錄 (未加分頁僅示範)。
+      tags: [VolunteerRegistrations]
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/VolunteerRegistration' } } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      summary: Register volunteer
+      description: 志工報名參與指定網格。
+      tags: [VolunteerRegistrations]
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VolunteerRegistration' }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /volunteer-registrations/{id}:
+    delete:
+      summary: Cancel volunteer registration
+      description: 取消指定志工報名。
+      tags: [VolunteerRegistrations]
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { $ref: '#/components/schemas/ID' }
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /volunteers:
+    get:
+      summary: List volunteers
+      description: |
+        取得志工報名清單（整合報名與使用者呈現所需欄位）。
+        回傳封裝含 `data` 與 `can_view_phone` 供前端判斷是否顯示電話。
+        欄位 `created_date` 目前沿用前端既有命名；若要統一建議改為 `created_at` 並同步前端。
+      tags: [Volunteers]
+      parameters:
+        - name: grid_id
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ID' }
+          description: 過濾指定網格的志工
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/VolunteerStatus' }
+          description: 過濾指定狀態
+        - name: include_counts
+          in: query
+          required: false
+          schema: { type: boolean, default: true }
+          description: 是否回傳狀態統計 `status_counts`
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolunteersListResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /users:
+    get:
+      summary: List users
+      description: 取得使用者列表 (需權限)。
+      tags: [Users]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /me:
+    get:
+      summary: Get current user
+      description: 回傳目前登入的使用者資訊。
+      tags: [Users]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /functions/fix-grid-bounds:
+    post:
+      summary: Normalize / repair stored grid bounds
+      description: 批次修正網格邊界 (僅管理維運)。
+      tags: [Functions]
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200': { description: Done }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /functions/export-grids-csv:
+    get:
+      summary: Export grids as CSV
+      description: 匯出所有網格資料為 CSV 檔。
+      tags: [Functions]
+      responses:
+        '200':
+          description: CSV content
+          content:
+            text/csv:
+              schema: { type: string, description: CSV text }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /functions/import-grids-csv:
+    post:
+      summary: Import grids from CSV content
+      description: 從 CSV 內容匯入 / 更新網格。
+      tags: [Functions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                csv: { type: string }
+              required: [csv]
+      responses:
+        '200': { description: Import result }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /functions/grid-template:
+    get:
+      summary: Download blank grid template CSV
+      description: 下載空白網格匯入範本。
+      tags: [Functions]
+      responses:
+        '200': { description: CSV }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /functions/external-grid-api:
+    post:
+      summary: Proxy / external grid API call
+      description: 代理對外部網格系統的呼叫。
+      tags: [Functions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /functions/external-volunteer-api:
+    post:
+      summary: Proxy / external volunteer API call
+      description: 代理對外部志工系統的呼叫。
+      tags: [Functions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v2/sync:
+    post:
+      summary: Sync legacy data (v2)
+      description: 與舊版系統同步資料 (可能為非同步背景作業)。
+      tags: [Legacy]
+      responses:
+        '200': { description: Sync started }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v2/roster:
+    get:
+      summary: Get roster (v2)
+      description: 取得舊系統格式之 roster 資料。
+      tags: [Legacy]
+      responses:
+        '200': { description: OK }
+        '500': { $ref: '#/components/responses/InternalError' }
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token for authenticated requests
+
+  parameters:
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+      description: 單頁筆數 (預設 50, 上限 200)
+    PageOffset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: 起始位移 (用於分頁)
 
   responses:
+    Unauthorized:
+      description: 未授權 (需要 Bearer Token)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 找不到資源
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: 請求參數或內容驗證失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: 伺服器內部錯誤
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     BadRequest:
       description: Invalid request parameters or body
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    Unauthorized:
-      description: Authentication required or invalid token
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    NotFound:
-      description: Resource not found
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -550,6 +796,232 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    ID:
+      type: string
+      description: 唯一識別字串 (UUID、ULID 或資料庫主鍵)
+      example: "grid_01HZYQ9W123ABCDEF"
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 時間戳記 (UTC)
+      example: "2025-10-02T08:12:30Z"
+    SupplyNeed:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 需求物資名稱
+          example: 鋤頭
+        quantity:
+          type: integer
+          description: 需求總數量
+          example: 20
+        unit:
+          type: string
+          description: 數量單位
+          example: 支
+        received:
+          type: integer
+          description: 已收到的數量
+          default: 0
+          example: 5
+      required: [name, quantity, unit]
+    VolunteerRegistration:
+      type: object
+      description: 志工報名原始紀錄 (對應 Base44 VolunteerRegistration)
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        grid_id:
+          $ref: '#/components/schemas/ID'
+        volunteer_name:
+          type: string
+          description: 報名者名稱
+          example: 王銓詰
+        volunteer_phone:
+          type: string
+          nullable: true
+          description: 電話 (可能缺省或僅內部可見)
+          example: "0912345678"
+        volunteer_email:
+          type: string
+          nullable: true
+          description: 電子郵件
+          example: volunteer@example.org
+        available_time:
+          type: string
+          nullable: true
+          description: 可服務時間文字
+          example: 2025/10/04 上午12:00
+        skills:
+          type: array
+          description: 技能列表
+          items:
+            type: string
+          example:
+            - EMT-1
+            - 打掃
+        equipment:
+          type: array
+          description: 攜帶工具
+          items:
+            type: string
+          example:
+            - 雨鞋
+            - 鏟子
+        status:
+          $ref: '#/components/schemas/VolunteerStatus'
+        check_in_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 報到時間 (若已報到)
+          example: 2025-10-01T09:00:00Z
+        notes:
+          type: string
+          nullable: true
+          description: 備註
+          example: 需要手套
+        created_by_id:
+          $ref: '#/components/schemas/ID'
+        created_by:
+          type: string
+          description: 建立者 (email)
+          example: kuo.tanya@gmail.com
+        is_sample:
+          type: boolean
+          description: 是否示範資料
+          example: false
+        created_date:
+          $ref: '#/components/schemas/Timestamp'
+        updated_date:
+          $ref: '#/components/schemas/Timestamp'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+      required: [id, grid_id, volunteer_name, status]
+    ExternalLink:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 連結名稱
+          example: 防災整合地圖
+        url:
+          type: string
+          format: uri
+          description: 連結 URL
+          example: https://reurl.cc/9nNjqO
+      required: [name, url]
+    User:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          type: string
+          description: 使用者顯示名稱
+          example: 林志工
+        email:
+          type: string
+          format: email
+          description: 使用者電子郵件
+          example: volunteer@example.org
+      required: [id]
+    VolunteerStatus:
+      type: string
+      description: 志工報名狀態
+      enum: [pending, confirmed, arrived, completed, cancelled]
+      example: pending
+    VolunteerListItem:
+      type: object
+      description: 志工報名清單中每一筆資料 (結合報名 + 呈現所需欄位)
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        grid_id:
+          $ref: '#/components/schemas/ID'
+        user_id:
+          $ref: '#/components/schemas/ID'
+        volunteer_name:
+          type: string
+          description: 志工顯示名稱 (可能從使用者或表單輸入取得)
+          example: 張小強
+        volunteer_phone:
+          type: string
+          nullable: true
+          description: 志工電話號碼；若 `can_view_phone=false` 時後端可直接省略或回傳遮蔽版本
+          example: 0912-345-678
+        status:
+          $ref: '#/components/schemas/VolunteerStatus'
+        available_time:
+          type: string
+          nullable: true
+          description: 可服務時間文字描述
+          example: 10/3 上午或 10/4 全天
+        skills:
+          type: array
+          description: 自述技能 (字串列表)
+          items:
+            type: string
+          example:
+            - 挖土機
+            - 醫療志工
+        equipment:
+          type: array
+          description: 可攜帶工具 (字串列表)
+          items:
+            type: string
+          example:
+            - 鐵鏟
+            - 手推車
+        notes:
+          type: string
+          nullable: true
+          description: 其他備註
+          example: 需要協助調度交通
+        created_date:
+          type: string
+          format: date-time
+          description: 報名建立時間 (命名沿用前端使用字段; 與其他資源的 created_at 不同)
+          example: 2025-10-02T08:12:30Z
+      required: [id, grid_id, user_id, volunteer_name, status, created_date]
+    VolunteersListResponse:
+      type: object
+      description: 志工清單回應外層封裝
+      properties:
+        data:
+          type: array
+          description: 志工報名資料陣列
+          items:
+            $ref: '#/components/schemas/VolunteerListItem'
+        can_view_phone:
+          type: boolean
+          description: 是否允許前端顯示 `volunteer_phone`；由後端依角色授權判斷
+          example: true
+        total:
+          type: integer
+          description: 總筆數 (分頁時可用)
+          example: 128
+        status_counts:
+          type: object
+          description: 各狀態統計 (若 `include_counts=true` 或後端預設回傳)
+          properties:
+            pending: { type: integer, example: 12 }
+            confirmed: { type: integer, example: 34 }
+            arrived: { type: integer, example: 8 }
+            completed: { type: integer, example: 55 }
+            cancelled: { type: integer, example: 19 }
+        page:
+          type: integer
+          description: 目前頁碼 (可選, 若採用 page 模式)
+          example: 1
+        limit:
+          type: integer
+          description: 單頁筆數 (對應查詢參數)
+          example: 50
+      required: [data, can_view_phone]
     Task:
       type: object
       required: [id, title, status, location]
@@ -856,79 +1328,76 @@ components:
 
     DisasterArea:
       type: object
-      required: [id, name, township, county, center_lat, center_lng]
       properties:
         id:
-          type: string
-          description: Unique disaster area identifier
+          $ref: '#/components/schemas/ID'
         name:
           type: string
-          maxLength: 200
-          description: Disaster area name
+          description: 災區名稱
+          example: 光復鄉重災區
         township:
           type: string
-          maxLength: 100
-          description: Township name
+          description: 行政區 (鄉/鎮)
+          example: 光復鄉
         county:
           type: string
-          maxLength: 100
-          description: County name
+          description: 縣市名稱
+          example: 花蓮縣
         center_lat:
           type: number
-          minimum: -90
-          maximum: 90
-          description: Center latitude
+          format: double
+          description: 災區中心點緯度
+          example: 23.8751
         center_lng:
           type: number
-          minimum: -180
-          maximum: 180
-          description: Center longitude
+          format: double
+          description: 災區中心點經度
+          example: 121.578
         bounds:
           type: object
-          nullable: true
+          description: 災區邊界 (近似方形) 用於地圖顯示
           properties:
-            north: { type: number, minimum: -90, maximum: 90 }
-            south: { type: number, minimum: -90, maximum: 90 }
-            east: { type: number, minimum: -180, maximum: 180 }
-            west: { type: number, minimum: -180, maximum: 180 }
-          description: Geographic boundaries
+            north: { type: number, example: 23.6705 }
+            south: { type: number, example: 23.6505 }
+            east: { type: number, example: 121.4325 }
+            west: { type: number, example: 121.4125 }
+          required:
+            - north
+            - south
+            - east
+            - west
         grid_size:
-          type: number
-          default: 200
-          description: Grid size in meters
+          type: integer
+          description: 建議網格尺寸 (公尺)
+          example: 200
         status:
           type: string
-          enum: [active, closed, preparing]
-          default: active
-          description: Disaster area status
+          description: 災區狀態 (Base44 目前觀察為 active)
+          enum: [active]
+          example: active
         description:
           type: string
-          maxLength: 1000
-          nullable: true
-          description: Area description
+          description: 災區描述與備註
+          example: 包含馬太鞍部落、佛祖街、自強路、武昌街等重災區域
+        created_by_id:
+          $ref: '#/components/schemas/ID'
+        created_by:
+          type: string
+          description: 建立者識別 (可能為 email)
+          example: kuo.tanya@gmail.com
+        is_sample:
+          type: boolean
+          description: 是否為示範資料
+          example: false
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
         created_date:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/Timestamp'
         updated_date:
-          type: string
-          format: date-time
-      example:
-        id: "68dd5b134d9b649333f2a360"
-        name: "花蓮市區"
-        township: "花蓮市"
-        county: "花蓮縣"
-        center_lat: 23.6605
-        center_lng: 121.4225
-        bounds:
-          north: 23.6705
-          south: 23.6505
-          east: 121.4325
-          west: 121.4125
-        grid_size: 200
-        status: "active"
-        description: "花蓮市中心區域災害救援區"
-        created_date: "2025-10-01T16:47:15.330Z"
-        updated_date: "2025-10-01T16:47:15.330Z"
+          $ref: '#/components/schemas/Timestamp'
+      required: [id, name, center_lat, center_lng]
 
     Grid:
       type: object
