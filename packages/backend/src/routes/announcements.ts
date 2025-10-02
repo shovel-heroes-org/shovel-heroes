@@ -1,16 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
+import { requireAuth, optionalAuth, type AuthenticatedRequest } from '../lib/auth.js';
 import { z } from 'zod';
 
 const CreateSchema = z.object({ title: z.string(), body: z.string() });
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
-  app.get('/announcements', async () => {
+  // Public read access to view announcements
+  app.get('/announcements', { preHandler: optionalAuth }, async () => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY created_at DESC');
     return rows;
   });
-  app.post('/announcements', async (req, reply) => {
+
+  // Require auth for creating announcements (admin only in production)
+  app.post('/announcements', { preHandler: requireAuth }, async (req: AuthenticatedRequest, reply) => {
     const parsed = CreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
