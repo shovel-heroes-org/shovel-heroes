@@ -40,6 +40,59 @@ VITE_API_BASE=http://localhost:8787
 
 > 後端若 8787 被占用會往上遞增（8788 / 8789 ...）請同步調整 `VITE_API_BASE`。
 
+
+---
+
+## 前端開發快速指引
+
+### 環境設定
+```bash
+# 1. 複製環境變數
+cp .env.example .env
+
+# 2. 安裝依賴
+npm install
+
+# 3. 啟動開發 (二選一)
+npm run dev:mock    # Mock Server (快速開發,無需資料庫)
+npm run dev:api     # 真實後端 (需先啟動 docker compose up -d db)
+
+# 4. 啟動前端
+npm run dev         # http://localhost:5173
+```
+
+### 技術棧
+- **框架**: Vite + React 18 + React Router v6
+- **UI**: Tailwind CSS + shadcn/ui (Radix UI)
+- **地圖**: Leaflet + react-leaflet v4
+- **表單**: React Hook Form + Zod
+- **API**: REST (可切換 Mock/真實後端)
+
+### 專案結構
+```
+src/
+├── pages/          # 頁面元件 (Map, Volunteers, Admin...)
+├── components/     # UI 元件 (shadcn/ui)
+├── api/            # API 呼叫層
+│   └── rest/       # REST 實作
+├── hooks/          # React Hooks
+└── utils/          # 工具函式
+```
+
+### 常用指令
+```bash
+npm run dev              # 前端開發伺服器
+npm run dev:mock         # Mock API (port 8787)
+npm run dev:api          # 真實後端 (port 8787)
+npm run lint             # ESLint 檢查
+npm run openapi:preview  # API 文件 (port 8080)
+npm run types:openapi    # 產生 TypeScript 型別
+```
+
+### 除錯
+- **型別錯誤**: 重新執行 `npm run types:openapi`
+- **Mock Server 401**: 確認 `api-spec/openapi.yaml` 的 `security` 已註解
+
 ---
 
 ## 後端環境變數
