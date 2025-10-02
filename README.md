@@ -42,6 +42,30 @@ VITE_API_BASE=http://localhost:8787
 
 ---
 
+## 前端開發快速指引
+
+### 環境設定
+```bash
+# 1. 複製環境變數
+cp .env.example .env
+
+# 2. 安裝依賴
+npm install
+
+# 3. 啟動開發 (二選一)
+npm run dev:mock    # Mock Server (快速開發,無需資料庫)
+npm run dev:api     # 真實後端 (需先啟動 docker compose up -d db)
+
+# 4. 啟動前端
+npm run dev         # http://localhost:5173
+```
+
+### 除錯
+- **型別錯誤**: 重新執行 `npm run types:openapi`
+- **Mock Server 401**: 確認 `api-spec/openapi.yaml` 的 `security` 已註解
+
+---
+
 ## 後端環境變數
 
 根目錄或 `packages/backend/.env` 任一可被 dotenv 讀取：
