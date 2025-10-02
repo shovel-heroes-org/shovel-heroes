@@ -26,6 +26,8 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # frame-ancestors 必須透過 HTTP header 設定（meta 標籤無效）
+    Content-Security-Policy = "frame-ancestors 'self'"
 
 # 快取策略 - JavaScript 和 CSS
 [[headers]]
