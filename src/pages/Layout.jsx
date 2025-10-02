@@ -117,9 +117,13 @@ export default function Layout({ children, currentPageName }) {
               <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-white" />
               </div>
-              <div className="hidden sm:block">
+              <div className="block md:hidden">
                 <h1 className="text-xl font-bold text-gray-900">鏟子英雄</h1>
                 <p className="text-xs text-gray-500">花蓮颱風救援對接</p>
+              </div>
+              <div className="hidden md:block">
+                <h1 className="text-xl font-bold text-gray-900 hidden title:block">鏟子英雄</h1>
+                <p className="text-xs text-gray-500 hidden subtitle:block">花蓮颱風救援對接</p>
               </div>
             </Link>
 
