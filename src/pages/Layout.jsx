@@ -107,9 +107,9 @@ export default function Layout({ children, currentPageName }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
@@ -131,11 +131,10 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     key={item.name}
                     to={item.url}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
-                      isActive(item.url)
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${isActive(item.url)
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                      }`}
                   >
                     <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
@@ -202,11 +201,10 @@ export default function Layout({ children, currentPageName }) {
                     key={item.name}
                     to={item.url}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`block px-4 py-3 rounded-lg text-sm font-medium flex items-center space-x-3 ${
-                      isActive(item.url)
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-                    }`}
+                    className={`block px-4 py-3 rounded-lg text-sm font-medium flex items-center space-x-3 ${isActive(item.url)
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span>{item.name}</span>
@@ -224,14 +222,14 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200">
+      <footer className="bg-white border-t border-gray-200 relative z-[100] flex-shrink-0 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">
                 <MapPin className="w-4 h-4 text-white" />
               </div>
-              <span className="text-sm text-gray-600">花蓮颱風救援對接系統 © 2024</span>
+              <span className="text-sm text-gray-600">花蓮颱風救援對接系統 © 2025</span>
             </div>
             <div className="text-xs text-gray-500 text-center md:text-right space-y-1">
               <div>緊急連絡：119 消防局 | 1999 市民熱線</div>
