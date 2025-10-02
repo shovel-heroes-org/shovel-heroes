@@ -640,8 +640,8 @@ export default function MapPage() {
               preferCanvas={true}
             >
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://maps.nlsc.gov.tw/">國土測繪中心</a>'
+                url="https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}"
                 updateWhenZooming={false}
                 keepBuffer={2}
               />
