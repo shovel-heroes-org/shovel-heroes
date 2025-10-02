@@ -5,7 +5,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  // Ignore build output folders everywhere
+  { ignores: ['dist', '**/dist/**'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
@@ -33,6 +34,14 @@ export default [
         'warn',
         { allowConstantExport: true },
       ],
+      // Disable prop-types enforcement since project uses TypeScript-generated types / not using prop-types
+      'react/prop-types': 'off',
+      // User request: disable unused vars rule (may hide real issues; consider re‑enabling later)
+      'no-unused-vars': 'off',
+      // User request: disable undefined variable check (environment globals like process, require)
+      'no-undef': 'off',
+      // User request: allow custom / non-standard jsx attributes (e.g. cmdk-* or toast-* data hooks)
+      'react/no-unknown-property': 'off',
     },
   },
 ]
