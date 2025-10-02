@@ -23,6 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 
+# AI Assistant personal settings (contains user-specific configurations)
+.claude/
+.cursor/settings.json
+.cursor/settings.local.json
+.cursor/workspace.json
+
+# Allow .cursor/rules/ for team-shared development rules
+!.cursor/rules/
+
 .env
 
 # 臨時掃描檔案 (Security scan temporary files)

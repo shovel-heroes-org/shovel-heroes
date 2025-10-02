@@ -1,0 +1,32 @@
+# Commit 訊息格式 (彈性使用，任何清楚的描述都可以)
+#
+# 建議格式 (可選):
+# <type>(<scope>): <subject>
+# <type>: <subject>
+# <clear description>
+# <中文描述>
+
+# 主要類型 (建議但不強制):
+# feat:     新功能 / 新增功能
+# fix:      錯誤修復 / 修復問題
+# docs:     文檔更新 / 文件修改
+
+# 其他類型 (完全可選):
+# style, refactor, perf, test, chore, ci
+
+# 範圍 (完全可選):
+# docs, security, api, ui, auth, db, config, deps
+
+# 多種有效格式範例:
+# feat(auth): add OAuth2 integration
+# fix: resolve login bug
+# docs: update API documentation
+# 新增 UUID 產生工具
+# Update README.md
+# Implement user registration feature
+
+# 破壞性變更 (重要):
+# feat!: remove deprecated API
+# BREAKING CHANGE: API v1 is no longer supported
+
+# 注意: 只要描述清楚變更內容即可，格式不是重點
