@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mail, Star, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Mail, Star, ExternalLink, AlertTriangle, MessageCircle } from 'lucide-react';
 
 export default function AboutPage() {
   return (
@@ -21,7 +21,7 @@ export default function AboutPage() {
           <Card className="hover:shadow-lg transition-shadow duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <Mail className="w-6 h-6 text-orange-500" />
+                <MessageCircle className="w-6 h-6 text-orange-500" />
                 <span className="text-2xl font-bold">聯絡我們</span>
               </CardTitle>
             </CardHeader>
@@ -29,11 +29,17 @@ export default function AboutPage() {
               <p className="text-gray-600">
                 如果您有任何問題、建議或合作邀請，歡迎透過以下方式聯絡我們：
               </p>
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <p className="font-semibold text-gray-800">平台管理員</p>
-                <a href="mailto:tanya.ty.guo@gmail.com" className="flex items-center gap-2 text-orange-600 hover:text-orange-700">
-                  <Mail className="w-4 h-4" />
-                  <span>tanya.ty.guo@gmail.com</span>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="font-semibold text-gray-800 mb-3">平台管理員</p>
+                <a
+                  href="https://forms.gle/SjaLLGNSNvgj4Sjy5"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    <Mail className="w-4 h-4 mr-2" />
+                    透過表單聯絡我們
+                  </Button>
                 </a>
               </div>
               <p className="text-sm text-gray-500">
