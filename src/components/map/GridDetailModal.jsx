@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info" }) {
+  // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
+  if (!Array.isArray(grid.supplies_needed)) {
+    grid = { ...grid, supplies_needed: [] };
+  }
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [volunteerForm, setVolunteerForm] = useState({
     volunteer_name: "",
