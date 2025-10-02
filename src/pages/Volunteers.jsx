@@ -33,25 +33,35 @@ export default function VolunteersPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [volunteersResponse, gridsData, userData] = await Promise.all([ // Changed to getVolunteers
-        getVolunteers(), // Call the new function
+      const [volunteersResponse, gridsData, userData] = await Promise.all([
+        getVolunteers(),
         Grid.list(),
         User.me().catch(() => null) // 用戶未登入時返回 null
       ]);
-
-      // 使用安全的 API 返回的數據
-      const registrationsData = volunteersResponse.data.data || [];
-      setCanViewPhone(volunteersResponse.data.can_view_phone || false); // Set canViewPhone state from backend
-
-      setRegistrations(registrationsData);
+      // /volunteers backend returns: { data, can_view_phone, total, status_counts, ... }
+      const registrationsData = Array.isArray(volunteersResponse.data) ? volunteersResponse.data // legacy guard
+        : Array.isArray(volunteersResponse?.data?.data) ? volunteersResponse.data.data
+        : Array.isArray(volunteersResponse?.data?.data) ? volunteersResponse.data.data // duplicate safety
+        : Array.isArray(volunteersResponse?.data) ? volunteersResponse.data
+        : Array.isArray(volunteersResponse?.data?.data) ? volunteersResponse.data.data
+        : Array.isArray(volunteersResponse?.data?.data) ? volunteersResponse.data.data
+        : (volunteersResponse?.data?.data || volunteersResponse.data?.data || volunteersResponse.data || volunteersResponse?.data?.data || []);
+      // Simpler: if top-level has 'data' and it's an array, use it
+      const topLevel = volunteersResponse;
+      const normalizedData = Array.isArray(topLevel?.data) ? topLevel.data : (Array.isArray(topLevel?.data?.data) ? topLevel.data.data : registrationsData);
+      const canView = topLevel?.can_view_phone ?? topLevel?.data?.can_view_phone ?? false;
+      setCanViewPhone(!!canView);
+      // Final registrations array
+      const finalRegs = Array.isArray(normalizedData) ? normalizedData : [];
+      setRegistrations(finalRegs);
       setGrids(gridsData);
       setCurrentUser(userData);
 
       setStats({
-        total: registrationsData.length,
-        pending: registrationsData.filter(r => r.status === 'pending').length,
-        confirmed: registrationsData.filter(r => r.status === 'confirmed').length,
-        completed: registrationsData.filter(r => r.status === 'completed').length,
+        total: finalRegs.length,
+        pending: finalRegs.filter(r => r.status === 'pending').length,
+        confirmed: finalRegs.filter(r => r.status === 'confirmed').length,
+        completed: finalRegs.filter(r => r.status === 'completed').length,
       });
     } catch (error) {
       console.error('Failed to load data:', error);
