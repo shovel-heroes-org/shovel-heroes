@@ -45,7 +45,7 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
   app.get('/volunteers', async (req: any, reply) => {
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
 
-    const { grid_id, status, limit = 200, offset = 0, include_counts = 'true' } = req.query as any;
+    const { grid_id, status, limit = 200, page = 1, include_counts = 'true' } = req.query as any;
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -74,7 +74,7 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
       ORDER BY vr.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    params.push(Number(limit), Number(offset));
+    params.push(Number(limit), Number(page - 1) * Number(limit));
 
     const { rows } = await app.db.query(sql, params) as { rows: RawRow[] };
 
@@ -99,18 +99,20 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
 
     let status_counts: any = undefined;
     if (include_counts !== 'false') {
-      // Aggregate counts by status dynamically
-      const counts: Record<string, number> = {};
-      for (const d of data) {
-        counts[d.status] = (counts[d.status] || 0) + 1;
-      }
+      const statusCountSql = `
+      SELECT status, COUNT(*)::int AS count
+      FROM volunteer_registrations vr
+      ${where}
+      GROUP BY status
+      `;
+      const { rows: statusRows } = await app.db.query(statusCountSql, params.slice(0, params.length - 2));
       status_counts = {
         pending: 0,
         confirmed: 0,
         arrived: 0,
         completed: 0,
         cancelled: 0,
-        ...counts
+        ...Object.fromEntries(statusRows.map(r => [r.status, r.count]))
       };
     }
 
@@ -120,6 +122,6 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const { rows: countRows } = await app.db.query(countSql, params.slice(0, params.length - 2));
     const total = countRows[0]?.c ?? data.length;
 
-    return { data, can_view_phone, total, status_counts, limit: Number(limit), page: Math.floor(Number(offset) / Number(limit)) + 1 };
+    return { data, can_view_phone, total, status_counts, limit: Number(limit), page: Number(page) };
   });
 }
