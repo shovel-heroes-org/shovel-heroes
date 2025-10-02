@@ -1,4 +1,29 @@
 import React, { useState, useEffect } from "react";
+// UUID 產生工具
+function getOrCreateUUID() {
+  const key = 'shovel_heroes_uuid';
+  let uuid = localStorage.getItem(key);
+  if (!uuid) {
+    uuid = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+    localStorage.setItem(key, uuid);
+  }
+  return uuid;
+}
+
+function canSubmitRequest() {
+  const uuid = getOrCreateUUID();
+  const lastKey = `shovel_heroes_last_submit_${uuid}`;
+  const last = localStorage.getItem(lastKey);
+  if (!last) return true;
+  // 10分鐘內不可重複送出
+  return (Date.now() - Number(last)) > 10 * 60 * 1000;
+}
+
+function markRequestSubmitted() {
+  const uuid = getOrCreateUUID();
+  const lastKey = `shovel_heroes_last_submit_${uuid}`;
+  localStorage.setItem(lastKey, Date.now().toString());
+}
 import { DisasterArea, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AddGridModal from "@/components/admin/AddGridModal";
@@ -10,6 +35,7 @@ export default function RequestHelpPage() {
   const [showModal, setShowModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitBlocked, setSubmitBlocked] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,13 +52,17 @@ export default function RequestHelpPage() {
         setUser(null);
       } finally {
         setLoading(false);
+        // 檢查是否可送出
+        setSubmitBlocked(!canSubmitRequest());
       }
     };
     loadData();
   }, []);
 
+  // 申請成功後，記錄送出時間
   const handleSuccess = () => {
     setShowModal(false);
+    markRequestSubmitted();
     // 成功後跳轉到救援地圖
     window.location.href = '/pages/Map';
   };
@@ -117,11 +147,12 @@ export default function RequestHelpPage() {
                   onClick={() => setShowModal(true)}
                   size="lg"
                   className="bg-orange-600 hover:bg-orange-700 text-white text-lg px-8 py-4 h-auto"
+                  disabled={submitBlocked}
+                  title={submitBlocked ? '請稍後再送出申請（10分鐘內僅限一次）' : ''}
                 >
                   <UserPlus className="w-5 h-5 mr-3" />
                   立即申請人力支援
                 </Button>
-                
                 {!user && (
                   <Button
                     onClick={() => User.login()}
@@ -187,6 +218,7 @@ export default function RequestHelpPage() {
           onClose={() => setShowModal(false)}
           onSuccess={handleSuccess}
           disasterAreas={disasterAreas}
+          userUUID={!user ? getOrCreateUUID() : undefined}
         />
       )}
     </div>
