@@ -6,7 +6,14 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: true
+    allowedHosts: true,
+    // Security headers for development
+    // Production headers should be set at web server level (nginx/apache)
+    headers: {
+      'X-Frame-Options': 'SAMEORIGIN',
+      'X-Content-Type-Options': 'nosniff',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=()',
+    }
   },
   resolve: {
     alias: {
