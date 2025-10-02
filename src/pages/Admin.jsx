@@ -74,8 +74,20 @@ export default function AdminPage() {
       setRegistrations(registrationsData || []);
       setDonations(donationsData || []);
 
-      // Use the user data returned by the backend (already permission checked)
-      setAllUsers(usersResponse.data.data || []); // Adjusted to access data property
+      // Normalize /users response: backend currently returns a plain array (no wrapper)
+      const normalizedUsers = Array.isArray(usersResponse)
+        ? usersResponse
+        : Array.isArray(usersResponse?.data)
+          ? usersResponse.data
+          : Array.isArray(usersResponse?.data?.data)
+            ? usersResponse.data.data
+            : [];
+      // Ensure consistent shape (full_name fallback)
+      const safeUsers = normalizedUsers.map(u => ({
+        ...u,
+        full_name: u.full_name || u.name || u.email || '未命名用戶'
+      }));
+      setAllUsers(safeUsers);
 
       // Calculate stats
       const completedGrids = (gridsData || []).filter(g => g.status === 'completed').length;
