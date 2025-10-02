@@ -42,16 +42,19 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const sql = `SELECT vr.id, vr.grid_id, vr.user_id, vr.created_at,
-            COALESCE(vr.volunteer_name, u.name) AS volunteer_name,
-            vr.volunteer_phone, vr.volunteer_email, vr.available_time,
-            vr.skills, vr.equipment, vr.status, vr.notes,
-            u.name as user_name, u.email as user_email
-                 FROM volunteer_registrations vr
-                 LEFT JOIN users u ON u.id = vr.user_id
-                 ${where}
-                 ORDER BY vr.created_at DESC
-                 LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    const sql = `
+      SELECT
+        vr.id, vr.grid_id, vr.user_id, vr.created_at,
+        COALESCE(vr.volunteer_name, u.name) AS volunteer_name,
+        vr.volunteer_phone, vr.volunteer_email, vr.available_time,
+        vr.skills, vr.equipment, vr.status, vr.notes,
+        u.name as user_name, u.email as user_email
+      FROM volunteer_registrations vr
+      LEFT JOIN users u ON u.id = vr.user_id
+      ${where}
+      ORDER BY vr.created_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
     params.push(Number(limit), Number(offset));
 
     const { rows } = await app.db.query(sql, params) as { rows: RawRow[] };
@@ -61,27 +64,45 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const can_view_phone = Boolean(auth); // integrate real auth/roles later
 
     // Map rows to VolunteerListItem spec shape.
-    const data = rows.map(r => ({
-      id: r.id,
-      grid_id: r.grid_id,
-      user_id: r.user_id || undefined,
-      volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
-      volunteer_phone: can_view_phone ? r.volunteer_phone : undefined,
-      status: r.status || 'pending',
-      available_time: r.available_time,
-      skills: Array.isArray(r.skills) ? r.skills : (r.skills ? r.skills : []),
-      equipment: Array.isArray(r.equipment) ? r.equipment : (r.equipment ? r.equipment : []),
-      notes: r.notes,
-      created_date: r.created_at
-    }));
+    const data = rows.map(r => {
+      const skills = Array.isArray(r.skills)
+        ? r.skills
+        : (r.skills || []);
+
+      const equipment = Array.isArray(r.equipment)
+        ? r.equipment
+        : (r.equipment || []);
+
+      return {
+        id: r.id,
+        grid_id: r.grid_id,
+        user_id: r.user_id || undefined,
+        volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
+        volunteer_phone: can_view_phone ? r.volunteer_phone : undefined,
+        status: r.status || 'pending',
+        available_time: r.available_time,
+        skills,
+        equipment,
+        notes: r.notes,
+        created_date: r.created_at
+      };
+    });
 
     let status_counts: any = undefined;
     if (include_counts !== 'false') {
-      // Since all are pending currently
-  // Aggregate counts by status dynamically
-  const counts: Record<string, number> = {};
-  for (const d of data) counts[d.status] = (counts[d.status]||0)+1;
-  status_counts = { pending: 0, confirmed: 0, arrived: 0, completed: 0, cancelled: 0, ...counts };
+      // Aggregate counts by status dynamically
+      const counts: Record<string, number> = {};
+      for (const d of data) {
+        counts[d.status] = (counts[d.status] || 0) + 1;
+      }
+      status_counts = {
+        pending: 0,
+        confirmed: 0,
+        arrived: 0,
+        completed: 0,
+        cancelled: 0,
+        ...counts
+      };
     }
 
     // total (without pagination) - if full dataset small we can reuse data length else run count(*).

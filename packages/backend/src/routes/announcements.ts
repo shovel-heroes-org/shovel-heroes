@@ -28,7 +28,17 @@ export function registerAnnouncementRoutes(app: FastifyInstance) {
     const { rows } = await app.db.query(
       `INSERT INTO announcements (id, title, body, content, category, is_pinned, external_links, contact_phone, "order")
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [id, title, body, content||null, category||null, is_pinned||false, external_links?JSON.stringify(external_links):null, contact_phone||null, order||null]
+      [
+        id,
+        title,
+        body,
+        content || null,
+        category || null,
+        is_pinned || false,
+        external_links ? JSON.stringify(external_links) : null,
+        contact_phone || null,
+        order || null
+      ]
     );
     return reply.status(201).send(rows[0]);
   });
