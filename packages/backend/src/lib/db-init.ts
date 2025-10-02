@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS grids (
 CREATE TABLE IF NOT EXISTS volunteer_registrations (
   id TEXT PRIMARY KEY,
   grid_id TEXT NOT NULL REFERENCES grids(id) ON DELETE CASCADE,
+  -- user_id is nullable to allow anonymous volunteer registrations
+  -- Anonymous registrations must provide volunteer_name instead
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   volunteer_name TEXT,
   volunteer_phone TEXT,

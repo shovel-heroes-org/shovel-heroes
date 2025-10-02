@@ -14,12 +14,20 @@ interface RawRow {
   volunteer_phone: string | null;
   volunteer_email: string | null;
   available_time: string | null;
-  skills: any | null;
-  equipment: any | null;
+  skills: unknown | null;
+  equipment: unknown | null;
   status: string | null;
   notes: string | null;
   user_name: string | null;
   user_email: string | null;
+}
+
+/**
+ * Ensures a value is an array. If already an array, returns it.
+ * Otherwise returns an empty array.
+ */
+function ensureArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : (value || []);
 }
 
 export function registerVolunteersRoutes(app: FastifyInstance) {
@@ -64,29 +72,19 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const can_view_phone = Boolean(auth); // integrate real auth/roles later
 
     // Map rows to VolunteerListItem spec shape.
-    const data = rows.map(r => {
-      const skills = Array.isArray(r.skills)
-        ? r.skills
-        : (r.skills || []);
-
-      const equipment = Array.isArray(r.equipment)
-        ? r.equipment
-        : (r.equipment || []);
-
-      return {
-        id: r.id,
-        grid_id: r.grid_id,
-        user_id: r.user_id || undefined,
-        volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
-        volunteer_phone: can_view_phone ? r.volunteer_phone : undefined,
-        status: r.status || 'pending',
-        available_time: r.available_time,
-        skills,
-        equipment,
-        notes: r.notes,
-        created_date: r.created_at
-      };
-    });
+    const data = rows.map(r => ({
+      id: r.id,
+      grid_id: r.grid_id,
+      user_id: r.user_id || undefined,
+      volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
+      volunteer_phone: can_view_phone ? r.volunteer_phone : undefined,
+      status: r.status || 'pending',
+      available_time: r.available_time,
+      skills: ensureArray(r.skills),
+      equipment: ensureArray(r.equipment),
+      notes: r.notes,
+      created_date: r.created_at
+    }));
 
     let status_counts: any = undefined;
     if (include_counts !== 'false') {
