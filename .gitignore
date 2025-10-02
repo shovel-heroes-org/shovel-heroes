@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .env
+
+# 臨時掃描檔案 (Security scan temporary files)
+tmp/
+zap-reports/
