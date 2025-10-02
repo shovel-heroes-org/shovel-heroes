@@ -4,10 +4,21 @@ import { randomUUID } from 'crypto';
 export interface DisasterArea {
   id: string;
   name: string;
+  township?: string | null;
+  county?: string | null;
   center_lat: number;
   center_lng: number;
+  bounds?: any;
+  grid_size?: number | null;
+  status?: string;
+  description?: string | null;
+  created_by_id?: string | null;
+  created_by?: string | null;
+  is_sample?: boolean;
   created_at: string;
   updated_at: string;
+  created_date?: string;
+  updated_date?: string;
 }
 
 export async function listDisasterAreas(app: FastifyInstance): Promise<DisasterArea[]> {
@@ -18,8 +29,14 @@ export async function listDisasterAreas(app: FastifyInstance): Promise<DisasterA
 
 interface CreateInput {
   name: string;
+  township?: string;
+  county?: string;
   center_lat: number;
   center_lng: number;
+  bounds?: any;
+  grid_size?: number;
+  status?: string;
+  description?: string;
 }
 
 export async function createDisasterArea(app: FastifyInstance, input: CreateInput): Promise<DisasterArea> {
@@ -29,8 +46,9 @@ export async function createDisasterArea(app: FastifyInstance, input: CreateInpu
   }
   const id = randomUUID();
   const { rows } = await app.db.query<DisasterArea>(
-    `INSERT INTO disaster_areas (id, name, center_lat, center_lng) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [id, input.name, input.center_lat, input.center_lng]
+    `INSERT INTO disaster_areas (id, name, township, county, center_lat, center_lng, bounds, grid_size, status, description)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [id, input.name, input.township||null, input.county||null, input.center_lat, input.center_lng, input.bounds?JSON.stringify(input.bounds):null, input.grid_size||null, input.status||'active', input.description||null]
   );
   return rows[0];
 }
@@ -43,8 +61,14 @@ export async function getDisasterArea(app: FastifyInstance, id: string): Promise
 
 interface UpdateInput {
   name?: string;
+  township?: string;
+  county?: string;
   center_lat?: number;
   center_lng?: number;
+  bounds?: any;
+  grid_size?: number;
+  status?: string;
+  description?: string;
 }
 
 export async function updateDisasterArea(app: FastifyInstance, id: string, input: UpdateInput): Promise<DisasterArea | null> {
@@ -55,7 +79,7 @@ export async function updateDisasterArea(app: FastifyInstance, id: string, input
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'undefined') continue;
     fields.push(`${k}=$${i++}`);
-    values.push(v);
+  if (k === 'bounds') values.push(v ? JSON.stringify(v) : null); else values.push(v);
   }
   if (!fields.length) {
     const existing = await getDisasterArea(app, id);
