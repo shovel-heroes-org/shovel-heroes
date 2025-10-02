@@ -5,6 +5,7 @@
 API 規格：OpenAPI 3.1 (`api-spec/openapi.yaml`)
 
 目前支援兩種模式：
+
 1. Base44 SDK (預設)
 2. 自建 REST Backend (`packages/backend`)：設定 `VITE_USE_REST=true`
 
@@ -35,10 +36,10 @@ npm run dev                 # 另開終端啟動前端
 
 ```
 VITE_USE_REST=true
-VITE_API_BASE=http://localhost:8787
+VITE_API_BASE_URL=http://localhost:8787
 ```
 
-> 後端若 8787 被占用會往上遞增（8788 / 8789 ...）請同步調整 `VITE_API_BASE`。
+> 後端若 8787 被占用會往上遞增（8788 / 8789 ...）請同步調整 `VITE_API_BASE_URL`。
 
 ---
 
@@ -49,7 +50,7 @@ VITE_API_BASE=http://localhost:8787
 ```
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/shovelheroes
 PORT=8787
-VITE_API_BASE=http://localhost:8787
+VITE_API_BASE_URL=http://localhost:8787
 VITE_USE_REST=true
 ```
 
@@ -88,6 +89,7 @@ packages/backend/src/
 規格檔：`api-spec/openapi.yaml`
 
 指令：
+
 ```bash
 npm run openapi:lint      # Spectral 驗證
 npm run openapi:preview   # Redoc 預覽 (熱更新)
@@ -96,9 +98,10 @@ npm run types:openapi     # 產生 TS 型別 → packages/shared-types/src/opena
 ```
 
 引用方式：
+
 ```ts
-import type { components } from 'shovel-shared-types/src/openapi';
-type Grid = components['schemas']['Grid'];
+import type { components } from "shovel-shared-types/src/openapi";
+type Grid = components["schemas"]["Grid"];
 ```
 
 ---
@@ -113,13 +116,17 @@ REST 實作檔：
 - `src/api/rest/index.js` (依 `VITE_USE_REST` 切換)
 
 將：
+
 ```ts
-import { Grid } from '@/api/entities';
+import { Grid } from "@/api/entities";
 ```
+
 改為：
+
 ```ts
-import { Grid } from '@/api/rest';
+import { Grid } from "@/api/rest";
 ```
+
 即可使用自建後端。若 `VITE_USE_REST !== 'true'` 仍回退 Base44。
 
 > `functions.js` 若要完全移除 Base44 依賴，需再 re-export REST 實作。
@@ -128,19 +135,19 @@ import { Grid } from '@/api/rest';
 
 ## 已實作 API 對照
 
-| 資源 | 動作 | 狀態 |
-|------|------|------|
-| disaster-areas | list/create/get/update/delete | Done |
-| grids | list/create/get/update/delete | Done |
-| volunteer-registrations | list/create/delete | Done |
-| supply-donations | list/create | Done |
-| grid-discussions | list/create | Done |
-| announcements | list/create | Done |
-| users | list | Done |
-| me | get | Done (stub auth) |
-| functions | csv export/import/template/fix/proxy | Done |
-| legacy | sync / roster | Done |
-| volunteers | list | Pending |
+| 資源                    | 動作                                 | 狀態             |
+| ----------------------- | ------------------------------------ | ---------------- |
+| disaster-areas          | list/create/get/update/delete        | Done             |
+| grids                   | list/create/get/update/delete        | Done             |
+| volunteer-registrations | list/create/delete                   | Done             |
+| supply-donations        | list/create                          | Done             |
+| grid-discussions        | list/create                          | Done             |
+| announcements           | list/create                          | Done             |
+| users                   | list                                 | Done             |
+| me                      | get                                  | Done (stub auth) |
+| functions               | csv export/import/template/fix/proxy | Done             |
+| legacy                  | sync / roster                        | Done             |
+| volunteers              | list                                 | Pending          |
 
 尚未：`GET /volunteers`（需彙總 user + 報名統計）。
 
@@ -160,6 +167,7 @@ import { Grid } from '@/api/rest';
 10. 測試：Vitest + supertest CRUD / 匯入匯出測試。
 
 TODO Snapshot:
+
 ```
 - [ ] GET /volunteers
 - [ ] 分頁參數應用
@@ -176,10 +184,13 @@ TODO Snapshot:
 ## Docker / 資料庫操作
 
 啟動：
+
 ```bash
 docker compose up -d db
 ```
+
 重置：
+
 ```bash
 docker compose down -v && docker compose up -d db
 ```
@@ -201,7 +212,7 @@ A: 加 `Authorization: Bearer anything` 目前 stub 回假資料。
 A: `npm run types:openapi`。
 
 **Q: 切換 REST 模式?**  
-A: `.env` 設 `VITE_USE_REST=true` 並設定 `VITE_API_BASE`。
+A: `.env` 設 `VITE_USE_REST=true` 並設定 `VITE_API_BASE_URL`。
 
 ---
 
@@ -216,6 +227,7 @@ npm run build
 ---
 
 ## 開發流程建議
+
 1. 修改 `api-spec/openapi.yaml`
 2. `npm run openapi:lint`
 3. `npm run types:openapi`
@@ -226,4 +238,3 @@ npm run build
 ---
 
 For more information and support, please contact Base44 support at app@base44.com.
-
