@@ -91,13 +91,20 @@ export default function Layout({ children, currentPageName }) {
     handleConsentAccept({ analytics: false });
   };
 
-  const navigationItems = [
-    { name: "救援地圖", url: createPageUrl("Map"), icon: MapPin },
-    { name: "志工中心", url: createPageUrl("Volunteers"), icon: Users },
-    { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
-    { name: "管理後台", url: createPageUrl("Admin"), icon: Shield },
-    { name: "關於我們", url: createPageUrl("About"), icon: Info },
-  ];
+  const navigationItems = React.useMemo(() => {
+    const base = [
+      { name: "救援地圖", url: createPageUrl("Map"), icon: MapPin },
+      { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
+    ];
+    if (user) {
+      base.push(
+        { name: "志工中心", url: createPageUrl("Volunteers"), icon: Users },
+        { name: "管理後台", url: createPageUrl("Admin"), icon: Shield },
+      );
+    }
+    base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
+    return base;
+  }, [user]);
 
   const isActive = (url) => location.pathname === url;
 

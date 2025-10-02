@@ -35,7 +35,7 @@ export function registerUserRoutes(app: FastifyInstance) {
   });
 
   app.get('/me', async (req, reply) => {
-    const user = (req as any).user;
+    const user = req.user;
     if (!user) return reply.status(401).send({ message: 'Unauthorized' });
     return user;
   });
