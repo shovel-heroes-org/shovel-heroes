@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { requireAuth, optionalAuth, type AuthenticatedRequest } from '../lib/auth.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const SupplyNeedSchema = z.object({ name: z.string(), quantity: z.number(), unit: z.string(), received: z.number().optional() });
@@ -21,13 +22,15 @@ const GridCreateSchema = z.object({
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
+  // Public read access - no auth required for viewing grids
   app.get('/grids', async () => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query('SELECT * FROM grids ORDER BY created_at DESC');
     return rows;
   });
 
-  app.post('/grids', async (req, reply) => {
+  // Protected: Creating grids requires authentication
+  app.post('/grids', { preHandler: requireAuth }, async (req: AuthenticatedRequest, reply) => {
     const body = GridCreateSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ message: 'Invalid payload', issues: body.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
@@ -42,6 +45,7 @@ export function registerGridRoutes(app: FastifyInstance) {
     return reply.status(201).send(rows[0]);
   });
 
+  // Public read access - no auth required for viewing individual grids
   app.get('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(404).send({ message: 'Not found' });
@@ -50,7 +54,8 @@ export function registerGridRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  app.put('/grids/:id', async (req, reply) => {
+  // Protected: Updating grids requires authentication
+  app.put('/grids/:id', { preHandler: requireAuth }, async (req: AuthenticatedRequest, reply) => {
     const { id } = req.params as any;
     const body = GridCreateSchema.partial().safeParse(req.body);
     if (!body.success) return reply.status(400).send({ message: 'Invalid payload', issues: body.error.issues });
@@ -70,7 +75,8 @@ export function registerGridRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  app.delete('/grids/:id', async (req, reply) => {
+  // Protected: Deleting grids requires authentication
+  app.delete('/grids/:id', { preHandler: requireAuth }, async (req: AuthenticatedRequest, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     await app.db.query('DELETE FROM grids WHERE id=$1', [id]);
