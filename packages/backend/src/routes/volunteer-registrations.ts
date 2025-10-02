@@ -2,7 +2,18 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
-const CreateSchema = z.object({ grid_id: z.string(), user_id: z.string() });
+const CreateSchema = z.object({
+  grid_id: z.string(),
+  user_id: z.string().optional(),
+  volunteer_name: z.string().min(1).optional(),
+  volunteer_phone: z.string().optional(),
+  volunteer_email: z.string().email().optional(),
+  available_time: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  equipment: z.array(z.string()).optional(),
+  status: z.string().optional(),
+  notes: z.string().optional()
+});
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
   app.get('/volunteer-registrations', async () => {
@@ -15,8 +26,12 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     const id = randomUUID();
-    const { grid_id, user_id } = parsed.data;
-    const { rows } = await app.db.query('INSERT INTO volunteer_registrations (id, grid_id, user_id) VALUES ($1,$2,$3) RETURNING *', [id, grid_id, user_id]);
+    const d = parsed.data;
+    const { rows } = await app.db.query(
+      `INSERT INTO volunteer_registrations (id, grid_id, user_id, volunteer_name, volunteer_phone, volunteer_email, available_time, skills, equipment, status, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [id, d.grid_id, d.user_id||null, d.volunteer_name||null, d.volunteer_phone||null, d.volunteer_email||null, d.available_time||null, d.skills?JSON.stringify(d.skills):null, d.equipment?JSON.stringify(d.equipment):null, d.status||'pending', d.notes||null]
+    );
     return reply.status(201).send(rows[0]);
   });
   app.delete('/volunteer-registrations/:id', async (req, reply) => {

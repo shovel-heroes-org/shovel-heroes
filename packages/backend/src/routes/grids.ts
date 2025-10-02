@@ -17,7 +17,8 @@ const GridCreateSchema = z.object({
   bounds: BoundsSchema.optional(),
   status: z.string().optional(),
   supplies_needed: z.array(SupplyNeedSchema).optional(),
-  grid_manager_id: z.string().optional()
+  grid_manager_id: z.string().optional(),
+  completion_photo: z.string().optional()
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
@@ -34,10 +35,10 @@ export function registerGridRoutes(app: FastifyInstance) {
     const id = randomUUID();
     const d = body.data;
     const { rows } = await app.db.query(
-      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id, completion_photo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING *`,
-      [id, d.code, d.grid_type, d.disaster_area_id, d.volunteer_needed||0, d.meeting_point||null, d.risks_notes||null, d.contact_info||null, d.center_lat, d.center_lng, d.bounds?JSON.stringify(d.bounds):null, d.status||'open', d.supplies_needed?JSON.stringify(d.supplies_needed):null, d.grid_manager_id||null]
+      [id, d.code, d.grid_type, d.disaster_area_id, d.volunteer_needed||0, d.meeting_point||null, d.risks_notes||null, d.contact_info||null, d.center_lat, d.center_lng, d.bounds?JSON.stringify(d.bounds):null, d.status||'open', d.supplies_needed?JSON.stringify(d.supplies_needed):null, d.grid_manager_id||null, d.completion_photo||null]
     );
     return reply.status(201).send(rows[0]);
   });
