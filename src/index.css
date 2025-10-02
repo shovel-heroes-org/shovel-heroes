@@ -156,3 +156,17 @@ button:focus-visible {
     @apply bg-background text-foreground;
   }
 }
+
+/* 修正 Leaflet 地圖 z-index，防止覆蓋 Layout */
+.leaflet-container {
+  z-index: 1 !important;
+}
+
+.leaflet-pane {
+  z-index: auto !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10 !important;
+}
