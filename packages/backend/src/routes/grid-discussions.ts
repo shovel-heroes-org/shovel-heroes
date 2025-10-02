@@ -5,8 +5,13 @@ import { z } from 'zod';
 const CreateSchema = z.object({ grid_id: z.string(), user_id: z.string().optional(), content: z.string().min(1) });
 
 export function registerGridDiscussionRoutes(app: FastifyInstance) {
-  app.get('/grid-discussions', async () => {
+  app.get('/grid-discussions', async (req: any) => {
     if (!app.hasDecorator('db')) return [];
+    const { grid_id } = (req.query || {}) as { grid_id?: string };
+    if (grid_id) {
+      const { rows } = await app.db.query('SELECT * FROM grid_discussions WHERE grid_id=$1 ORDER BY created_at DESC', [grid_id]);
+      return rows;
+    }
     const { rows } = await app.db.query('SELECT * FROM grid_discussions ORDER BY created_at DESC');
     return rows;
   });
