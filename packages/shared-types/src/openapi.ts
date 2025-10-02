@@ -1152,6 +1152,16 @@ export interface components {
              */
             name: string;
             /**
+             * @description 行政區 (鄉/鎮)
+             * @example 光復鄉
+             */
+            township?: string;
+            /**
+             * @description 縣市名稱
+             * @example 花蓮縣
+             */
+            county?: string;
+            /**
              * Format: double
              * @description 災區中心點緯度
              * @example 23.8751
@@ -1163,8 +1173,48 @@ export interface components {
              * @example 121.578
              */
             center_lng: number;
+            /** @description 災區邊界 (近似方形) 用於地圖顯示 */
+            bounds?: {
+                /** @example 23.6705 */
+                north: number;
+                /** @example 23.6505 */
+                south: number;
+                /** @example 121.4325 */
+                east: number;
+                /** @example 121.4125 */
+                west: number;
+            };
+            /**
+             * @description 建議網格尺寸 (公尺)
+             * @example 200
+             */
+            grid_size?: number;
+            /**
+             * @description 災區狀態 (Base44 目前觀察為 active)
+             * @example active
+             * @enum {string}
+             */
+            status?: "active";
+            /**
+             * @description 災區描述與備註
+             * @example 包含馬太鞍部落、佛祖街、自強路、武昌街等重災區域
+             */
+            description?: string;
+            created_by_id?: components["schemas"]["ID"];
+            /**
+             * @description 建立者識別 (可能為 email)
+             * @example kuo.tanya@gmail.com
+             */
+            created_by?: string;
+            /**
+             * @description 是否為示範資料
+             * @example false
+             */
+            is_sample?: boolean;
             created_at?: components["schemas"]["Timestamp"];
             updated_at?: components["schemas"]["Timestamp"];
+            created_date?: components["schemas"]["Timestamp"];
+            updated_date?: components["schemas"]["Timestamp"];
         };
         SupplyNeed: {
             /**
@@ -1259,7 +1309,7 @@ export interface components {
              * @example open
              * @enum {string}
              */
-            status: "open" | "closed" | "completed" | "pending";
+            status: "open" | "planning" | "closed" | "completed";
             /**
              * @description 所需物資列表
              * @example [
@@ -1279,14 +1329,94 @@ export interface components {
              */
             supplies_needed?: components["schemas"]["SupplyNeed"][];
             grid_manager_id?: components["schemas"]["ID"];
+            /**
+             * @description 完工照片連結 (URL 或檔名)
+             * @example https://example.com/completion/photo123.jpg
+             */
+            completion_photo?: string | null;
             created_at?: components["schemas"]["Timestamp"];
             updated_at?: components["schemas"]["Timestamp"];
+            created_date?: components["schemas"]["Timestamp"];
+            updated_date?: components["schemas"]["Timestamp"];
+            created_by_id?: components["schemas"]["ID"];
+            /**
+             * @description 建立者 (email / user ref)
+             * @example kuo.tanya@gmail.com
+             */
+            created_by?: string;
+            /**
+             * @description 是否示範資料
+             * @example false
+             */
+            is_sample?: boolean;
         };
+        /** @description 志工報名原始紀錄 (對應 Base44 VolunteerRegistration) */
         VolunteerRegistration: {
             id: components["schemas"]["ID"];
             grid_id: components["schemas"]["ID"];
-            user_id: components["schemas"]["ID"];
+            /**
+             * @description 報名者名稱
+             * @example 王銓詰
+             */
+            volunteer_name: string;
+            /**
+             * @description 電話 (可能缺省或僅內部可見)
+             * @example 0912345678
+             */
+            volunteer_phone?: string | null;
+            /**
+             * @description 電子郵件
+             * @example volunteer@example.org
+             */
+            volunteer_email?: string | null;
+            /**
+             * @description 可服務時間文字
+             * @example 2025/10/04 上午12:00
+             */
+            available_time?: string | null;
+            /**
+             * @description 技能列表
+             * @example [
+             *       "EMT-1",
+             *       "打掃"
+             *     ]
+             */
+            skills?: string[];
+            /**
+             * @description 攜帶工具
+             * @example [
+             *       "雨鞋",
+             *       "鏟子"
+             *     ]
+             */
+            equipment?: string[];
+            status: components["schemas"]["VolunteerStatus"];
+            /**
+             * Format: date-time
+             * @description 報到時間 (若已報到)
+             * @example 2025-10-01T09:00:00Z
+             */
+            check_in_time?: string | null;
+            /**
+             * @description 備註
+             * @example 需要手套
+             */
+            notes?: string | null;
+            created_by_id?: components["schemas"]["ID"];
+            /**
+             * @description 建立者 (email)
+             * @example kuo.tanya@gmail.com
+             */
+            created_by?: string;
+            /**
+             * @description 是否示範資料
+             * @example false
+             */
+            is_sample?: boolean;
+            created_date?: components["schemas"]["Timestamp"];
+            updated_date?: components["schemas"]["Timestamp"];
             created_at?: components["schemas"]["Timestamp"];
+            updated_at?: components["schemas"]["Timestamp"];
         };
         SupplyDonation: {
             id: components["schemas"]["ID"];
@@ -1332,11 +1462,74 @@ export interface components {
              */
             title: string;
             /**
-             * @description 公告內容 (Markdown 可選)
+             * @deprecated
+             * @description 公告內容 (舊命名, 將逐步改為 content)
              * @example 明日集合時間改為 **08:30**，請提早 10 分鐘報到。
              */
             body: string;
+            /**
+             * @description 公告內容 (實際資料欄位)
+             * @example 請先照顧好自己再幫助別人
+             */
+            content?: string;
+            /**
+             * @description 公告分類
+             * @example safety
+             * @enum {string}
+             */
+            category?: "safety" | "equipment" | "center" | "external" | "contact";
+            /**
+             * @description 是否置頂
+             * @example true
+             */
+            is_pinned?: boolean;
+            /**
+             * @description 外部參考連結
+             * @example [
+             *       {
+             *         "name": "防災整合地圖",
+             *         "url": "https://reurl.cc/9nNjqO"
+             *       }
+             *     ]
+             */
+            external_links?: components["schemas"]["ExternalLink"][];
+            /**
+             * @description 聯絡電話 (可含多組 / 分隔)
+             * @example 03-870-1214
+             */
+            contact_phone?: string | null;
+            /**
+             * @description 排序用權重 (數字越小越前)
+             * @example 1
+             */
+            order?: number;
+            created_by_id?: components["schemas"]["ID"];
+            /**
+             * @description 建立者 (email)
+             * @example kuo.tanya@gmail.com
+             */
+            created_by?: string;
+            /**
+             * @description 是否示範資料
+             * @example false
+             */
+            is_sample?: boolean;
             created_at?: components["schemas"]["Timestamp"];
+            created_date?: components["schemas"]["Timestamp"];
+            updated_date?: components["schemas"]["Timestamp"];
+        };
+        ExternalLink: {
+            /**
+             * @description 連結名稱
+             * @example 防災整合地圖
+             */
+            name: string;
+            /**
+             * Format: uri
+             * @description 連結 URL
+             * @example https://reurl.cc/9nNjqO
+             */
+            url: string;
         };
         User: {
             id: components["schemas"]["ID"];
