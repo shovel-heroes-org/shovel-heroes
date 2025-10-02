@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
+import cookie from '@fastify/cookie';
 
 import { registerDisasterAreaRoutes } from './routes/disaster-areas.js';
 import { registerGridRoutes } from './routes/grids.js';
@@ -28,7 +29,8 @@ await app.register(swagger, {
   }
 });
 await app.register(swaggerUI, { routePrefix: '/docs' });
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
+await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-secret' });
 
 registerDisasterAreaRoutes(app);
 registerGridRoutes(app);
@@ -40,6 +42,9 @@ registerAnnouncementRoutes(app);
 registerUserRoutes(app);
 registerFunctionRoutes(app);
 registerLegacyRoutes(app);
+// Auth routes (LINE)
+import { registerLineAuthRoutes } from './routes/auth-line.js';
+registerLineAuthRoutes(app);
 
 async function start() {
   const basePort = Number(process.env.PORT) || 8787;

@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT,
   email TEXT,
+  line_sub TEXT UNIQUE,
+  avatar_url TEXT,
+  role TEXT DEFAULT 'user',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -165,6 +168,12 @@ ALTER TABLE announcements
   ADD COLUMN IF NOT EXISTS is_sample BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_date TIMESTAMPTZ DEFAULT NOW();
+
+-- Auth related additions (idempotent) for existing deployments upgrading schema
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS line_sub TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
 `;
 
 export async function initDb(app: FastifyInstance) {
