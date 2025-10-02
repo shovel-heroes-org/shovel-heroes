@@ -1,0 +1,46 @@
+# Netlify 配置 - 最小可行方案
+# 時間戳記: 2025-10-02T19:10:24+08:00
+
+[build]
+  # 建置輸出目錄
+  publish = "dist"
+  # 建置指令
+  command = "npm run build"
+
+[build.environment]
+  # Node.js 版本
+  NODE_VERSION = "18"
+
+# SPA 路由重定向 - 所有路徑導向 index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# 安全性 Headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # 基礎安全 Headers
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# 快取策略 - JavaScript 和 CSS
+[[headers]]
+  for = "*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML 檔案 - 不快取
+[[headers]]
+  for = "*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
