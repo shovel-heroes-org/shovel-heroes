@@ -16,7 +16,19 @@ export const DisasterArea = buildEntity('/disaster-areas');
 export const Grid = buildEntity('/grids');
 export const VolunteerRegistration = buildEntity('/volunteer-registrations');
 export const SupplyDonation = buildEntity('/supply-donations');
-export const GridDiscussion = buildEntity('/grid-discussions');
+// GridDiscussion needs a custom filter API used by UI
+export const GridDiscussion = {
+  ...buildEntity('/grid-discussions'),
+  /**
+   * filter(query, sort?) currently supports { grid_id } only. Sort ignored except for '-created_date'.
+   */
+  filter: async (query = {}, _sort) => {
+    const params = new URLSearchParams();
+    if (query.grid_id) params.set('grid_id', query.grid_id);
+    const qs = params.toString();
+    return http.get(`/grid-discussions${qs ? `?${qs}` : ''}`);
+  }
+};
 export const Announcement = buildEntity('/announcements');
 
 // Very simple user auth placeholder
