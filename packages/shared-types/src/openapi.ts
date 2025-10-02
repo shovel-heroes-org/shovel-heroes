@@ -678,11 +678,25 @@ export interface paths {
         };
         /**
          * List volunteers
-         * @description 取得志工概觀或公開欄位。
+         * @description 取得志工報名清單（整合報名與使用者呈現所需欄位）。
+         *     回傳封裝含 `data` 與 `can_view_phone` 供前端判斷是否顯示電話。
+         *     欄位 `created_date` 目前沿用前端既有命名；若要統一建議改為 `created_at` 並同步前端。
+         *
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 過濾指定網格的志工 */
+                    grid_id?: components["schemas"]["ID"];
+                    /** @description 過濾指定狀態 */
+                    status?: components["schemas"]["VolunteerStatus"];
+                    /** @description 是否回傳狀態統計 `status_counts` */
+                    include_counts?: boolean;
+                    /** @description 單頁筆數 (預設 50, 上限 200) */
+                    limit?: components["parameters"]["PageLimit"];
+                    /** @description 起始位移 (用於分頁) */
+                    offset?: components["parameters"]["PageOffset"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -694,7 +708,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["VolunteersListResponse"];
+                    };
                 };
                 500: components["responses"]["InternalError"];
             };
@@ -1335,6 +1351,99 @@ export interface components {
              * @example volunteer@example.org
              */
             email?: string;
+        };
+        /**
+         * @description 志工報名狀態
+         * @example pending
+         * @enum {string}
+         */
+        VolunteerStatus: "pending" | "confirmed" | "arrived" | "completed" | "cancelled";
+        /** @description 志工報名清單中每一筆資料 (結合報名 + 呈現所需欄位) */
+        VolunteerListItem: {
+            id: components["schemas"]["ID"];
+            grid_id: components["schemas"]["ID"];
+            user_id: components["schemas"]["ID"];
+            /**
+             * @description 志工顯示名稱 (可能從使用者或表單輸入取得)
+             * @example 張小強
+             */
+            volunteer_name: string;
+            /**
+             * @description 志工電話號碼；若 `can_view_phone=false` 時後端可直接省略或回傳遮蔽版本
+             * @example 0912-345-678
+             */
+            volunteer_phone?: string | null;
+            status: components["schemas"]["VolunteerStatus"];
+            /**
+             * @description 可服務時間文字描述
+             * @example 10/3 上午或 10/4 全天
+             */
+            available_time?: string | null;
+            /**
+             * @description 自述技能 (字串列表)
+             * @example [
+             *       "挖土機",
+             *       "醫療志工"
+             *     ]
+             */
+            skills?: string[];
+            /**
+             * @description 可攜帶工具 (字串列表)
+             * @example [
+             *       "鐵鏟",
+             *       "手推車"
+             *     ]
+             */
+            equipment?: string[];
+            /**
+             * @description 其他備註
+             * @example 需要協助調度交通
+             */
+            notes?: string | null;
+            /**
+             * Format: date-time
+             * @description 報名建立時間 (命名沿用前端使用字段; 與其他資源的 created_at 不同)
+             * @example 2025-10-02T08:12:30Z
+             */
+            created_date: string;
+        };
+        /** @description 志工清單回應外層封裝 */
+        VolunteersListResponse: {
+            /** @description 志工報名資料陣列 */
+            data: components["schemas"]["VolunteerListItem"][];
+            /**
+             * @description 是否允許前端顯示 `volunteer_phone`；由後端依角色授權判斷
+             * @example true
+             */
+            can_view_phone: boolean;
+            /**
+             * @description 總筆數 (分頁時可用)
+             * @example 128
+             */
+            total?: number;
+            /** @description 各狀態統計 (若 `include_counts=true` 或後端預設回傳) */
+            status_counts?: {
+                /** @example 12 */
+                pending?: number;
+                /** @example 34 */
+                confirmed?: number;
+                /** @example 8 */
+                arrived?: number;
+                /** @example 55 */
+                completed?: number;
+                /** @example 19 */
+                cancelled?: number;
+            };
+            /**
+             * @description 目前頁碼 (可選, 若採用 page 模式)
+             * @example 1
+             */
+            page?: number;
+            /**
+             * @description 單頁筆數 (對應查詢參數)
+             * @example 50
+             */
+            limit?: number;
         };
         Error: {
             /**
