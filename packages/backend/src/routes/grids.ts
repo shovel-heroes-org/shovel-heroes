@@ -24,7 +24,15 @@ const GridCreateSchema = z.object({
 export function registerGridRoutes(app: FastifyInstance) {
   app.get('/grids', async () => {
     if (!app.hasDecorator('db')) return [];
-    const { rows } = await app.db.query('SELECT * FROM grids ORDER BY created_at DESC');
+    const { rows } = await app.db.query(`
+      SELECT 
+        id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
+        meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status,
+        COALESCE(supplies_needed, '[]'::jsonb) AS supplies_needed,
+        grid_manager_id, completion_photo, created_by_id, created_by, is_sample,
+        created_at, updated_at, created_date, updated_date
+      FROM grids
+      ORDER BY created_at DESC`);
     return rows;
   });
 
@@ -62,7 +70,14 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.get('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(404).send({ message: 'Not found' });
-    const { rows } = await app.db.query('SELECT * FROM grids WHERE id=$1', [id]);
+    const { rows } = await app.db.query(`
+      SELECT 
+        id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
+        meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status,
+        COALESCE(supplies_needed, '[]'::jsonb) AS supplies_needed,
+        grid_manager_id, completion_photo, created_by_id, created_by, is_sample,
+        created_at, updated_at, created_date, updated_date
+      FROM grids WHERE id=$1`, [id]);
     if (!rows[0]) return reply.status(404).send({ message: 'Not found' });
     return rows[0];
   });
