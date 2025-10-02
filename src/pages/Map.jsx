@@ -765,7 +765,7 @@ export default function MapPage() {
               ({sortedAndFilteredGrids.length} 個)
             </p>
 
-            <div className="mt-3 lg:hidden">
+            <div className={`mt-3 ${!mapCollapsed ? 'lg:hidden' : ''}`}>
               <Button
                 onClick={handleManualMapToggle}
                 variant="outline"
@@ -778,7 +778,7 @@ export default function MapPage() {
             </div>
           </div>
 
-          <ScrollArea className="flex-1 h-[400px] lg:h-[calc(100vh-500px)]">
+          <ScrollArea className="h-[calc(100vh-280px)]">
             <div className="p-4 space-y-4">
               <AnimatePresence>
                 {sortedAndFilteredGrids.map((grid) => {
