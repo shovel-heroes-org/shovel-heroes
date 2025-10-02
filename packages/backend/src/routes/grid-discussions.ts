@@ -2,20 +2,18 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
-// Accept either content or message (alias), plus optional author fields
+// Accept either content or message (alias). user/author fields are derived from authenticated user.
 const CreateSchema = z.object({
   grid_id: z.string(),
-  user_id: z.string().optional(),
   content: z.string().min(1).optional(),
-  message: z.string().min(1).optional(),
-  author_name: z.string().max(120).optional(),
-  author_role: z.string().max(60).optional()
+  message: z.string().min(1).optional()
 }).refine(d => d.content || d.message, { message: 'content or message required', path: ['content'] });
 
 export function registerGridDiscussionRoutes(app: FastifyInstance) {
-  app.get('/grid-discussions', async (req: any) => {
+  // GET /grid-discussions?grid_id=xxx
+  app.get<{ Querystring: { grid_id?: string } }>('/grid-discussions', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
-    const { grid_id } = (req.query || {}) as { grid_id?: string };
+    const { grid_id } = req.query;
     if (grid_id) {
       const { rows } = await app.db.query('SELECT * FROM grid_discussions WHERE grid_id=$1 ORDER BY created_at DESC', [grid_id]);
       return rows;
@@ -23,17 +21,23 @@ export function registerGridDiscussionRoutes(app: FastifyInstance) {
     const { rows } = await app.db.query('SELECT * FROM grid_discussions ORDER BY created_at DESC');
     return rows;
   });
-  app.post('/grid-discussions', async (req, reply) => {
+
+  type CreateInput = z.infer<typeof CreateSchema>;
+  app.post<{ Body: CreateInput }>('/grid-discussions', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    const authUser = req.user;
+    if (!authUser) return reply.status(401).send({ message: 'Unauthorized' });
     const id = randomUUID();
-    const { grid_id, user_id, content, message, author_name, author_role } = parsed.data;
+    const { grid_id, content, message } = parsed.data;
     const finalContent = (content || message || '').trim();
     if (!finalContent) return reply.status(400).send({ message: 'Empty content' });
+    const authorName = authUser.name || authUser.email || '匿名';
+    const authorRole = authUser.role || 'user';
     const { rows } = await app.db.query(
       'INSERT INTO grid_discussions (id, grid_id, user_id, content, author_name, author_role) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [id, grid_id, user_id || null, finalContent, author_name || null, author_role || null]
+      [id, grid_id, authUser.id, finalContent, authorName, authorRole]
     );
     return reply.status(201).send(rows[0]);
   });

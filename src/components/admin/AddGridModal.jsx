@@ -362,11 +362,28 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
           </div>
         </div>
         {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
-        <DialogFooter className="mt-6">
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? '建立中...' : '建立網格'}
-          </Button>
+        <DialogFooter className="mt-6 flex flex-col items-stretch space-y-2">
+          <div className="flex justify-end gap-2 w-full">
+            <Button variant="outline" onClick={onClose}>取消</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !currentUser}
+              className={!currentUser ? 'bg-gray-400 cursor-not-allowed' : ''}
+            >
+              {submitting ? '建立中...' : '建立網格'}
+            </Button>
+          </div>
+          {!currentUser && (
+            <div className="text-xs text-gray-500 text-center space-y-1">
+              <p>請先登入以建立新救援網格。</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => User.login()}
+              >立即登入</Button>
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

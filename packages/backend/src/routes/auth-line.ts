@@ -56,8 +56,8 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
     reply.redirect(authUrl);
   });
   // New callback only bounces code back to frontend with state (no token exchange here)
-  app.get('/auth/line/callback', async (req: any, reply) => {
-    const { code, state, error } = req.query as any;
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>('/auth/line/callback', async (req, reply) => {
+    const { code, state, error } = req.query;
     if (error) return reply.redirect(`${FRONTEND_RETURN}/auth/line/return?error=${encodeURIComponent(error)}`);
     if (!code || !state) return reply.redirect(`${FRONTEND_RETURN}/auth/line/return?error=missing_code_state`);
     // Do not consume state here; consumption happens on /auth/line/exchange to prevent reuse.
@@ -65,8 +65,8 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
   });
 
   // Frontend posts code + state, backend exchanges and returns JWT
-  app.post('/auth/line/exchange', async (req: any, reply) => {
-    const { code, state } = req.body as any;
+  app.post<{ Body: { code: string; state: string } }>('/auth/line/exchange', async (req, reply) => {
+    const { code, state } = req.body;
     if (!code || !state) return reply.status(400).send({ message: 'Missing code/state' });
     if (!consumeState(state)) return reply.status(400).send({ message: 'Invalid or expired state' });
     try {

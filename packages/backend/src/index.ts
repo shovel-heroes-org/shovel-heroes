@@ -46,6 +46,25 @@ registerLegacyRoutes(app);
 import { registerLineAuthRoutes } from './routes/auth-line.js';
 registerLineAuthRoutes(app);
 
+// Global auth enforcement for all POST endpoints except a small allowlist.
+// Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
+const PUBLIC_ALLOWLIST = new Set([
+  '/auth/line/exchange', // need to obtain token (POST)
+  '/auth/line/login',    // GET redirect
+  '/auth/logout',        // GET logout
+  '/healthz'             // health check
+]);
+
+app.addHook('preHandler', async (req, reply) => {
+  // Enforce auth for mutating methods; optionally could extend to GET later.
+  if (!['POST','PUT','DELETE'].includes(req.method)) return;
+  const url = req.url.split('?')[0];
+  if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
+  if (!req.user) {
+    return reply.status(401).send({ message: 'Unauthorized' });
+  }
+});
+
 async function start() {
   const basePort = Number(process.env.PORT) || 8787;
   let port = basePort;
