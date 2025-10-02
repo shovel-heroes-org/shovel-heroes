@@ -55,23 +55,28 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     const loadUser = async () => {
       try {
         const currentUser = await User.me();
-        setUser(currentUser);
-        setVolunteerForm(prev => ({
-          ...prev,
-          volunteer_name: currentUser.full_name || "",
-          volunteer_email: currentUser.email || ""
-        }));
-        setSupplyForm(prev => ({
-          ...prev,
-          donor_name: currentUser.full_name || "",
-          donor_email: currentUser.email || ""
-        }));
-        setDiscussionForm(prev => ({
-          ...prev,
-          author_name: currentUser.full_name || ""
-        }));
+        // currentUser 可能為 null (未登入)
+        if (currentUser) {
+          setUser(currentUser);
+          setVolunteerForm(prev => ({
+            ...prev,
+            volunteer_name: currentUser.full_name || "",
+            volunteer_email: currentUser.email || ""
+          }));
+          setSupplyForm(prev => ({
+            ...prev,
+            donor_name: currentUser.full_name || "",
+            donor_email: currentUser.email || ""
+          }));
+          setDiscussionForm(prev => ({
+            ...prev,
+            author_name: currentUser.full_name || ""
+          }));
+        } else {
+          setUser(null);
+        }
       } catch (error) {
-        // 用戶未登入是正常情況，不需要拋出錯誤
+        // 用戶未登入或請求失敗都視為匿名
         setUser(null);
       }
     };
