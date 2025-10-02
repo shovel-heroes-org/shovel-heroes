@@ -30,7 +30,19 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     const { rows } = await app.db.query(
       `INSERT INTO volunteer_registrations (id, grid_id, user_id, volunteer_name, volunteer_phone, volunteer_email, available_time, skills, equipment, status, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [id, d.grid_id, d.user_id||null, d.volunteer_name||null, d.volunteer_phone||null, d.volunteer_email||null, d.available_time||null, d.skills?JSON.stringify(d.skills):null, d.equipment?JSON.stringify(d.equipment):null, d.status||'pending', d.notes||null]
+      [
+        id,
+        d.grid_id,
+        d.user_id || null,
+        d.volunteer_name || null,
+        d.volunteer_phone || null,
+        d.volunteer_email || null,
+        d.available_time || null,
+        d.skills ? JSON.stringify(d.skills) : null,
+        d.equipment ? JSON.stringify(d.equipment) : null,
+        d.status || 'pending',
+        d.notes || null
+      ]
     );
     return reply.status(201).send(rows[0]);
   });

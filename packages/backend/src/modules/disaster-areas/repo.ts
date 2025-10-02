@@ -48,7 +48,18 @@ export async function createDisasterArea(app: FastifyInstance, input: CreateInpu
   const { rows } = await app.db.query<DisasterArea>(
     `INSERT INTO disaster_areas (id, name, township, county, center_lat, center_lng, bounds, grid_size, status, description)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [id, input.name, input.township||null, input.county||null, input.center_lat, input.center_lng, input.bounds?JSON.stringify(input.bounds):null, input.grid_size||null, input.status||'active', input.description||null]
+    [
+      id,
+      input.name,
+      input.township || null,
+      input.county || null,
+      input.center_lat,
+      input.center_lng,
+      input.bounds ? JSON.stringify(input.bounds) : null,
+      input.grid_size || null,
+      input.status || 'active',
+      input.description || null
+    ]
   );
   return rows[0];
 }
@@ -79,7 +90,11 @@ export async function updateDisasterArea(app: FastifyInstance, id: string, input
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'undefined') continue;
     fields.push(`${k}=$${i++}`);
-  if (k === 'bounds') values.push(v ? JSON.stringify(v) : null); else values.push(v);
+    if (k === 'bounds') {
+      values.push(v ? JSON.stringify(v) : null);
+    } else {
+      values.push(v);
+    }
   }
   if (!fields.length) {
     const existing = await getDisasterArea(app, id);
