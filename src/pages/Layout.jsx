@@ -3,7 +3,8 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
 import AddGridModal from "@/components/admin/AddGridModal";
@@ -34,6 +35,12 @@ export default function Layout({ children, currentPageName }) {
     };
     loadData();
 
+    const handleAuthChanged = () => {
+      // Re-fetch user when auth token changes (login/logout)
+      User.me().then(u => setUser(u)).catch(()=>setUser(null));
+    };
+    window.addEventListener('sh-auth-changed', handleAuthChanged);
+
     // Consent handling
     const consent = localStorage.getItem('sh-privacy-consent-v1');
     if (!consent) {
@@ -46,6 +53,10 @@ export default function Layout({ children, currentPageName }) {
         }
       } catch {/* ignore */}
     }
+
+    return () => {
+      window.removeEventListener('sh-auth-changed', handleAuthChanged);
+    };
   }, []);
 
   // Load GA only when analyticsAllowed becomes true
@@ -154,27 +165,40 @@ export default function Layout({ children, currentPageName }) {
               </Button>
 
               {user ? (
-                <div className="flex items-center space-x-3">
-                  <div className="hidden sm:block text-right">
-                    <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                    <p className="text-xs text-gray-500">{user.role === 'admin' ? '管理員' : user.role === 'grid_manager' ? '格主' : '志工'}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="text-gray-700 hover:text-red-600"
-                  >
-                    登出
-                  </Button>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90"
+                      title={user.name || user.full_name || '使用者'}
+                    >
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        <span className="font-semibold text-sm">
+                          {(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}
+                        </span>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60">
+                    <div className="px-3 py-2 text-xs text-gray-500">
+                      <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2">
+                        <UserIcon className="w-4 h-4 text-blue-600" />
+                        <span>{user.name || user.full_name || '使用者'}</span>
+                      </div>
+                      <div>{user.email}</div>
+                      <div className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">
+                        {user.role || 'user'}
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                      <LogOut className="w-4 h-4 mr-2" /> 登出
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
-                <Button
-                  onClick={() => User.login()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  登入
-                </Button>
+                <Button onClick={() => User.login()} className="bg-blue-600 hover:bg-blue-700 text-white">登入</Button>
               )}
 
               {/* Mobile Menu Button */}
