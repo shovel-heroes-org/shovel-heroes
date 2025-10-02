@@ -25,6 +25,16 @@ tags:
     description: Field check-in tracking for volunteers
   - name: ResourcePoints
     description: Resource point locations (shelters, supplies, medical)
+  - name: Announcements
+    description: System-wide announcements and safety information
+  - name: DisasterAreas
+    description: Disaster area management and geographic zones
+  - name: Grids
+    description: Work area subdivisions within disaster areas
+  - name: GridDiscussions
+    description: Communication and discussions within grids
+  - name: SupplyDonations
+    description: Supply donation tracking and coordination
 
 paths:
   /health:
@@ -204,6 +214,306 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/ResourcePoint' }
+
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: List announcements
+      description: Retrieve system announcements and safety information
+      parameters:
+        - in: query
+          name: category
+          description: Filter by announcement category
+          schema: { type: string, enum: [safety, equipment, general] }
+        - in: query
+          name: pinned_only
+          description: Show only pinned announcements
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Announcement list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Announcement' }
+
+  /disaster-areas:
+    get:
+      tags: [DisasterAreas]
+      summary: List disaster areas
+      description: Retrieve all disaster areas and their boundaries
+      parameters:
+        - in: query
+          name: status
+          description: Filter by disaster area status
+          schema: { type: string, enum: [active, closed, preparing] }
+      responses:
+        '200':
+          description: Disaster area list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DisasterArea' }
+
+  /disaster-areas/{id}:
+    get:
+      tags: [DisasterAreas]
+      summary: Get disaster area details
+      description: Retrieve detailed information for a specific disaster area
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Disaster area ID
+          schema: { type: string }
+      responses:
+        '200':
+          description: Disaster area details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DisasterArea' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /grids:
+    get:
+      tags: [Grids]
+      summary: List grids
+      description: Retrieve work grids within disaster areas
+      parameters:
+        - in: query
+          name: disaster_area_id
+          description: Filter by disaster area
+          schema: { type: string }
+        - in: query
+          name: grid_type
+          description: Filter by grid type
+          schema: { type: string, enum: [mud_disposal, manpower, supply_storage, accommodation, food_area] }
+        - in: query
+          name: status
+          description: Filter by grid status
+          schema: { type: string, enum: [planning, open, in_progress, completed, closed] }
+      responses:
+        '200':
+          description: Grid list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Grid' }
+
+  /grids/{id}:
+    get:
+      tags: [Grids]
+      summary: Get grid details
+      description: Retrieve detailed information for a specific grid
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Grid ID
+          schema: { type: string }
+      responses:
+        '200':
+          description: Grid details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Grid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /grids/{id}/volunteer-registrations:
+    post:
+      tags: [Grids]
+      summary: Register volunteer for grid
+      description: Register a volunteer for a specific grid work area
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Grid ID
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          required: false
+          description: UUID v4 for idempotent submission
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+            minLength: 36
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridVolunteerRegistration' }
+      responses:
+        '201':
+          description: Volunteer registration successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GridVolunteerRegistrationReceipt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Duplicate registration detected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /grids/{id}/discussions:
+    get:
+      tags: [GridDiscussions]
+      summary: Get grid discussions
+      description: Retrieve discussions and messages for a specific grid
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Grid ID
+          schema: { type: string }
+        - in: query
+          name: message_type
+          description: Filter by message type
+          schema: { type: string, enum: [info, question, update, alert] }
+        - in: query
+          name: pinned_only
+          description: Show only pinned messages
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Grid discussion messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/GridDiscussion' }
+    post:
+      tags: [GridDiscussions]
+      summary: Post message to grid
+      description: Post a new message or update to grid discussion
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Grid ID
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridDiscussionPost' }
+      responses:
+        '201':
+          description: Message posted successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GridDiscussion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /supply-donations:
+    post:
+      tags: [SupplyDonations]
+      summary: Create supply donation
+      description: Register a new supply donation for a specific grid
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          description: UUID v4 for idempotent submission
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+            minLength: 36
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupplyDonation' }
+      responses:
+        '201':
+          description: Supply donation registered successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplyDonationReceipt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /supply-donations/{id}:
+    get:
+      tags: [SupplyDonations]
+      summary: Get donation details
+      description: Retrieve details of a specific supply donation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Donation ID
+          schema: { type: string }
+      responses:
+        '200':
+          description: Supply donation details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplyDonation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [SupplyDonations]
+      summary: Update donation status
+      description: Update the status of a supply donation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Donation ID
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [pledged, confirmed, in_transit, delivered, cancelled]
+                received_photo:
+                  type: string
+                  description: Photo URL for delivery confirmation
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Donation status updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplyDonation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   securitySchemes:
@@ -487,6 +797,540 @@ components:
         code: "VALIDATION_ERROR"
         message: "電話號碼格式不正確"
         traceId: "trace-123e4567-e89b-12d3-a456-426614174000"
+
+    Announcement:
+      type: object
+      required: [id, title, content, category]
+      properties:
+        id:
+          type: string
+          description: Unique announcement identifier
+        title:
+          type: string
+          maxLength: 200
+          description: Announcement title
+        content:
+          type: string
+          maxLength: 4000
+          description: Announcement content
+        category:
+          type: string
+          enum: [safety, equipment, general]
+          description: Announcement category
+        is_pinned:
+          type: boolean
+          default: false
+          description: Whether announcement is pinned
+        external_links:
+          type: array
+          items:
+            type: string
+            format: uri
+          nullable: true
+          description: External reference links
+        contact_phone:
+          type: string
+          nullable: true
+          description: Contact phone number
+        order:
+          type: integer
+          minimum: 1
+          description: Display order
+        created_date:
+          type: string
+          format: date-time
+        updated_date:
+          type: string
+          format: date-time
+      example:
+        id: "68d8ca4c4e916245edf761df"
+        title: "安全第一"
+        content: "照顧好自己才能幫助他人\n避免單獨行動\n保持距離\n注意周遭環境"
+        category: "safety"
+        is_pinned: true
+        external_links: []
+        contact_phone: null
+        order: 1
+        created_date: "2025-09-28T05:40:28.625Z"
+        updated_date: "2025-09-28T05:40:28.625Z"
+
+    DisasterArea:
+      type: object
+      required: [id, name, township, county, center_lat, center_lng]
+      properties:
+        id:
+          type: string
+          description: Unique disaster area identifier
+        name:
+          type: string
+          maxLength: 200
+          description: Disaster area name
+        township:
+          type: string
+          maxLength: 100
+          description: Township name
+        county:
+          type: string
+          maxLength: 100
+          description: County name
+        center_lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: Center latitude
+        center_lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: Center longitude
+        bounds:
+          type: object
+          nullable: true
+          properties:
+            north: { type: number, minimum: -90, maximum: 90 }
+            south: { type: number, minimum: -90, maximum: 90 }
+            east: { type: number, minimum: -180, maximum: 180 }
+            west: { type: number, minimum: -180, maximum: 180 }
+          description: Geographic boundaries
+        grid_size:
+          type: number
+          default: 200
+          description: Grid size in meters
+        status:
+          type: string
+          enum: [active, closed, preparing]
+          default: active
+          description: Disaster area status
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Area description
+        created_date:
+          type: string
+          format: date-time
+        updated_date:
+          type: string
+          format: date-time
+      example:
+        id: "68dd5b134d9b649333f2a360"
+        name: "花蓮市區"
+        township: "花蓮市"
+        county: "花蓮縣"
+        center_lat: 23.6605
+        center_lng: 121.4225
+        bounds:
+          north: 23.6705
+          south: 23.6505
+          east: 121.4325
+          west: 121.4125
+        grid_size: 200
+        status: "active"
+        description: "花蓮市中心區域災害救援區"
+        created_date: "2025-10-01T16:47:15.330Z"
+        updated_date: "2025-10-01T16:47:15.330Z"
+
+    Grid:
+      type: object
+      required: [id, code, grid_type, disaster_area_id, center_lat, center_lng]
+      properties:
+        id:
+          type: string
+          description: Unique grid identifier
+        code:
+          type: string
+          maxLength: 50
+          description: Grid code (e.g., A-1, B-2)
+        grid_type:
+          type: string
+          enum: [mud_disposal, manpower, supply_storage, accommodation, food_area]
+          default: manpower
+          description: Grid type
+        disaster_area_id:
+          type: string
+          description: Parent disaster area ID
+        center_lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: Grid center latitude
+        center_lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: Grid center longitude
+        bounds:
+          type: object
+          nullable: true
+          properties:
+            north: { type: number, minimum: -90, maximum: 90 }
+            south: { type: number, minimum: -90, maximum: 90 }
+            east: { type: number, minimum: -180, maximum: 180 }
+            west: { type: number, minimum: -180, maximum: 180 }
+          description: Grid boundaries
+        volunteer_needed:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of volunteers needed
+        volunteer_registered:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of registered volunteers
+        supplies_needed:
+          type: array
+          nullable: true
+          items:
+            type: object
+            required: [name, quantity, unit]
+            properties:
+              name:
+                type: string
+                maxLength: 100
+                description: Supply item name
+              quantity:
+                type: integer
+                minimum: 0
+                description: Quantity needed
+              unit:
+                type: string
+                maxLength: 20
+                description: Unit of measurement
+              received:
+                type: integer
+                minimum: 0
+                default: 0
+                description: Quantity received
+          description: List of needed supplies
+        grid_manager_id:
+          type: string
+          nullable: true
+          description: Grid manager user ID
+        meeting_point:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Meeting point location
+        risks_notes:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Risk and safety notes
+        contact_info:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Contact information
+        status:
+          type: string
+          enum: [planning, open, in_progress, completed, closed]
+          default: planning
+          description: Grid status
+        completion_photo:
+          type: string
+          format: uri
+          nullable: true
+          description: Completion photo URL
+        created_date:
+          type: string
+          format: date-time
+        updated_date:
+          type: string
+          format: date-time
+      example:
+        id: "68dd5b4cf6dff118dc08f70a"
+        code: "A-18"
+        grid_type: "manpower"
+        disaster_area_id: "68d7d97f32d4040fdba931d7"
+        center_lat: 23.66779522
+        center_lng: 121.4656618
+        bounds:
+          north: 23.668795222641794
+          south: 23.66679522264179
+          east: 121.46666182374956
+          west: 121.46466182374955
+        volunteer_needed: 20
+        volunteer_registered: 6
+        supplies_needed: []
+        grid_manager_id: "68d7d7b836364938a22cd52c"
+        meeting_point: "花蓮市建國路30號"
+        risks_notes: "注意高壓電線\n避免單獨作業\n配戴安全帽和手套\n小心濕滑路面"
+        contact_info: "0938-348-901"
+        status: "open"
+        completion_photo: null
+        created_date: "2025-10-01T16:48:12.388Z"
+        updated_date: "2025-10-01T16:48:12.388Z"
+
+    GridDiscussion:
+      type: object
+      required: [id, grid_id, author_name, message]
+      properties:
+        id:
+          type: string
+          description: Unique message identifier
+        grid_id:
+          type: string
+          description: Grid ID this message belongs to
+        author_name:
+          type: string
+          maxLength: 100
+          description: Message author name
+        author_role:
+          type: string
+          enum: [admin, grid_manager, volunteer, donor]
+          nullable: true
+          description: Author role
+        message:
+          type: string
+          maxLength: 2000
+          description: Message content
+        message_type:
+          type: string
+          enum: [info, question, update, alert]
+          default: info
+          description: Message type
+        photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Attached photo URL
+        is_pinned:
+          type: boolean
+          default: false
+          description: Whether message is pinned
+        created_date:
+          type: string
+          format: date-time
+        updated_date:
+          type: string
+          format: date-time
+      example:
+        id: "68da11cc2a5558f52407d189"
+        grid_id: "68da0b817e1bb04f4ff21d73"
+        author_name: "張小明"
+        author_role: "volunteer"
+        message: "已完成清理工作，準備撤離"
+        message_type: "info"
+        photo_url: null
+        is_pinned: false
+        created_date: "2025-09-29T04:57:48.661Z"
+        updated_date: "2025-09-29T04:57:48.661Z"
+
+    GridDiscussionPost:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 2000
+          description: Message content
+        message_type:
+          type: string
+          enum: [info, question, update, alert]
+          default: info
+          description: Message type
+        photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Attached photo URL
+        is_pinned:
+          type: boolean
+          default: false
+          description: Whether to pin this message
+      example:
+        message: "物資已到達集合點，請志工前來領取"
+        message_type: "update"
+        photo_url: null
+        is_pinned: false
+
+    GridVolunteerRegistration:
+      type: object
+      required: [volunteer_name]
+      properties:
+        volunteer_name:
+          type: string
+          maxLength: 100
+          description: Volunteer name
+        volunteer_phone:
+          type: string
+          nullable: true
+          description: Volunteer phone number
+        volunteer_email:
+          type: string
+          format: email
+          maxLength: 254
+          nullable: true
+          description: Volunteer email
+        available_time:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Available time slots
+        skills:
+          type: array
+          nullable: true
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+          description: Volunteer skills
+        equipment:
+          type: array
+          nullable: true
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 20
+          description: Equipment brought by volunteer
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Additional notes
+      example:
+        volunteer_name: "李大華"
+        volunteer_phone: "0912-345-678"
+        volunteer_email: "volunteer@example.com"
+        available_time: "10/2 9:00-17:00"
+        skills: ["重機具操作", "醫療救護"]
+        equipment: ["鏟子", "安全帽"]
+        notes: "有重機具操作經驗"
+
+    GridVolunteerRegistrationReceipt:
+      type: object
+      required: [id, grid_id, status]
+      properties:
+        id:
+          type: string
+          description: Registration ID
+        grid_id:
+          type: string
+          description: Grid ID
+        status:
+          type: string
+          enum: [pending, confirmed, arrived, completed, cancelled]
+          description: Registration status
+        check_in_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: Check-in timestamp
+        created_date:
+          type: string
+          format: date-time
+          description: Registration timestamp
+      example:
+        id: "68dd5a90e624c3bdf539ab43"
+        grid_id: "68d8dbb94463cbe78e2057ab"
+        status: "confirmed"
+        check_in_time: null
+        created_date: "2025-10-01T16:45:04.339Z"
+
+    SupplyDonation:
+      type: object
+      required: [grid_id, donor_name, donor_phone, supply_name, quantity]
+      properties:
+        id:
+          type: string
+          description: Unique donation identifier
+        grid_id:
+          type: string
+          description: Target grid ID
+        donor_name:
+          type: string
+          maxLength: 100
+          description: Donor name
+        donor_phone:
+          type: string
+          description: Donor phone number
+        donor_email:
+          type: string
+          format: email
+          maxLength: 254
+          nullable: true
+          description: Donor email
+        supply_name:
+          type: string
+          maxLength: 100
+          description: Supply item name
+        quantity:
+          type: integer
+          minimum: 1
+          description: Donation quantity
+        delivery_method:
+          type: string
+          enum: [direct, pickup_point, volunteer_pickup]
+          nullable: true
+          description: Delivery method
+        delivery_address:
+          type: string
+          maxLength: 300
+          nullable: true
+          description: Delivery address
+        delivery_time:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Expected delivery time
+        status:
+          type: string
+          enum: [pledged, confirmed, in_transit, delivered, cancelled]
+          default: pledged
+          description: Donation status
+        received_photo:
+          type: string
+          format: uri
+          nullable: true
+          description: Receipt photo URL
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Additional notes
+        created_date:
+          type: string
+          format: date-time
+        updated_date:
+          type: string
+          format: date-time
+      example:
+        id: "68dd5cea2448a49f79cc533c"
+        grid_id: "existing_grid_id_2"
+        donor_name: "慈濟基金會"
+        donor_phone: "089-1234567"
+        donor_email: "logistics@example.com"
+        supply_name: "礦泉水"
+        quantity: 50
+        delivery_method: "pickup_point"
+        delivery_address: null
+        delivery_time: "今日10:00"
+        status: "confirmed"
+        received_photo: null
+        notes: "提供礦泉水50箱"
+        created_date: "2025-10-01T16:55:06.312Z"
+        updated_date: "2025-10-01T16:55:06.312Z"
+
+    SupplyDonationReceipt:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+          description: Donation ID
+        status:
+          type: string
+          enum: [pledged, confirmed, in_transit, delivered, cancelled]
+          description: Current donation status
+        created_date:
+          type: string
+          format: date-time
+          description: Registration timestamp
+      example:
+        id: "68dd5cea2448a49f79cc533c"
+        status: "pledged"
+        created_date: "2025-10-01T16:55:06.312Z"
 
 x-guidelines:
   rateLimit:
