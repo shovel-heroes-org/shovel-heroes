@@ -50,12 +50,32 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
         d.notes || null
       ]
     );
+    // Recalculate volunteer_registered (exclude cancelled if present)
+    await app.db.query(
+      `UPDATE grids SET volunteer_registered = (
+         SELECT COUNT(*) FROM volunteer_registrations vr
+         WHERE vr.grid_id = $1 AND COALESCE(vr.status,'pending') NOT IN ('cancelled')
+       ), updated_at = NOW() WHERE id = $1`,
+      [d.grid_id]
+    );
     return reply.status(201).send(rows[0]);
   });
   app.delete('/volunteer-registrations/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    // Find grid id first to recalc after delete
+    const { rows: findRows } = await app.db.query('SELECT grid_id FROM volunteer_registrations WHERE id=$1', [id]);
     await app.db.query('DELETE FROM volunteer_registrations WHERE id=$1', [id]);
+    const gridId = findRows[0]?.grid_id;
+    if (gridId) {
+      await app.db.query(
+        `UPDATE grids SET volunteer_registered = (
+           SELECT COUNT(*) FROM volunteer_registrations vr
+           WHERE vr.grid_id = $1 AND COALESCE(vr.status,'pending') NOT IN ('cancelled')
+         ), updated_at = NOW() WHERE id = $1`,
+        [gridId]
+      );
+    }
     return reply.status(204).send();
   });
 }
