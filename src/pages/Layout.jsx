@@ -7,56 +7,25 @@ import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIc
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
+import { useAuth } from '@/context/AuthContext.jsx';
 import AddGridModal from "@/components/admin/AddGridModal";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const [user, setUser] = React.useState(null);
+  const { user, actingRole, toggleActingRole } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
   const [showConsent, setShowConsent] = React.useState(false);
   const [analyticsAllowed, setAnalyticsAllowed] = React.useState(false);
 
+  // Load disaster areas & consent
   React.useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [currentUser, areasData] = await Promise.all([
-          User.me().catch(() => null),
-          DisasterArea.list()
-        ]);
-        setUser(currentUser);
-        setDisasterAreas(areasData);
-      } catch (error) {
-        setUser(null);
-        setDisasterAreas([]);
-        console.error("Failed to load initial data for layout:", error);
-      }
-    };
-    loadData();
-
-    const handleAuthChanged = () => {
-      // Re-fetch user when auth token changes (login/logout)
-      User.me().then(u => setUser(u)).catch(()=>setUser(null));
-    };
-    window.addEventListener('sh-auth-changed', handleAuthChanged);
-
-    // Consent handling
+    DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
     const consent = localStorage.getItem('sh-privacy-consent-v1');
-    if (!consent) {
-      setShowConsent(true);
-    } else {
-      try {
-        const parsed = JSON.parse(consent);
-        if (parsed.analytics) {
-          setAnalyticsAllowed(true);
-        }
-      } catch {/* ignore */}
+    if (!consent) setShowConsent(true); else {
+      try { const parsed = JSON.parse(consent); if (parsed.analytics) setAnalyticsAllowed(true); } catch {/* ignore */}
     }
-
-    return () => {
-      window.removeEventListener('sh-auth-changed', handleAuthChanged);
-    };
   }, []);
 
   // Load GA only when analyticsAllowed becomes true
@@ -147,22 +116,14 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.url}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${isActive(item.url)
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-                      }`}
-                  >
+              {navigationItems.map(it => {
+                const Icon = it.icon; return (
+                  <Link key={it.name} to={it.url}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${isActive(it.url)?'bg-blue-50 text-blue-700':'text-gray-700 hover:text-blue-700 hover:bg-gray-50'}`}>
                     <Icon className="w-4 h-4" />
-                    <span>{item.name}</span>
+                    <span>{it.name}</span>
                   </Link>
-                );
-              })}
+                );})}
             </nav>
 
             {/* User Menu and Main Action */}
@@ -178,34 +139,23 @@ export default function Layout({ children, currentPageName }) {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90"
-                      title={user.name || user.full_name || '使用者'}
-                    >
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
-                      ) : (
-                        <span className="font-semibold text-sm">
-                          {(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}
-                        </span>
-                      )}
+                    <button className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90" title={user.name || user.full_name || '使用者'}>
+                      {user.avatar_url ? <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" /> : <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuContent align="end" className="w-64">
                     <div className="px-3 py-2 text-xs text-gray-500">
-                      <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-blue-600" />
-                        <span>{user.name || user.full_name || '使用者'}</span>
-                      </div>
+                      <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2"><UserIcon className="w-4 h-4 text-blue-600" /><span>{user.name || user.full_name || '使用者'}</span></div>
                       <div>{user.email}</div>
-                      <div className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">
-                        {user.role || 'user'}
+                      <div className="mt-1 inline-flex items-center gap-1 flex-wrap">
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role || 'user'}</span>
+                        {user.role === 'admin' && (
+                          <button onClick={toggleActingRole} className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">視角: {actingRole === 'admin' ? '管理' : '一般'}</button>
+                        )}
                       </div>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
-                      <LogOut className="w-4 h-4 mr-2" /> 登出
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> 登出</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -284,8 +234,13 @@ export default function Layout({ children, currentPageName }) {
           isOpen={showNewGridModal}
           onClose={() => setShowNewGridModal(false)}
           onSuccess={() => {
+            
             setShowNewGridModal(false);
+            
+          
             window.location.reload(); // Reload to see the new grid
+          
+          
           }}
           disasterAreas={disasterAreas}
         />
