@@ -19,7 +19,8 @@ const GridCreateSchema = z.object({
   supplies_needed: z.array(SupplyNeedSchema).optional(),
   grid_manager_id: z.string().optional(),
   completion_photo: z.string().optional(),
-  __turnstile_token: z.string().optional()
+  __turnstile_token: z.string().optional(),
+	created_at: z.string(),
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
@@ -68,8 +69,8 @@ export function registerGridRoutes(app: FastifyInstance) {
     const id = randomUUID();
     const d = body.data;
     const { rows } = await app.db.query(
-      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id, completion_photo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id, completion_photo, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         id,
@@ -86,7 +87,8 @@ export function registerGridRoutes(app: FastifyInstance) {
         d.status || 'open',
         d.supplies_needed ? JSON.stringify(d.supplies_needed) : null,
         d.grid_manager_id || null,
-        d.completion_photo || null
+        d.completion_photo || null,
+				d.created_at || new Date().toISOString()
       ]
     );
     return reply.status(201).send(rows[0]);
