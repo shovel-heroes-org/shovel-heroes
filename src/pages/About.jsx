@@ -6,7 +6,7 @@ import { Mail, Star, ExternalLink, AlertTriangle, MessageCircle } from 'lucide-r
 export default function AboutPage() {
   return (
     <div className="bg-gray-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto min-w-0">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
             關於 鏟子英雄
