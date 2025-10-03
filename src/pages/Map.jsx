@@ -458,9 +458,9 @@ export default function MapPage() {
   const typeStats = getGridTypeStats();
 
   return (
-    <div className="flex flex-col min-w-0">
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="max-w-full mx-auto min-w-0">
+    <div className="flex flex-col min-w-[436px]">
+      <div className="bg-white border-b border-gray-200 px-4 py-4 min-w-[436px]">
+        <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Popover>
               <PopoverTrigger asChild>
@@ -620,10 +620,8 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="bg-gray-50 border-b border-gray-200 p-4">
-        <div className="max-w-full mx-auto">
-          <AnnouncementPanel />
-        </div>
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-4 min-w-[436px]">
+        <AnnouncementPanel />
       </div>
 
       <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 180px)' }}>

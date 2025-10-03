@@ -170,7 +170,7 @@ export default function VolunteersPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-[1.2rem] min-w-0">
+    <div className="px-4 py-[1.2rem] min-w-[436px]">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">志工管理中心</h1>
         <p className="text-gray-600">管理志工報名狀況與協調救援工作</p>
