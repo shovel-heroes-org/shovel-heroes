@@ -458,21 +458,21 @@ export default function MapPage() {
   const typeStats = getGridTypeStats();
 
   return (
-    <div className="flex flex-col">
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="max-w-full mx-auto">
+    <div className="flex flex-col min-w-[436px]">
+      <div className="bg-white border-b border-gray-200 px-4 py-4 min-w-[436px]">
+        <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Popover>
               <PopoverTrigger asChild>
                 <Card className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
+                      <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
                         <MapPin className="w-5 h-5 text-blue-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-2xl font-bold text-gray-900">{disasterAreas.length}</p>
-                        <p className="text-sm text-gray-600">救援區域</p>
+                        <p className="text-sm text-gray-600 whitespace-nowrap">救援區域</p>
                       </div>
                     </div>
                   </CardContent>
@@ -500,12 +500,12 @@ export default function MapPage() {
             <Card className="border-l-4 border-l-green-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
+                  <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
                     <Users className="w-5 h-5 text-green-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-2xl font-bold text-gray-900">{stats.totalVolunteers}</p>
-                    <p className="text-sm text-gray-600">志工總數</p>
+                    <p className="text-sm text-gray-600 whitespace-nowrap">志工總數</p>
                   </div>
                 </div>
               </CardContent>
@@ -514,12 +514,12 @@ export default function MapPage() {
             <Card className="border-l-4 border-l-amber-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 rounded-lg">
+                  <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
                     <Clock className="w-5 h-5 text-amber-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-2xl font-bold text-gray-900">{stats.completedGrids}</p>
-                    <p className="text-sm text-gray-600">已完成</p>
+                    <p className="text-sm text-gray-600 whitespace-nowrap">已完成</p>
                   </div>
                 </div>
               </CardContent>
@@ -530,12 +530,12 @@ export default function MapPage() {
                 <Card className="border-l-4 border-l-red-500 cursor-pointer hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-100 rounded-lg">
+                      <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
                         <AlertTriangle className="w-5 h-5 text-red-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-2xl font-bold text-gray-900">{stats.urgentGrids}</p>
-                        <p className="text-sm text-gray-600">急需支援</p>
+                        <p className="text-sm text-gray-600 whitespace-nowrap">急需支援</p>
                       </div>
                     </div>
                   </CardContent>
@@ -620,10 +620,8 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="bg-gray-50 border-b border-gray-200 p-4">
-        <div className="max-w-full mx-auto">
-          <AnnouncementPanel />
-        </div>
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-4 min-w-[436px]">
+        <AnnouncementPanel />
       </div>
 
       <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 180px)' }}>
