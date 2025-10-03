@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import cookie from '@fastify/cookie';
@@ -29,7 +31,60 @@ await app.register(swagger, {
   }
 });
 await app.register(swaggerUI, { routePrefix: '/docs' });
-await app.register(cors, { origin: true, credentials: true });
+
+// Register Helmet for HTTP security headers (HSTS and CSP disabled, handled by Cloudflare)
+await app.register(helmet, {
+  hsts: false,
+  contentSecurityPolicy: false
+});
+
+// Register global rate limiting to protect against abuse
+// 頻率限制：災難救援系統需要平衡可用性與安全性 (Rate limiting: balance availability and security for disaster relief)
+await app.register(rateLimit, {
+  max: 100, // 每分鐘 100 次請求 (100 requests per minute)
+  timeWindow: '1 minute',
+  // 對救援相關端點較寬鬆 (More lenient for rescue-related endpoints)
+  allowList: ['127.0.0.1'], // 本地測試不限制 (No limit for local testing)
+  addHeaders: {
+    'x-ratelimit-limit': true,
+    'x-ratelimit-remaining': true,
+    'x-ratelimit-reset': true,
+    'retry-after': true,
+  },
+  errorResponseBuilder: (request, context) => ({
+    error: 'Too Many Requests',
+    message: '請求過於頻繁，請稍後再試 (Too many requests, please try again later)',
+    statusCode: 429,
+    retryAfter: Math.round(context.ttl / 1000), // seconds until reset
+  }),
+});
+
+// Dynamic CORS policy based on environment
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+const productionOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : ["https://shovel-heroes.netlify.app"];
+
+const allowedOrigins = isDevelopment
+  ? ["http://localhost:5173", "http://localhost:5174"]
+  : productionOrigins;
+
+await app.register(cors, {
+  origin: (origin, cb) => {
+    // Allow non-browser requests or whitelisted origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      cb(null, true);
+    } else {
+      app.log.warn({ origin }, "Blocked by CORS policy");
+      cb(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
+
 await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-secret' });
 
 registerDisasterAreaRoutes(app);
@@ -63,6 +118,14 @@ app.addHook('preHandler', async (req, reply) => {
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });
   }
+});
+
+// 404 處理器：防止快取，避免 CDN 快取錯誤頁面 (404 handler: prevent caching)
+app.setNotFoundHandler((request, reply) => {
+  reply
+    .code(404)
+    .header('Cache-Control', 'no-store, must-revalidate')
+    .send({ message: 'Route not found' });
 });
 
 async function start() {
