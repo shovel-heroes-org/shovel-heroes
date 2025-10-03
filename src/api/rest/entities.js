@@ -14,8 +14,23 @@ function buildEntity(basePath) {
 
 export const DisasterArea = buildEntity('/disaster-areas');
 export const Grid = buildEntity('/grids');
-export const VolunteerRegistration = buildEntity('/volunteer-registrations');
-export const SupplyDonation = buildEntity('/supply-donations');
+export const VolunteerRegistration = {
+  ...buildEntity('/volunteer-registrations'),
+  // Simple client-side filter until backend supports query params
+  filter: async (query = {}) => {
+    const all = await http.get('/volunteer-registrations');
+    if (query.grid_id) return all.filter(r => r.grid_id === query.grid_id);
+    return all;
+  }
+};
+export const SupplyDonation = {
+  ...buildEntity('/supply-donations'),
+  filter: async (query = {}) => {
+    const all = await http.get('/supply-donations');
+    if (query.grid_id) return all.filter(r => r.grid_id === query.grid_id);
+    return all;
+  }
+};
 // GridDiscussion needs a custom filter API used by UI
 export const GridDiscussion = {
   ...buildEntity('/grid-discussions'),
