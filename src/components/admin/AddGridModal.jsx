@@ -71,7 +71,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
   const [position, setPosition] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [mapCenter, setMapCenter] = useState([23.8751, 121.5780]);
+  const [mapCenter, setMapCenter] = useState([23.65874, 121.42221]);
   const [currentUser, setCurrentUser] = useState(null);
   const [addressQuery, setAddressQuery] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -308,7 +308,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>新增救援網格</DialogTitle>
+          <DialogTitle>地點資訊</DialogTitle>
           <DialogDescription>
             填寫網格資訊並在地圖上標註位置。點擊地圖或搜尋地址即可設定中心點。
           </DialogDescription>
@@ -333,13 +333,13 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
 
             <div>
-              <Label htmlFor="grid_type">網格類型 *</Label>
+              <Label htmlFor="grid_type">資訊類型 *</Label>
               <Select
                 value={formData.grid_type}
                 onValueChange={(value) => handleSelectChange('grid_type', value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="請選擇網格類型" />
+                  <SelectValue placeholder="請選擇資訊類型" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manpower">人力任務</SelectItem>
@@ -352,7 +352,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
 
             <div>
-              <Label htmlFor="code">網格代碼 *</Label>
+              <Label htmlFor="code">資訊地點（地標）*</Label>
               <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：A-3, B-4"/>
             </div>
 
@@ -409,6 +409,10 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
                 {isGeocoding ? <Loader2 className="animate-spin w-4 h-4" /> : '搜尋定位'}
               </Button>
             </div>
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <Info className="w-3 h-3"/>
+              輸入經緯度或xx縣xx鄉，地址太細無法定位，建議地圖錨點定位後再手動拖曳調整
+            </p>
           </div>
         </div>
         {turnstileSiteKey && (
@@ -426,12 +430,12 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
               disabled={submitting || !currentUser || (turnstileSiteKey && !turnstileToken)}
               className={!currentUser || (turnstileSiteKey && !turnstileToken) ? 'bg-gray-400 cursor-not-allowed' : ''}
             >
-              {submitting ? '建立中...' : '建立網格'}
+              {submitting ? '建立中...' : '提交需求'}
             </Button>
           </div>
           {!currentUser && (
             <div className="text-xs text-gray-500 text-center space-y-1">
-              <p>請先登入以建立新救援網格。</p>
+              <p>請先登入以建立新救援資訊。</p>
               <Button
                 type="button"
                 variant="outline"
