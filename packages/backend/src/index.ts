@@ -37,7 +37,7 @@ await app.register(swaggerUI, { routePrefix: '/docs' });
 // 安全中介軟體配置 (Security middleware configuration)
 await app.register(helmet, {
   contentSecurityPolicy: false, // Cloudflare handles CSP
-  // HSTS is handled by Cloudflare, no need to configure here
+  hsts: false, // HSTS is handled by Cloudflare, disable backend HSTS
 });
 
 // 頻率限制：災難救援系統需要平衡可用性與安全性 (Rate limiting: balance availability and security for disaster relief)
