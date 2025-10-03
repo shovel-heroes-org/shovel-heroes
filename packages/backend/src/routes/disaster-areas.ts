@@ -2,10 +2,17 @@ import type { FastifyInstance } from 'fastify';
 import { listDisasterAreas, createDisasterArea, getDisasterArea, updateDisasterArea, deleteDisasterArea } from '../modules/disaster-areas/repo.js';
 import { z } from 'zod';
 
+const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const CreateSchema = z.object({
   name: z.string().min(1),
+  township: z.string().optional(),
+  county: z.string().optional(),
   center_lat: z.number().min(-90).max(90),
-  center_lng: z.number().min(-180).max(180)
+  center_lng: z.number().min(-180).max(180),
+  bounds: BoundsSchema.optional(),
+  grid_size: z.number().int().positive().optional(),
+  status: z.string().optional(),
+  description: z.string().optional()
 });
 
 const UpdateSchema = CreateSchema.partial();

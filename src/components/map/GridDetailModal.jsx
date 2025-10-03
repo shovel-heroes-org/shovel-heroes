@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info" }) {
+  // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
+  if (!Array.isArray(grid.supplies_needed)) {
+    grid = { ...grid, supplies_needed: [] };
+  }
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [volunteerForm, setVolunteerForm] = useState({
     volunteer_name: "",
@@ -51,27 +55,40 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const [discussions, setDiscussions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // If user logs out while on volunteer tab, fallback to info
+  React.useEffect(() => {
+    if (!user && activeTab === 'volunteer') {
+      setActiveTab('info');
+    }
+  }, [user, activeTab]);
+
   React.useEffect(() => {
     const loadUser = async () => {
       try {
         const currentUser = await User.me();
-        setUser(currentUser);
-        setVolunteerForm(prev => ({
-          ...prev,
-          volunteer_name: currentUser.full_name || "",
-          volunteer_email: currentUser.email || ""
-        }));
-        setSupplyForm(prev => ({
-          ...prev,
-          donor_name: currentUser.full_name || "",
-          donor_email: currentUser.email || ""
-        }));
-        setDiscussionForm(prev => ({
-          ...prev,
-          author_name: currentUser.full_name || ""
-        }));
+        // currentUser 可能為 null (未登入)
+        if (currentUser) {
+          setUser(currentUser);
+          const displayName = currentUser.name || currentUser.full_name || currentUser.email || '使用者';
+          setVolunteerForm(prev => ({
+            ...prev,
+            volunteer_name: displayName,
+            volunteer_email: currentUser.email || ""
+          }));
+          setSupplyForm(prev => ({
+            ...prev,
+            donor_name: displayName,
+            donor_email: currentUser.email || ""
+          }));
+          setDiscussionForm(prev => ({
+            ...prev,
+            author_name: displayName
+          }));
+        } else {
+          setUser(null);
+        }
       } catch (error) {
-        // 用戶未登入是正常情況，不需要拋出錯誤
+        // 用戶未登入或請求失敗都視為匿名
         setUser(null);
       }
     };
@@ -79,7 +96,14 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     const loadDiscussions = async () => {
       try {
         const data = await GridDiscussion.filter({ grid_id: grid.id }, '-created_date');
-        setDiscussions(data);
+        // Backend returns content & created_at; map to message & created_date for existing UI expectations.
+        const mapped = Array.isArray(data) ? data.map(d => ({
+          ...d,
+          message: d.message || d.content || '',
+            // Prefer created_date if backend adds later; fallback to created_at.
+          created_date: d.created_date || d.created_at || d.createdAt || d.created_at_date || null
+        })) : [];
+        setDiscussions(mapped);
       } catch (error) {
         console.error('Failed to load discussions:', error);
         setDiscussions([]); // Set discussions to empty array on failure
@@ -227,9 +251,14 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         message: ""
       });
 
-      // Reload discussions
+      // Reload discussions with mapping
       const data = await GridDiscussion.filter({ grid_id: grid.id }, '-created_date');
-      setDiscussions(data);
+      const mapped = Array.isArray(data) ? data.map(d => ({
+        ...d,
+        message: d.message || d.content || '',
+        created_date: d.created_date || d.created_at || d.createdAt || d.created_at_date || null
+      })) : [];
+      setDiscussions(mapped);
     } catch (error) {
       console.error('Failed to post discussion:', error);
       alert('發送訊息失敗，請稍後再試。');
@@ -259,15 +288,17 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               基本資訊
             </TabsTrigger>
-            <TabsTrigger value="volunteer" className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              志工報名
-            </TabsTrigger>
+            {user && (
+              <TabsTrigger value="volunteer" className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                志工報名
+              </TabsTrigger>
+            )}
             <TabsTrigger value="supply" className="flex items-center gap-2">
               <PackagePlus className="w-4 h-4" />
               物資捐贈
@@ -363,6 +394,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Card>
           </TabsContent>
 
+          {user && (
           <TabsContent value="volunteer">
             <Card>
               <CardHeader>
@@ -445,15 +477,27 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
                   <Button
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    disabled={submitting}
+                    className={`w-full ${(!user ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
+                    disabled={submitting || !user}
                   >
                     {submitting ? "提交中..." : "確認報名"}
                   </Button>
+                  {!user && (
+                    <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
+                      <p>請先登入以完成報名。您可以先查看需要填寫的欄位。</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => User.login()}
+                      >立即登入</Button>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           <TabsContent value="supply">
             <Card>
@@ -576,11 +620,22 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
                     <Button
                       type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      disabled={submitting}
+                      className={`w-full ${(!user ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700')}`}
+                      disabled={submitting || !user}
                     >
                       {submitting ? "提交中..." : "確認捐贈"}
                     </Button>
+                    {!user && (
+                      <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
+                        <p>請先登入以完成捐贈。您可以先查看需要填寫的欄位。</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => User.login()}
+                        >立即登入</Button>
+                      </div>
+                    )}
                   </form>
                 </div>
               </CardContent>
@@ -589,49 +644,62 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
           <TabsContent value="discussion">
             <div className="space-y-4">
-              {/* Post Form */}
+              {/* Post Form (top) */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">發表訊息</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleDiscussionSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="author_name">您的名稱 *</Label>
-                      <Input
-                        id="author_name"
-                        value={discussionForm.author_name}
-                        onChange={(e) => setDiscussionForm({...discussionForm, author_name: e.target.value})}
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                        <Info className="w-3 h-3"/>
-                        此名稱將公開顯示於討論區。
-                      </p>
+                  {!user && (
+                    <div className="space-y-4 text-sm text-gray-600">
+                      <div className="p-4 border border-dashed rounded-md bg-gray-50 text-center">
+                        <p className="mb-2 font-medium">請登入後再發送討論訊息。</p>
+                        <Button type="button" variant="outline" onClick={() => User.login()}>
+                          立即登入
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500 text-center">登入後可即時交流現場狀況與協作需求。</p>
                     </div>
-                    <div>
-                      <Label htmlFor="message">訊息內容 *</Label>
-                      <Textarea
-                        id="message"
-                        placeholder="分享現場狀況、提問或協調事項..."
-                        value={discussionForm.message}
-                        onChange={(e) => setDiscussionForm({...discussionForm, message: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={submitting}
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      {submitting ? "發送中..." : "發送訊息"}
-                    </Button>
-                  </form>
+                  )}
+                  {user && (
+                    <form onSubmit={handleDiscussionSubmit} className="space-y-4">
+                      <div>
+                        <Label htmlFor="author_name">您的名稱 *</Label>
+                        <Input
+                          id="author_name"
+                          value={discussionForm.author_name}
+                          disabled
+                          className="disabled:opacity-70 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <Info className="w-3 h-3"/>
+                          此為您的登入名稱，將隨訊息公開顯示。
+                        </p>
+                      </div>
+                      <div>
+                        <Label htmlFor="message">訊息內容 *</Label>
+                        <Textarea
+                          id="message"
+                          placeholder="分享現場狀況、提問或協調事項..."
+                          value={discussionForm.message}
+                          onChange={(e) => setDiscussionForm({...discussionForm, message: e.target.value})}
+                          required
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        className="bg-blue-600 hover:bg-blue-700"
+                        disabled={submitting}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        {submitting ? "發送中..." : "發送訊息"}
+                      </Button>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Discussion List */}
+              {/* Discussion List (below form) */}
               <div className="space-y-3">
                 {discussions.map((discussion) => (
                   <Card key={discussion.id} className="border-l-4 border-l-blue-500">
