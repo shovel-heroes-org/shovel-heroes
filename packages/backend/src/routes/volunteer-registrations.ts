@@ -112,7 +112,7 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       [id, status]
     );
     const updated = updatedRows[0];
-    // Recalc volunteer_registered (exclude cancelled & declined?) Keep declined as not counted
+    // Recalculate volunteer_registered (exclude both 'cancelled' and 'declined' statuses from the count)
     await app.db.query(
       `UPDATE grids SET volunteer_registered = (
          SELECT COUNT(*) FROM volunteer_registrations vr
