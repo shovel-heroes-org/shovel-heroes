@@ -2,7 +2,6 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import cookie from '@fastify/cookie';
@@ -37,32 +36,17 @@ await app.register(swagger, {
 });
 await app.register(swaggerUI, { routePrefix: '/docs' });
 
-// Register Helmet for HTTP security headers (HSTS and CSP disabled, handled by Cloudflare)
+// 🔒 Security: HTTP headers via Helmet (defense-in-depth)
+// Note: HSTS/CSP managed by Cloudflare for optimal CDN performance
+// Backend Helmet provides additional security headers (X-Frame-Options, X-Content-Type-Options, etc.)
 await app.register(helmet, {
-  hsts: false,
-  contentSecurityPolicy: false
+  hsts: false,              // Cloudflare handles HSTS
+  contentSecurityPolicy: false  // Cloudflare handles CSP
 });
 
-// Register global rate limiting to protect against abuse
-// 頻率限制：災難救援系統需要平衡可用性與安全性 (Rate limiting: balance availability and security for disaster relief)
-await app.register(rateLimit, {
-  max: 100, // 每分鐘 100 次請求 (100 requests per minute)
-  timeWindow: '1 minute',
-  // 對救援相關端點較寬鬆 (More lenient for rescue-related endpoints)
-  allowList: ['127.0.0.1'], // 本地測試不限制 (No limit for local testing)
-  addHeaders: {
-    'x-ratelimit-limit': true,
-    'x-ratelimit-remaining': true,
-    'x-ratelimit-reset': true,
-    'retry-after': true,
-  },
-  errorResponseBuilder: (request, context) => ({
-    error: 'Too Many Requests',
-    message: '請求過於頻繁，請稍後再試 (Too many requests, please try again later)',
-    statusCode: 429,
-    retryAfter: Math.round(context.ttl / 1000), // seconds until reset
-  }),
-});
+// 🔒 Security: Rate limiting delegated to Cloudflare
+// Cloudflare provides enterprise-grade rate limiting at edge
+// Backend focuses on business logic and maintains high availability for disaster relief
 
 // Dynamic CORS policy based on environment
 const isDevelopment = process.env.NODE_ENV !== "production";
@@ -116,10 +100,10 @@ const PUBLIC_ALLOWLIST = new Set([
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
-  // Enforce auth for mutating methods; optionally could extend to GET later.
-  if (!['POST','PUT','DELETE'].includes(req.method)) return;
+  // Enforce auth for mutating methods
+  if (!['POST','PUT','DELETE','PATCH'].includes(req.method)) return;
   const url = req.url.split('?')[0];
-  if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
+  if (PUBLIC_ALLOWLIST.has(url)) return;
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });
   }
@@ -155,6 +139,18 @@ app.setNotFoundHandler((request, reply) => {
 });
 
 async function start() {
+  // 🔒 Security: Enforce secrets in production
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.AUTH_JWT_SECRET || process.env.AUTH_JWT_SECRET === 'dev-secret') {
+      app.log.fatal('AUTH_JWT_SECRET required in production');
+      process.exit(1);
+    }
+    if (!process.env.COOKIE_SECRET || process.env.COOKIE_SECRET === 'dev-secret') {
+      app.log.fatal('COOKIE_SECRET required in production');
+      process.exit(1);
+    }
+  }
+
   const basePort = Number(process.env.PORT) || 8787;
   let port = basePort;
   for (let attempt = 0; attempt < 5; attempt++) {
