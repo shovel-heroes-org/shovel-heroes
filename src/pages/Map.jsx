@@ -14,6 +14,23 @@ import AnnouncementPanel from "../components/map/AnnouncementPanel";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
 
+const formatCreatedAt = (createdAt) => {
+  const today = new Date().toLocaleDateString("zh-TW");
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString(
+      "zh-TW"
+  );
+  const qiantian = new Date(Date.now() - 2 * 86400000).toLocaleDateString(
+      "zh-TW"
+  );
+  const createdDate = new Date(createdAt).toLocaleDateString("zh-TW");
+  const createdTime = new Date(createdAt).toLocaleTimeString("zh-TW");
+
+  if (createdDate == today) return "今天 " + createdTime;
+  else if (createdDate == yesterday) return "昨天 " + createdTime;
+  else if (createdDate == qiantian) return "前天 " + createdTime;
+  else return createdDate.split("2025/")[1] + " " + createdTime;
+};
+
 const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
@@ -911,6 +928,12 @@ export default function MapPage() {
                             </Button>
                           )}
                         </div>
+                        <span className="text-sm font-medium my-2">
+                          需求建立時間：{" "}
+                          {formatCreatedAt(
+                              grid.created_at
+                          )}
+                        </span>
                       </CardContent>
                     </Card>
                   );
