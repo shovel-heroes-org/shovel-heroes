@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Mail, Star, ExternalLink, AlertTriangle, MessageCircle } from 'lucide-react';
+import { GithubIcon } from '@/components/icons/GithubIcon';
 
 export default function AboutPage() {
   return (
@@ -64,6 +65,19 @@ export default function AboutPage() {
                 <Button className="w-full bg-purple-600 hover:bg-purple-700">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   填寫功能許願表單
+                </Button>
+              </a>
+              <a
+                href="https://github.com/shovel-heroes-org/shovel-heroes/issues/new/choose"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 hover:border-gray-400 flex items-center justify-center gap-2"
+                >
+                  <GithubIcon size={16} />
+                  前往 GitHub 專案
                 </Button>
               </a>
               <p className="text-sm text-gray-500">
