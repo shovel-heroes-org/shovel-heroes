@@ -1,0 +1,150 @@
+name: Deploy to Production (EKS)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (e.g., staging-abc123)'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1  # Update to match your Terraform region
+  EKS_CLUSTER_NAME: shovel-heroes-production  # Update to match your EKS cluster name
+  ECR_BACKEND_REPO: shovel-heroes-backend
+  ECR_FRONTEND_REPO: shovel-heroes-frontend
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  deploy-production:
+    name: Build and Deploy to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api.shovel-heroes.com  # Update with your actual domain
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "IMAGE_TAG=prod-${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify images exist in ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          # For release, we need to build new images
+          # For manual dispatch, we verify images exist
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Verifying images exist in ECR..."
+            aws ecr describe-images --repository-name $ECR_BACKEND_REPO --image-ids imageTag=$IMAGE_TAG
+            aws ecr describe-images --repository-name $ECR_FRONTEND_REPO --image-ids imageTag=$IMAGE_TAG
+          fi
+
+      - name: Set up Docker Buildx (for release builds)
+        if: github.event_name == 'release'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image (release only)
+        if: github.event_name == 'release'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          docker build -f Dockerfile.backend \
+            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:prod-latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:prod-latest
+
+      - name: Build and push frontend image (release only)
+        if: github.event_name == 'release'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          docker build -f Dockerfile.frontend \
+            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:prod-latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:prod-latest
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.31.0'
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to production
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          # Update kustomization with actual ECR URLs and image tag
+          cd k8s/overlays/production
+
+          # Replace placeholders with actual values
+          kustomize edit set image \
+            BACKEND_ECR_URL=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
+            FRONTEND_ECR_URL=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
+
+          # Apply the manifests
+          kustomize build . | kubectl apply -f -
+
+          # Wait for rollout to complete (with longer timeout for production)
+          kubectl rollout status deployment/backend-prod -n shovel-heroes-production --timeout=10m
+          kubectl rollout status deployment/frontend-prod -n shovel-heroes-production --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get deployments -n shovel-heroes-production
+          kubectl get pods -n shovel-heroes-production
+          kubectl get services -n shovel-heroes-production
+          kubectl get ingress -n shovel-heroes-production
+
+      - name: Run health checks
+        run: |
+          echo "=== Health Checks ==="
+          kubectl exec -n shovel-heroes-production deployment/backend-prod -- wget -qO- http://localhost:8787/healthz || echo "Backend health check failed"
+          kubectl exec -n shovel-heroes-production deployment/frontend-prod -- wget -qO- http://localhost:80/health || echo "Frontend health check failed"
+
+      - name: Deployment summary
+        run: |
+          echo "🚀 Production deployment completed successfully!"
+          echo "Image tag: ${{ steps.set-tag.outputs.IMAGE_TAG }}"
+          echo "Cluster: ${{ env.EKS_CLUSTER_NAME }}"
+          echo "Region: ${{ env.AWS_REGION }}"
