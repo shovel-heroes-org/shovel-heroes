@@ -11,10 +11,10 @@ on:
         type: string
 
 env:
-  AWS_REGION: us-east-1  # Update to match your Terraform region
-  EKS_CLUSTER_NAME: shovel-heroes-production  # Update to match your EKS cluster name
-  ECR_BACKEND_REPO: shovel-heroes-backend
-  ECR_FRONTEND_REPO: shovel-heroes-frontend
+  AWS_REGION: ap-east-2
+  EKS_CLUSTER_NAME: eks-shovel-heros
+  ECR_BACKEND_REPO: shovel-heros-staging-shovel-heroes-backend
+  ECR_FRONTEND_REPO: shovel-heros-staging-shovel-heroes-frontend
 
 permissions:
   id-token: write  # Required for OIDC
