@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
+import cookie from '@fastify/cookie';
 
 import { registerDisasterAreaRoutes } from './routes/disaster-areas.js';
 import { registerGridRoutes } from './routes/grids.js';
@@ -28,7 +29,8 @@ await app.register(swagger, {
   }
 });
 await app.register(swaggerUI, { routePrefix: '/docs' });
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
+await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-secret' });
 
 registerDisasterAreaRoutes(app);
 registerGridRoutes(app);
@@ -40,6 +42,28 @@ registerAnnouncementRoutes(app);
 registerUserRoutes(app);
 registerFunctionRoutes(app);
 registerLegacyRoutes(app);
+// Auth routes (LINE)
+import { registerLineAuthRoutes } from './routes/auth-line.js';
+registerLineAuthRoutes(app);
+
+// Global auth enforcement for all POST endpoints except a small allowlist.
+// Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
+const PUBLIC_ALLOWLIST = new Set([
+  '/auth/line/exchange', // need to obtain token (POST)
+  '/auth/line/login',    // GET redirect
+  '/auth/logout',        // GET logout
+  '/healthz'             // health check
+]);
+
+app.addHook('preHandler', async (req, reply) => {
+  // Enforce auth for mutating methods; optionally could extend to GET later.
+  if (!['POST','PUT','DELETE'].includes(req.method)) return;
+  const url = req.url.split('?')[0];
+  if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
+  if (!req.user) {
+    return reply.status(401).send({ message: 'Unauthorized' });
+  }
+});
 
 async function start() {
   const basePort = Number(process.env.PORT) || 8787;

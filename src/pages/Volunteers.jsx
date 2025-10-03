@@ -33,25 +33,53 @@ export default function VolunteersPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [volunteersResponse, gridsData, userData] = await Promise.all([ // Changed to getVolunteers
-        getVolunteers(), // Call the new function
+      const [volunteersResponse, gridsData, userData] = await Promise.all([
+        getVolunteers(),
         Grid.list(),
         User.me().catch(() => null) // 用戶未登入時返回 null
       ]);
+      // Normalize various possible shapes safely without ever touching undefined.data
+      // Supported shapes:
+      // 1. { data: [...] , can_view_phone?: boolean, total?: number }
+      // 2. Legacy (unlikely now): [...]
+      // 3. Defensive: anything else -> []
+      let list = [];
+      let canView = false;
+      if (Array.isArray(volunteersResponse)) {
+        list = volunteersResponse;
+      } else if (volunteersResponse && Array.isArray(volunteersResponse.data)) {
+        list = volunteersResponse.data;
+        canView = Boolean(volunteersResponse.can_view_phone);
+      } else if (volunteersResponse && volunteersResponse.data && Array.isArray(volunteersResponse.data.data)) {
+        // Extremely defensive nested case (should not happen now)
+        list = volunteersResponse.data.data;
+        canView = Boolean(volunteersResponse.data.can_view_phone || volunteersResponse.can_view_phone);
+      }
 
-      // 使用安全的 API 返回的數據
-      const registrationsData = volunteersResponse.data.data || [];
-      setCanViewPhone(volunteersResponse.data.can_view_phone || false); // Set canViewPhone state from backend
+      // Ensure every item has minimal required fields to avoid downstream optional chaining issues
+      const finalRegs = list.map(r => ({
+        id: r.id,
+        grid_id: r.grid_id,
+        volunteer_name: r.volunteer_name || r.name || '匿名志工',
+        volunteer_phone: r.volunteer_phone,
+        status: r.status || 'pending',
+        available_time: r.available_time || r.time || null,
+        skills: Array.isArray(r.skills) ? r.skills : [],
+        equipment: Array.isArray(r.equipment) ? r.equipment : [],
+        notes: r.notes || '',
+        created_date: r.created_date || r.created_at || new Date().toISOString()
+      }));
 
-      setRegistrations(registrationsData);
+      setCanViewPhone(canView);
+      setRegistrations(finalRegs);
       setGrids(gridsData);
       setCurrentUser(userData);
 
       setStats({
-        total: registrationsData.length,
-        pending: registrationsData.filter(r => r.status === 'pending').length,
-        confirmed: registrationsData.filter(r => r.status === 'confirmed').length,
-        completed: registrationsData.filter(r => r.status === 'completed').length,
+        total: finalRegs.length,
+        pending: finalRegs.filter(r => r.status === 'pending').length,
+        confirmed: finalRegs.filter(r => r.status === 'confirmed').length,
+        completed: finalRegs.filter(r => r.status === 'completed').length,
       });
     } catch (error) {
       console.error('Failed to load data:', error);

@@ -1,6 +1,6 @@
 // REST implementation of entities previously provided by Base44 SDK.
 // This mirrors the minimal surface your UI currently uses (list, create, etc.)
-import { http } from './client';
+import { http, API_BASE } from './client';
 
 function buildEntity(basePath) {
   return {
@@ -39,5 +39,20 @@ export const User = {
     } catch (e) {
       return null; // not logged in
     }
+  },
+  login: () => {
+    // Always go to backend (absolute) to avoid hitting frontend dev server path only
+    window.location.href = `${API_BASE}/auth/line/login`;
+  },
+  logout: async () => {
+    try {
+      await http.get('/auth/logout');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+    try {
+      localStorage.removeItem('sh_token');
+    } catch {/* ignore */}
+    window.location.reload();
   }
 };
