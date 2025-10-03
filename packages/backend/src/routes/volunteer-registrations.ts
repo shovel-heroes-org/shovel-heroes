@@ -60,6 +60,69 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     );
     return reply.status(201).send(rows[0]);
   });
+  
+  // Update status (pending -> confirmed / declined / cancelled; confirmed -> cancelled; others immutable)
+  app.put('/volunteer-registrations/:id', async (req, reply) => {
+    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
+    if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    const { id } = req.params as any;
+  const { status } = (req.body as any) || {};
+  // Full lifecycle: pending -> confirmed -> arrived -> completed
+  // Branch exits: pending -> declined | cancelled; confirmed/arrived -> cancelled; completed/declined/cancelled terminal
+  const allowed = ['pending','confirmed','arrived','completed','declined','cancelled'];
+    if (!status || !allowed.includes(status)) {
+      return reply.status(400).send({ message: 'Invalid or missing status' });
+    }
+    // Fetch existing with grid ownership context (created_by_id)
+    const { rows: existingRows } = await app.db.query(
+      `SELECT vr.*, g.created_by_id AS grid_creator_id, g.grid_manager_id AS grid_manager_id
+       FROM volunteer_registrations vr
+       LEFT JOIN grids g ON g.id = vr.grid_id
+       WHERE vr.id = $1`, [id]
+    );
+    const existing = existingRows[0];
+    if (!existing) return reply.status(404).send({ message: 'Not found' });
+
+    const currentStatus = existing.status || 'pending';
+    const userId = req.user.id;
+    const isSelf = existing.user_id === userId;
+    const isPrivileged = ['admin','grid_manager'].includes(req.user.role || '') || existing.grid_creator_id === userId || existing.grid_manager_id === userId;
+
+    // Transition rules
+    function canTransition(from: string, to: string) {
+      if (from === to) return true;
+      if (from === 'pending') return ['confirmed','declined','cancelled'].includes(to);
+      if (from === 'confirmed') return ['arrived','cancelled'].includes(to);
+      if (from === 'arrived') return ['completed','cancelled'].includes(to);
+      return false; // declined or cancelled are terminal
+    }
+    if (!canTransition(currentStatus, status)) {
+      return reply.status(400).send({ message: 'Illegal status transition' });
+    }
+    // Permission rules
+    if (['confirmed','declined','arrived','completed'].includes(status) && !isPrivileged) {
+      return reply.status(403).send({ message: 'Forbidden' });
+    }
+    if (status === 'cancelled' && !(isSelf || isPrivileged)) {
+      return reply.status(403).send({ message: 'Forbidden' });
+    }
+
+    const { rows: updatedRows } = await app.db.query(
+      'UPDATE volunteer_registrations SET status=$2, updated_at=NOW() WHERE id=$1 RETURNING *',
+      [id, status]
+    );
+    const updated = updatedRows[0];
+    // Recalc volunteer_registered (exclude cancelled & declined?) Keep declined as not counted
+    await app.db.query(
+      `UPDATE grids SET volunteer_registered = (
+         SELECT COUNT(*) FROM volunteer_registrations vr
+         WHERE vr.grid_id = $1 
+           AND COALESCE(vr.status,'pending') IN ('confirmed','arrived','completed')
+       ), updated_at = NOW() WHERE id = $1`,
+      [updated.grid_id]
+    );
+    return updated;
+  });
   app.delete('/volunteer-registrations/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
