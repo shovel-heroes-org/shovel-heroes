@@ -80,7 +80,7 @@ jobs:
       - name: Create namespace and secrets
         run: |
           # Create namespace if it doesn't exist
-          kubectl create namespace shovel-heroes-staging --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace shovel-heroes-staging --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
           # Get secrets from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value \
@@ -104,7 +104,7 @@ jobs:
             --from-literal=jwt-secret="$JWT_SECRET" \
             --from-literal=api-key="$API_KEY" \
             -n shovel-heroes-staging \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
       - name: Deploy to staging
         env:
