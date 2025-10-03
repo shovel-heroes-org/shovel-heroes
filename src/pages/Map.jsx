@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Rectangle, Popup, useMap, Marker, Tooltip } from "react-leaflet";
 import { DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
 import { Button } from "@/components/ui/button";
@@ -268,6 +268,8 @@ export default function MapPage() {
   const [disasterAreas, setDisasterAreas] = useState([]);
   const [grids, setGrids] = useState([]);
   const [selectedGrid, setSelectedGrid] = useState(null);
+  const [gridDetailTab, setGridDetailTab] = useState('info');
+  const initialQueryApplied = useRef(false); // 防止初始載入時 URL 同步提早移除 grid 參數
   const [loading, setLoading] = useState(true);
   const [selectedGridType, setSelectedGridType] = useState('all');
   const [stats, setStats] = useState({
@@ -318,9 +320,91 @@ export default function MapPage() {
     }
   }, []);
 
+  // Parse initial URL params once (before data load) for filters
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('type');
+    const tab = params.get('tab');
+    if (type && ['all','manpower','mud_disposal','supply_storage','accommodation','food_area'].includes(type)) {
+      setSelectedGridType(type);
+    }
+    if (tab && ['info','volunteer','supply','discussion'].includes(tab)) {
+      setGridDetailTab(tab);
+    }
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // After grids load, if URL has grid param, open it
+  useEffect(() => {
+    if (!grids.length || initialQueryApplied.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const gridParam = params.get('grid');
+    if (gridParam) {
+      const found = grids.find(g => g.id === gridParam || g.code === gridParam);
+      if (found) {
+        setSelectedGrid(found);
+        setMapCollapsed(true);
+      }
+    }
+    // 標記初始查詢已處理（不論是否找到 grid）
+    initialQueryApplied.current = true;
+  }, [grids]);
+
+  // Sync current state to URL
+  const syncUrl = useCallback((next) => {
+    const params = new URLSearchParams();
+    const { type, gridId, tab } = next;
+    if (type && type !== 'all') params.set('type', type);
+    if (gridId) params.set('grid', gridId);
+    if (tab && tab !== 'info') params.set('tab', tab);
+    const qs = params.toString();
+    const newUrl = `${window.location.pathname}${qs ? '?' + qs : ''}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
+  // Effects to update URL when local state changes
+  useEffect(() => {
+    // 初始 query 尚未處理完成時避免覆寫 URL（會把 ?grid= 提前清掉）
+    if (!initialQueryApplied.current) return;
+    syncUrl({
+      type: selectedGridType,
+      gridId: selectedGrid?.id || null,
+      tab: selectedGrid ? gridDetailTab : null
+    });
+  }, [selectedGridType, selectedGrid, gridDetailTab, syncUrl]);
+
+  // Handle browser navigation (back/forward)
+  useEffect(() => {
+    const onPop = () => {
+      const params = new URLSearchParams(window.location.search);
+      const type = params.get('type') || 'all';
+      const tab = params.get('tab') || 'info';
+      const gridParam = params.get('grid');
+      if (['all','manpower','mud_disposal','supply_storage','accommodation','food_area'].includes(type)) {
+        setSelectedGridType(type);
+      } else {
+        setSelectedGridType('all');
+      }
+      if (['info','volunteer','supply','discussion'].includes(tab)) {
+        setGridDetailTab(tab);
+      } else {
+        setGridDetailTab('info');
+      }
+      if (gridParam) {
+        const found = grids.find(g => g.id === gridParam || g.code === gridParam);
+        if (found) {
+          setSelectedGrid(found);
+          setMapCollapsed(true);
+          return;
+        }
+      }
+      // If no grid param or not found -> close
+      setSelectedGrid(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [grids]);
 
   const loadData = async () => {
     try {
@@ -391,11 +475,13 @@ export default function MapPage() {
 
   const handleGridClick = (grid) => {
     setSelectedGrid(grid);
+    setGridDetailTab('info');
     setMapCollapsed(true);
   };
 
   const handleModalClose = () => {
     setSelectedGrid(null);
+    setGridDetailTab('info');
     loadData();
   };
 
@@ -956,6 +1042,8 @@ export default function MapPage() {
           grid={selectedGrid}
           onClose={handleModalClose}
           onUpdate={loadData}
+          defaultTab={gridDetailTab}
+          onTabChange={setGridDetailTab}
         />
       )}
     </div>
