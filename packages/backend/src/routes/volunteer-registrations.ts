@@ -22,8 +22,13 @@ const CreateSchema = z.object({
 );
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
-  app.get('/volunteer-registrations', async () => {
+  app.get('/volunteer-registrations', async (req) => {
     if (!app.hasDecorator('db')) return [];
+    const gridId = (req.query as any)?.grid_id;
+    if (gridId) {
+      const { rows } = await app.db.query('SELECT * FROM volunteer_registrations WHERE grid_id=$1 ORDER BY created_at DESC', [gridId]);
+      return rows;
+    }
     const { rows } = await app.db.query('SELECT * FROM volunteer_registrations ORDER BY created_at DESC');
     return rows;
   });

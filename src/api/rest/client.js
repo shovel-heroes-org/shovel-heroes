@@ -5,7 +5,13 @@ export const API_BASE = import.meta.env.VITE_API_BASE || 'https://your.api.serve
 
 async function request(path, { method = 'GET', headers = {}, body } = {}) {
   const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('sh_token') : null;
-  const options = { method, headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}), ...headers } };
+  const actingRole = typeof localStorage !== 'undefined' ? localStorage.getItem('sh-acting-role') : null;
+  const extraHeaders = {};
+  // Only send acting role header when intentionally limiting to user perspective.
+  if (actingRole === 'user') {
+    extraHeaders['X-Acting-Role'] = 'user';
+  }
+  const options = { method, headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}), ...extraHeaders, ...headers } };
   if (body !== undefined) options.body = typeof body === 'string' ? body : JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
