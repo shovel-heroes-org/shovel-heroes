@@ -112,6 +112,22 @@ export function registerGridRoutes(app: FastifyInstance) {
     const body = GridCreateSchema.partial().safeParse(req.body);
     if (!body.success) return reply.status(400).send({ message: 'Invalid payload', issues: body.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    // Auth & permission
+    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+    const { rows: gridRows } = await app.db.query('SELECT id, created_by_id, grid_manager_id FROM grids WHERE id=$1', [id]);
+    const grid = gridRows[0];
+    if (!grid) return reply.status(404).send({ message: 'Not found' });
+    const userId = req.user.id;
+    const isOwner = grid.created_by_id === userId || grid.grid_manager_id === userId;
+    const isRealAdmin = req.user.role === 'admin';
+    if (actingRole === 'user' && !isOwner) {
+      return reply.status(403).send({ message: 'Forbidden (acting as user)' });
+    }
+    if (actingRole !== 'user' && !(isRealAdmin || isOwner)) {
+      return reply.status(403).send({ message: 'Forbidden' });
+    }
     const fields = body.data;
     const set: string[] = [];
     const values: any[] = [];
@@ -134,6 +150,38 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.delete('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    // Must be authenticated
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+    if (!req.user) {
+      return reply.status(401).send({ message: 'Unauthorized' });
+    }
+    // Fetch grid ownership info
+    const { rows: gridRows } = await app.db.query('SELECT id, created_by_id, grid_manager_id FROM grids WHERE id=$1', [id]);
+    const grid = gridRows[0];
+    if (!grid) return reply.status(404).send({ message: 'Not found' });
+    const userId = req.user.id;
+    const isOwner = grid.created_by_id === userId || grid.grid_manager_id === userId;
+    const isRealAdmin = (req.user.role === 'admin');
+    // If acting role is user, forbid even if real admin unless owner.
+    if (actingRole === 'user' && !isOwner) {
+      return reply.status(403).send({ message: 'Forbidden (acting as user)' });
+    }
+    // If acting as admin (no actingRole header) allow only admin or owner
+    if (actingRole !== 'user' && !(isRealAdmin || isOwner)) {
+      return reply.status(403).send({ message: 'Forbidden' });
+    }
+    // Ensure no dependent volunteer_registrations or supply_donations remain (simplistic integrity check)
+    const deps = await app.db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM volunteer_registrations WHERE grid_id=$1) AS vr_count,
+        (SELECT COUNT(*) FROM supply_donations WHERE grid_id=$1) AS sd_count,
+        (SELECT COUNT(*) FROM grid_discussions WHERE grid_id=$1) AS gd_count
+    `, [id]);
+    const d = deps.rows[0];
+    if (d && (Number(d.vr_count) > 0 || Number(d.sd_count) > 0 || Number(d.gd_count) > 0)) {
+      return reply.status(409).send({ message: 'Grid has related records', details: d });
+    }
     await app.db.query('DELETE FROM grids WHERE id=$1', [id]);
     return reply.status(204).send();
   });

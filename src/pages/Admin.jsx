@@ -176,8 +176,7 @@ export default function AdminPage() {
         // First, get all related records
         const [volunteerRegs, supplyDonations] = await Promise.all([
           VolunteerRegistration.filter({ grid_id: grid.id }),
-          SupplyDonation.filter({ grid_id: grid.id }),
-          // GridDiscussion.filter({ grid_id: grid.id }).catch(() => []) // Handle if entity doesn't exist yet
+          SupplyDonation.filter({ grid_id: grid.id })
         ]);
 
         // Delete all related records first
@@ -191,9 +190,16 @@ export default function AdminPage() {
         ];
 
         await Promise.all(deletePromises);
-
-        // Finally delete the grid itself
-        await Grid.delete(grid.id);
+        try {
+          await Grid.delete(grid.id);
+        } catch (err) {
+          // If backend returns 409, surface clearer message
+          const msg = String(err.message || err);
+          if (msg.includes('409')) {
+            throw new Error('仍有相關紀錄未刪除，請稍後再試或重新整理後確認。');
+          }
+          throw err;
+        }
 
         alert(`網格 "${grid.code}" 及其相關記錄已成功刪除`);
         loadData(); // Reload data

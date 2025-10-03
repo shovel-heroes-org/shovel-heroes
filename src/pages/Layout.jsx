@@ -139,8 +139,29 @@ export default function Layout({ children, currentPageName }) {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90" title={user.name || user.full_name || '使用者'}>
-                      {user.avatar_url ? <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" /> : <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>}
+                    <button
+                      className="relative w-10 h-10 flex items-center justify-center overflow-visible group focus:outline-none"
+                      title={(user.role === 'admin' && actingRole === 'admin') ? '管理模式中' : (user.name || user.full_name || '使用者')}
+                    >
+                      {user.role === 'admin' && actingRole === 'admin' && (
+                        <>
+                          {/* Soft outer ambient glow */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-pink-300/30 blur-[3px] animate-pulse" />
+                          {/* Thin soft ring */}
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-pink-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                        </>
+                      )}
+                      {/* Actual avatar circle */}
+                      <span className="relative inline-flex w-full h-full rounded-full ring-2 ring-white shadow bg-gradient-to-br from-blue-500 to-indigo-600 text-white items-center justify-center group-hover:opacity-90 transition">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
+                        ) : (
+                          <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>
+                        )}
+                      </span>
+                      {user.role === 'admin' && actingRole === 'admin' && (
+                        <span className="sr-only">管理模式啟用</span>
+                      )}
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
