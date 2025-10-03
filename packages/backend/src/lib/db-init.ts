@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT,
   email TEXT,
+  line_sub TEXT UNIQUE,
+  avatar_url TEXT,
+  role TEXT DEFAULT 'user',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -94,6 +97,8 @@ CREATE TABLE IF NOT EXISTS grid_discussions (
   grid_id TEXT NOT NULL REFERENCES grids(id) ON DELETE CASCADE,
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   content TEXT NOT NULL,
+  author_name TEXT,
+  author_role TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -165,6 +170,17 @@ ALTER TABLE announcements
   ADD COLUMN IF NOT EXISTS is_sample BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_date TIMESTAMPTZ DEFAULT NOW();
+
+-- Auth related additions (idempotent) for existing deployments upgrading schema
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS line_sub TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+
+-- New optional columns for discussions metadata
+ALTER TABLE grid_discussions
+  ADD COLUMN IF NOT EXISTS author_name TEXT,
+  ADD COLUMN IF NOT EXISTS author_role TEXT;
 `;
 
 export async function initDb(app: FastifyInstance) {

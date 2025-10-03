@@ -18,7 +18,8 @@ const GridCreateSchema = z.object({
   status: z.string().optional(),
   supplies_needed: z.array(SupplyNeedSchema).optional(),
   grid_manager_id: z.string().optional(),
-  completion_photo: z.string().optional()
+  completion_photo: z.string().optional(),
+  __turnstile_token: z.string().optional()
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
@@ -39,6 +40,30 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.post('/grids', async (req, reply) => {
     const body = GridCreateSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ message: 'Invalid payload', issues: body.error.issues });
+
+    // Cloudflare Turnstile verification (optional based on env)
+    const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
+    if (TURNSTILE_SECRET) {
+      const token = body.data.__turnstile_token;
+      if (!token) {
+        return reply.status(400).send({ message: 'Missing Turnstile token' });
+      }
+      try {
+        const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token })
+        });
+        const verifyJson: any = await verifyRes.json();
+        if (!verifyJson.success) {
+          app.log.warn({ msg: 'Turnstile verification failed', verifyJson });
+          return reply.status(400).send({ message: 'Turnstile verification failed' });
+        }
+      } catch (err) {
+        app.log.error({ msg: 'Turnstile verification error', err });
+        return reply.status(500).send({ message: 'Turnstile verification error' });
+      }
+    }
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     const id = randomUUID();
     const d = body.data;
