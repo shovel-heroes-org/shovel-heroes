@@ -19,7 +19,12 @@ import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
 
-const app = Fastify({ logger: true });
+// 🔒 Security: Request size limits and proxy trust for Cloudflare
+const app = Fastify({
+  logger: true,
+  bodyLimit: 1048576,  // 1MB - Prevent memory DoS attacks (OWASP 2025)
+  trustProxy: true      // Trust Cloudflare proxy headers for accurate client IP
+});
 
 app.get('/healthz', async () => ({ status: 'ok', db: app.hasDecorator('db') ? 'ready' : 'not-ready' }));
 
@@ -117,6 +122,27 @@ app.addHook('preHandler', async (req, reply) => {
   if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });
+  }
+});
+
+// 🔒 Security: Production error handler - Prevent information leakage (OWASP A05:2021)
+app.setErrorHandler((error, request, reply) => {
+  // Always log the full error for debugging
+  request.log.error(error);
+
+  // In production, hide stack traces and internal details
+  if (process.env.NODE_ENV === 'production') {
+    const statusCode = error.statusCode || 500;
+    reply.status(statusCode).send({
+      error: statusCode >= 500 ? 'Internal Server Error' : error.name || 'Error',
+      message: statusCode >= 500
+        ? 'An error occurred processing your request'
+        : error.message || 'Bad Request',
+      statusCode
+    });
+  } else {
+    // Development: Show full error details
+    reply.send(error);
   }
 });
 
