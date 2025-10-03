@@ -1017,7 +1017,7 @@ export default function MapPage() {
                         <span className="text-sm font-medium my-2">
                           需求建立時間：{" "}
                           {formatCreatedAt(
-                              grid.created_at
+                              grid.created_date
                           )}
                         </span>
                       </CardContent>
