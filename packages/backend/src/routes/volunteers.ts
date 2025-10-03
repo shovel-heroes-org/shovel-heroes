@@ -122,6 +122,14 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const { rows: countRows } = await app.db.query(countSql, params.slice(0, params.length - 2));
     const total = countRows[0]?.c ?? data.length;
 
-    return { data, can_view_phone, total, status_counts, limit: Number(limit), page: Number(page) };
+    let next, prev: string | undefined;
+    if (total - page * limit > 0) {
+      next = `/volunteers?${new URLSearchParams({ ...req.query, page: String(Number(page) + 1) }).toString()}`;
+    }
+    if (page > 1) {
+      prev = `/volunteers?${new URLSearchParams({ ...req.query, page: String(Number(page) - 1) }).toString()}`;
+    }
+
+    return { data, can_view_phone, total, status_counts, limit: Number(limit), page: Number(page), next, prev };
   });
 }
