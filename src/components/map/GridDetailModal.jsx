@@ -21,7 +21,7 @@ import {
   PackagePlus, Send, Info
 } from "lucide-react";
 
-export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info" }) {
+export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info", onTabChange }) {
   // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
   if (!Array.isArray(grid.supplies_needed)) {
     grid = { ...grid, supplies_needed: [] };
@@ -118,6 +118,12 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   React.useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+
+  // Notify parent when tab changes
+  const handleTabChange = (val) => {
+    setActiveTab(val);
+    if (onTabChange) onTabChange(val);
+  };
 
   const getShortageRate = () => {
     if (grid.volunteer_needed === 0) return 0;
@@ -287,7 +293,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />

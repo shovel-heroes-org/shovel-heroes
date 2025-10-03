@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { VolunteerRegistration, Grid, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,9 @@ export default function VolunteersPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [canViewPhone, setCanViewPhone] = useState(false); // New state for phone visibility
+  // UI filter states (now URL-synchronized)
   const [selectedGrid, setSelectedGrid] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -26,8 +28,41 @@ export default function VolunteersPage() {
     completed: 0
   });
 
+  // Parse initial filters from URL
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlGrid = params.get('grid');
+    const urlStatus = params.get('status');
+    if (urlGrid) setSelectedGrid(urlGrid);
+    if (urlStatus && ['all','pending','confirmed','completed'].includes(urlStatus)) {
+      setSelectedStatus(urlStatus);
+    }
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep URL updated when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedGrid && selectedGrid !== 'all') params.set('grid', selectedGrid);
+    if (selectedStatus && selectedStatus !== 'all') params.set('status', selectedStatus);
+    const qs = params.toString();
+    const newUrl = `${window.location.pathname}${qs ? '?' + qs : ''}`;
+    // Use replaceState to avoid polluting history for each small change
+    window.history.replaceState(null, '', newUrl);
+  }, [selectedGrid, selectedStatus]);
+
+  // Support browser back/forward navigation affecting query params
+  useEffect(() => {
+    const onPop = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlGrid = params.get('grid') || 'all';
+      const urlStatus = params.get('status') || 'all';
+      setSelectedGrid(urlGrid);
+      setSelectedStatus(['all','pending','confirmed','completed'].includes(urlStatus) ? urlStatus : 'all');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const loadData = async () => {
@@ -147,21 +182,17 @@ export default function VolunteersPage() {
     }
   };
 
-  const filterRegistrations = (status) => {
+  const filterRegistrations = useCallback((status) => {
     let filtered = registrations;
-
-    // Filter by status
-    if (status !== 'all') {
-      filtered = filtered.filter(r => r.status === status);
+    const effectiveStatus = status || selectedStatus;
+    if (effectiveStatus !== 'all') {
+      filtered = filtered.filter(r => r.status === effectiveStatus);
     }
-
-    // Filter by grid
     if (selectedGrid !== 'all') {
       filtered = filtered.filter(r => r.grid_id === selectedGrid);
     }
-
     return filtered;
-  };
+  }, [registrations, selectedGrid, selectedStatus]);
 
   if (loading) {
     return (
@@ -263,7 +294,7 @@ export default function VolunteersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all">
+          <Tabs value={selectedStatus} onValueChange={setSelectedStatus}>
             <TabsList className="mb-6">
               <TabsTrigger value="all">全部</TabsTrigger>
               <TabsTrigger value="pending">待確認</TabsTrigger>
