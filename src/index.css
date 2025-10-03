@@ -161,16 +161,6 @@ button:focus-visible {
   }
 }
 
-/* 隱藏滾動條但保持滾動功能 */
-.scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
-}
-
 /* 修正 Leaflet 地圖 z-index，防止覆蓋 Layout */
 .leaflet-container {
   z-index: 1 !important;
