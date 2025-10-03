@@ -16,6 +16,7 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
+import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
 
 const app = Fastify({ logger: true });
 
@@ -64,6 +65,13 @@ app.addHook('preHandler', async (req, reply) => {
     return reply.status(401).send({ message: 'Unauthorized' });
   }
 });
+
+
+const AuditLogMiddleware = createAuditLogMiddleware(app);
+app.addHook("onRequest", AuditLogMiddleware.start);
+app.addHook("onSend", AuditLogMiddleware.onSend);
+app.addHook("onResponse", AuditLogMiddleware.onResponse);
+app.addHook("onError", AuditLogMiddleware.onError);
 
 async function start() {
   const basePort = Number(process.env.PORT) || 8787;

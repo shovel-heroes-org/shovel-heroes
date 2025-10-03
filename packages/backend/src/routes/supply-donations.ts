@@ -20,8 +20,13 @@ const CreateSchema = z.object({
 }).refine(d => !!(d.name || d.supply_name), { message: 'supply_name or name required', path: ['supply_name'] });
 
 export function registerSupplyDonationRoutes(app: FastifyInstance) {
-  app.get('/supply-donations', async () => {
+  app.get('/supply-donations', async (req) => {
     if (!app.hasDecorator('db')) return [];
+    const gridId = (req.query as any)?.grid_id;
+    if (gridId) {
+      const { rows } = await app.db.query('SELECT * FROM supply_donations WHERE grid_id=$1 ORDER BY created_at DESC', [gridId]);
+      return rows;
+    }
     const { rows } = await app.db.query('SELECT * FROM supply_donations ORDER BY created_at DESC');
     return rows;
   });

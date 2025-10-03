@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { User, DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,7 +33,8 @@ import GridImportExportButtons from "@/components/admin/GridImportExportButtons"
 import { getUsers } from "@/api/functions"; // Added import
 
 export default function AdminPage() {
-  const [user, setUser] = useState(null);
+  // Use global auth context so we can respect actingRole (admin vs user perspective)
+  const { user, actingRole } = useAuth();
   const [disasterAreas, setDisasterAreas] = useState([]);
   const [grids, setGrids] = useState([]);
   const [registrations, setRegistrations] = useState([]);
@@ -112,18 +114,7 @@ export default function AdminPage() {
     }
   }, []); // 移除 user 依賴
 
-  useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const currentUser = await User.me();
-        setUser(currentUser);
-      } catch (error) {
-        // 用戶未登入是正常情況，不需要拋出錯誤
-        setUser(null);
-      }
-    };
-    checkUser();
-  }, []);
+  // user 來自 AuthContext，已集中管理，這裡不再自行抓取
 
   useEffect(() => {
     loadData();
@@ -135,8 +126,9 @@ export default function AdminPage() {
   };
 
   const handleAreaDelete = async (area) => {
-    if (!user || user.role !== 'admin') {
-      alert('只有管理員才能刪除災區');
+    const isAdminActing = user && user.role === 'admin' && actingRole === 'admin';
+    if (!isAdminActing) {
+      alert('只有管理員（管理模式）才能刪除災區');
       return;
     }
     if (window.confirm(`確定要刪除災區 "${area.name}" 嗎？此操作無法復原。`)) {
@@ -166,8 +158,14 @@ export default function AdminPage() {
   };
 
   const handleGridDelete = async (grid) => {
-    if (!user || user.role !== 'admin') {
-      alert('只有管理員才能刪除網格');
+    if (!user) {
+      alert('需登入才能刪除網格');
+      return;
+    }
+    const isAdminActing = user.role === 'admin' && actingRole === 'admin';
+    const isOwnerOrManager = user.id === grid.created_by_id || user.id === grid.grid_manager_id;
+    if (!(isAdminActing || isOwnerOrManager)) {
+      alert('您沒有刪除此網格的權限');
       return;
     }
 
@@ -176,8 +174,7 @@ export default function AdminPage() {
         // First, get all related records
         const [volunteerRegs, supplyDonations] = await Promise.all([
           VolunteerRegistration.filter({ grid_id: grid.id }),
-          SupplyDonation.filter({ grid_id: grid.id }),
-          // GridDiscussion.filter({ grid_id: grid.id }).catch(() => []) // Handle if entity doesn't exist yet
+          SupplyDonation.filter({ grid_id: grid.id })
         ]);
 
         // Delete all related records first
@@ -191,9 +188,16 @@ export default function AdminPage() {
         ];
 
         await Promise.all(deletePromises);
-
-        // Finally delete the grid itself
-        await Grid.delete(grid.id);
+        try {
+          await Grid.delete(grid.id);
+        } catch (err) {
+          // If backend returns 409, surface clearer message
+          const msg = String(err.message || err);
+          if (msg.includes('409')) {
+            throw new Error('仍有相關紀錄未刪除，請稍後再試或重新整理後確認。');
+          }
+          throw err;
+        }
 
         alert(`網格 "${grid.code}" 及其相關記錄已成功刪除`);
         loadData(); // Reload data
@@ -291,8 +295,8 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 「我要人力」按鈕已移至導航欄或其他通用組件 */}
-            {user && user.role === 'admin' && (
+            {/* 僅在管理模式下顯示 */}
+            {user && user.role === 'admin' && actingRole === 'admin' && (
               <Button
                 onClick={handleFixGridBounds}
                 disabled={isFixingBounds}
@@ -375,7 +379,7 @@ export default function AdminPage() {
           <TabsTrigger value="grids">需求管理</TabsTrigger>
           <TabsTrigger value="volunteers">志工管理</TabsTrigger>
           <TabsTrigger value="supplies">物資管理</TabsTrigger>
-          {user && user.email === 'kuo.tanya@gmail.com' && (
+          {user && user.email === 'kuo.tanya@gmail.com' && actingRole === 'admin' && (
             <TabsTrigger value="users">用戶管理</TabsTrigger>
           )}
         </TabsList>
@@ -409,7 +413,7 @@ export default function AdminPage() {
                           >
                             {area.status === 'active' ? '進行中' : area.status}
                           </Badge>
-                          {user && user.role === 'admin' && (
+                          {user && user.role === 'admin' && actingRole === 'admin' && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -448,7 +452,7 @@ export default function AdminPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>地區需求調整</CardTitle>
               <div className="flex items-center gap-3">
-                {user && user.role === 'admin' && (
+                {user && user.role === 'admin' && actingRole === 'admin' && (
                   <GridImportExportButtons onImportSuccess={loadData} />
                 )}
                 {/* 保留原有的新增網格按鈕，但改為較小的樣式 */}
@@ -542,18 +546,25 @@ export default function AdminPage() {
                           >
                             查看
                           </Button>
-                          {/* Only show delete button for admin users */}
-                          {user && user.role === 'admin' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 hover:text-red-700 hover:border-red-300 border-red-200"
-                              onClick={() => handleGridDelete(grid)}
-                              title="刪除網格（僅管理員）"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
+                          {/* Delete: admin OR creator OR grid_manager */}
+                          {(() => {
+                            if (!user) return null;
+                            const isAdminActing = user.role === 'admin' && actingRole === 'admin';
+                            const isOwnerOrManager = user.id === grid.created_by_id || user.id === grid.grid_manager_id;
+                            const canDelete = isAdminActing || isOwnerOrManager;
+                            if (!canDelete) return null;
+                            return (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:text-red-700 hover:border-red-300 border-red-200"
+                                onClick={() => handleGridDelete(grid)}
+                                title="刪除網格（管理模式下的管理員或建立者/指派管理者）"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            );
+                          })()}
                         </div>
                       </CardContent>
                     </Card>
@@ -677,7 +688,7 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
-        {user && user.email === 'kuo.tanya@gmail.com' && (
+        {user && user.email === 'kuo.tanya@gmail.com' && actingRole === 'admin' && (
           <TabsContent value="users">
             <Card>
               <CardHeader>
@@ -700,6 +711,7 @@ export default function AdminPage() {
                             value={u.role}
                             onValueChange={(newRole) => handleRoleChange(u.id, newRole)}
                             disabled={
+                              actingRole !== 'admin' ||
                               user.id === u.id ||
                               (user.email !== 'kuo.tanya@gmail.com' && u.email === 'kuo.tanya@gmail.com')
                             }
