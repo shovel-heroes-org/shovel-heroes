@@ -97,8 +97,10 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, users.email), avatar_url = EXCLUDED.avatar_url`,
         [userId, claims.sub, name, email, avatar]);
       // Issue JWT (very basic); payload minimal
+      // Issue JWT with short lived exp (2h). Future: add refresh token rotation.
+      const now = Math.floor(Date.now()/1000);
       const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({ sub: userId, name, avatar, role: 'user', iat: Math.floor(Date.now()/1000) })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ sub: userId, name, avatar, role: 'user', iat: now, exp: now + 2*60*60 })).toString('base64url');
       const h = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
       const jwt = `${header}.${payload}.${h}`;
       return { token: jwt, user: { id: userId, name, avatar_url: avatar, email } };
