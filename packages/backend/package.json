@@ -8,7 +8,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "import:legacy": "tsx scripts/import-base44.ts"
+    "import:legacy": "tsx scripts/import-base44.ts",
+    "seed": "tsx scripts/seed.ts",
+    "seed:clean": "tsx scripts/seed.ts --users 0 --disasterAreas 0"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
@@ -22,6 +24,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.9.0",
     "@types/node": "^22.13.5",
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.1",
