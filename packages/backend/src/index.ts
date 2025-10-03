@@ -17,6 +17,7 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
+import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
 
 // 🔒 Security: Request size limits and proxy trust for Cloudflare
 const app = Fastify({
@@ -100,14 +101,21 @@ const PUBLIC_ALLOWLIST = new Set([
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
-  // Enforce auth for mutating methods
+  // Enforce auth for mutating methods; optionally could extend to GET later.
   if (!['POST','PUT','DELETE','PATCH'].includes(req.method)) return;
   const url = req.url.split('?')[0];
-  if (PUBLIC_ALLOWLIST.has(url)) return;
+  if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });
   }
 });
+
+// Audit log middleware
+const AuditLogMiddleware = createAuditLogMiddleware(app);
+app.addHook("onRequest", AuditLogMiddleware.start);
+app.addHook("onSend", AuditLogMiddleware.onSend);
+app.addHook("onResponse", AuditLogMiddleware.onResponse);
+app.addHook("onError", AuditLogMiddleware.onError);
 
 // 🔒 Security: Production error handler - Prevent information leakage (OWASP A05:2021)
 app.setErrorHandler((error, request, reply) => {
