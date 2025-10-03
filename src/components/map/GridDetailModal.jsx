@@ -26,12 +26,105 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   if (!Array.isArray(grid.supplies_needed)) {
     grid = { ...grid, supplies_needed: [] };
   }
+
+  // 生成每 5 分鐘的時間選項，分上午下午
+  const generateTimeOptions = () => {
+    const morning = []; // 上午 00:00-12:00
+    const afternoon = []; // 下午 12:00-23:55 + 24:00
+
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 5) {
+        const hour = h.toString().padStart(2, '0');
+        const minute = m.toString().padStart(2, '0');
+        const timeStr = `${hour}:${minute}`;
+
+        if (h < 12) {
+          morning.push(timeStr);
+        } else {
+          afternoon.push(timeStr);
+        }
+      }
+    }
+    // 上午時段加上 12:00
+    morning.push('12:00');
+    // 下午時段加上 24:00
+    afternoon.push('24:00');
+
+    return { morning, afternoon };
+  };
+
+  const { morning: morningTimes, afternoon: afternoonTimes } = generateTimeOptions();
+
+  // 取得當前時間後最近的 5 分鐘間隔時間
+  const getNextFiveMinuteInterval = () => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const hours = now.getHours();
+
+    // 計算下一個 5 分鐘間隔
+    const nextMinutes = Math.ceil(minutes / 5) * 5;
+
+    if (nextMinutes >= 60) {
+      // 如果進位到下一小時
+      const nextHour = (hours + 1) % 24;
+      return {
+        time: `${nextHour.toString().padStart(2, '0')}:00`,
+        period: nextHour < 12 ? 'morning' : 'afternoon'
+      };
+    } else {
+      return {
+        time: `${hours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`,
+        period: hours < 12 ? 'morning' : 'afternoon'
+      };
+    }
+  };
+
+  // 渲染分組的時間選項
+  const renderTimeOptions = (filterFn = null) => {
+    const morningFiltered = filterFn ? morningTimes.filter(filterFn) : morningTimes;
+    const afternoonFiltered = filterFn ? afternoonTimes.filter(filterFn) : afternoonTimes;
+
+    return (
+      <>
+        {morningFiltered.length > 0 && (
+          <>
+            <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100">上午</div>
+            {morningFiltered.map((time) => (
+              <SelectItem key={time} value={time}>{time}</SelectItem>
+            ))}
+          </>
+        )}
+        {afternoonFiltered.length > 0 && (
+          <>
+            <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100">下午</div>
+            {afternoonFiltered.map((time) => (
+              <SelectItem key={time} value={time}>{time}</SelectItem>
+            ))}
+          </>
+        )}
+      </>
+    );
+  };
+
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // 可服務時段列表（支援多天）
+  const defaultTimeSlot = getNextFiveMinuteInterval();
+  const [availableTimeSlots, setAvailableTimeSlots] = useState([
+    {
+      id: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      startPeriod: defaultTimeSlot.period,
+      timeStart: defaultTimeSlot.time,
+      endPeriod: defaultTimeSlot.period,
+      timeEnd: ''
+    }
+  ]);
+
   const [volunteerForm, setVolunteerForm] = useState({
     volunteer_name: "",
     volunteer_phone: "",
     volunteer_email: "",
-    available_time: "",
     skills: "",
     equipment: "",
     notes: ""
@@ -117,32 +210,91 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     return "text-green-600";
   };
 
+  // 新增時段
+  const addTimeSlot = () => {
+    const newTimeSlot = getNextFiveMinuteInterval();
+    setAvailableTimeSlots([
+      ...availableTimeSlots,
+      {
+        id: Date.now(),
+        date: new Date().toISOString().split('T')[0],
+        startPeriod: newTimeSlot.period,
+        timeStart: newTimeSlot.time,
+        endPeriod: newTimeSlot.period,
+        timeEnd: ''
+      }
+    ]);
+  };
+
+  // 刪除時段
+  const removeTimeSlot = (id) => {
+    if (availableTimeSlots.length > 1) {
+      setAvailableTimeSlots(availableTimeSlots.filter(slot => slot.id !== id));
+    }
+  };
+
+  // 更新時段
+  const updateTimeSlot = (id, field, value) => {
+    setAvailableTimeSlots(availableTimeSlots.map(slot =>
+      slot.id === id ? { ...slot, [field]: value } : slot
+    ));
+  };
+
   const handleVolunteerSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!volunteerForm.volunteer_name) {
         alert("請填寫姓名");
         return;
     }
 
+    // 驗證至少有一個時段填寫完整
+    const validSlots = availableTimeSlots.filter(slot => slot.date && slot.timeStart);
+    if (validSlots.length === 0) {
+      alert("請至少填寫一個服務時段");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // 組合多個時段成為字串
+      const availableTimeStr = validSlots.map(slot => {
+        let timeStr = `${slot.date} ${slot.timeStart}`;
+        if (slot.timeEnd) {
+          timeStr += `-${slot.timeEnd}`;
+        }
+        return timeStr;
+      }).join(', ');
+
       await VolunteerRegistration.create({
         ...volunteerForm,
+        available_time: availableTimeStr,
         grid_id: grid.id,
         skills: volunteerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
         equipment: volunteerForm.equipment.split(',').map(s => s.trim()).filter(Boolean),
       });
 
+      // 重置表單
       setVolunteerForm({
         ...volunteerForm,
-        // Preserve name/email if pre-filled by user, clear others
         volunteer_phone: "",
-        available_time: "",
         skills: "",
         equipment: "",
         notes: ""
       });
+
+      // 重置時段
+      const resetTimeSlot = getNextFiveMinuteInterval();
+      setAvailableTimeSlots([
+        {
+          id: Date.now(),
+          date: new Date().toISOString().split('T')[0],
+          startPeriod: resetTimeSlot.period,
+          timeStart: resetTimeSlot.time,
+          endPeriod: resetTimeSlot.period,
+          timeEnd: ''
+        }
+      ]);
 
       onUpdate();
       setActiveTab("info");
@@ -404,13 +556,140 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   </div>
 
                   <div>
-                    <Label htmlFor="available_time">可服務時間</Label>
-                    <Input
-                      id="available_time"
-                      placeholder="例：2024/1/15 上午 9:00-12:00"
-                      value={volunteerForm.available_time}
-                      onChange={(e) => setVolunteerForm({...volunteerForm, available_time: e.target.value})}
-                    />
+                    <Label>可服務時間</Label>
+                    <div className="space-y-3">
+                      {availableTimeSlots.map((slot, index) => (
+                        <div key={slot.id} className="p-3 border border-gray-200 rounded-lg bg-gray-50">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-gray-700">時段 {index + 1}</span>
+                            {availableTimeSlots.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeTimeSlot(slot.id)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                刪除
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {/* 日期選擇 */}
+                            <div>
+                              <Label className="text-xs text-gray-600 mb-1">日期</Label>
+                              <Input
+                                type="date"
+                                value={slot.date}
+                                onChange={(e) => updateTimeSlot(slot.id, 'date', e.target.value)}
+                                min={index === 0 ? new Date().toISOString().split('T')[0] : availableTimeSlots[0].date}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            {/* 開始時間 */}
+                            <div>
+                              <Label className="text-xs text-gray-600 mb-1">開始時間</Label>
+                              <div className="flex gap-1">
+                                <div className="flex rounded-md border border-gray-300 overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateTimeSlot(slot.id, 'startPeriod', 'morning')}
+                                    className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                                      slot.startPeriod === 'morning'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    上午
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateTimeSlot(slot.id, 'startPeriod', 'afternoon')}
+                                    className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                                      slot.startPeriod === 'afternoon'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    下午
+                                  </button>
+                                </div>
+                                <Select
+                                  value={slot.timeStart}
+                                  onValueChange={(value) => updateTimeSlot(slot.id, 'timeStart', value)}
+                                >
+                                  <SelectTrigger className="flex-1 h-8 text-xs">
+                                    <SelectValue placeholder="時間" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(slot.startPeriod === 'morning' ? morningTimes : afternoonTimes).map((time) => (
+                                      <SelectItem key={time} value={time}>{time}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* 結束時間 */}
+                            <div>
+                              <Label className="text-xs text-gray-600 mb-1">結束時間（選填）</Label>
+                              <div className="flex gap-1">
+                                <div className="flex rounded-md border border-gray-300 overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateTimeSlot(slot.id, 'endPeriod', 'morning')}
+                                    className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                                      slot.endPeriod === 'morning'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    上午
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateTimeSlot(slot.id, 'endPeriod', 'afternoon')}
+                                    className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                                      slot.endPeriod === 'afternoon'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    下午
+                                  </button>
+                                </div>
+                                <Select
+                                  value={slot.timeEnd}
+                                  onValueChange={(value) => updateTimeSlot(slot.id, 'timeEnd', value)}
+                                >
+                                  <SelectTrigger className="flex-1 h-8 text-xs">
+                                    <SelectValue placeholder="時間" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(slot.endPeriod === 'morning' ? morningTimes : afternoonTimes)
+                                      .filter(time => !slot.timeStart || time > slot.timeStart)
+                                      .map((time) => (
+                                        <SelectItem key={time} value={time}>{time}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addTimeSlot}
+                        className="w-full h-10 border-dashed border-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                      >
+                        + 新增時段
+                      </Button>
+                    </div>
                   </div>
 
                   <div>
