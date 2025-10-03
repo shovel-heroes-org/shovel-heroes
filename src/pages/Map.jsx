@@ -631,7 +631,7 @@ export default function MapPage() {
           {!mapCollapsed && (
             <MapContainer
               key={mapKey}
-              center={[23.8751, 121.5780]}
+              center={[23.6351, 121.4228]}
               zoom={11}
               className="h-full w-full"
               zoomControl={true}
