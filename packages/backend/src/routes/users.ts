@@ -16,6 +16,9 @@ export function registerUserRoutes(app: FastifyInstance) {
     try {
       const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
       if (!payload.sub) return;
+      if (payload.exp && Date.now()/1000 > payload.exp) {
+        return; // expired
+      }
       // Optionally fetch user details from DB
       if (app.hasDecorator('db')) {
         const { rows } = await app.db.query('SELECT id, name, email, avatar_url, role FROM users WHERE id = $1', [payload.sub]);
