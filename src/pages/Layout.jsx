@@ -83,14 +83,14 @@ export default function Layout({ children, currentPageName }) {
       { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
     ];
     if (user) {
-      base.push(
-        { name: "志工中心", url: createPageUrl("Volunteers"), icon: Users },
-        { name: "管理後台", url: createPageUrl("Admin"), icon: Shield },
-      );
+      base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
+      if (user.role === 'admin' && actingRole === 'admin') {
+        base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
+      }
     }
     base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
     return base;
-  }, [user]);
+  }, [user, actingRole]);
 
   const isActive = (url) => location.pathname === url;
 
