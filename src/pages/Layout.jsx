@@ -31,12 +31,15 @@ export default function Layout({ children, currentPageName }) {
   // Load GA only when analyticsAllowed becomes true
   React.useEffect(() => {
     if (!analyticsAllowed) return;
+    const MID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!MID) return; // 未設定測量 ID 則不載入
     const gaScriptId = 'google-analytics-script';
     if (document.getElementById(gaScriptId)) return;
     const script1 = document.createElement('script');
     script1.id = gaScriptId;
     script1.async = true;
-    script1.src = "https://www.googletagmanager.com/gtag/js?id=G-DJE7FZLCHG";
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${MID}`; // should be G-DJE7FZLCHG
+
     document.head.appendChild(script1);
 
     const script2 = document.createElement('script');
@@ -44,10 +47,24 @@ export default function Layout({ children, currentPageName }) {
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-DJE7FZLCHG');
+      gtag('config', '${MID}', { send_page_view: false, anonymize_ip: true });
     `;
     document.head.appendChild(script2);
   }, [analyticsAllowed]);
+  
+  // SPA route page_view tracking (avoid double initial by disabling default send_page_view above)
+  React.useEffect(() => {
+    if (!analyticsAllowed) return;
+    // Ensure GA loaded & gtag exists
+    const MID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!MID) return;
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_path: location.pathname + location.search,
+        page_title: document.title
+      });
+    }
+  }, [location.pathname, location.search, analyticsAllowed]);
 
   const handleConsentAccept = (opts = { analytics: true }) => {
     const payload = { ts: Date.now(), analytics: !!opts.analytics };
