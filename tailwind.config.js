@@ -4,6 +4,8 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     screens: {
+      'xxs': '450px',    // 自訂斷點：手機版主標題
+      'xs': '510px',     // 自訂斷點：手機版副標題
       'sm': '640px',
       'md': '768px',
       'title': '860px',  // 自訂斷點：主標題

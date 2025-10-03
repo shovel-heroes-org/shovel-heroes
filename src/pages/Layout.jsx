@@ -136,8 +136,8 @@ export default function Layout({ children, currentPageName }) {
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div className="block md:hidden">
-                <h1 className="text-xl font-bold text-gray-900">鏟子英雄</h1>
-                <p className="text-xs text-gray-500">花蓮颱風救援對接</p>
+                <h1 className="text-xl font-bold text-gray-900 hidden xxs:block">鏟子英雄</h1>
+                <p className="text-xs text-gray-500 hidden xs:block">花蓮颱風救援對接</p>
               </div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold text-gray-900 hidden title:block">鏟子英雄</h1>
