@@ -127,8 +127,14 @@ jobs:
           sed -i "s|BACKEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG|g" k8s/base/backend-deployment.yaml
           sed -i "s|FRONTEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG|g" k8s/base/frontend-deployment.yaml
 
-          # Apply the manifests
-          kubectl apply -f k8s/base/
+          # Apply the manifests (exclude kustomization.yaml)
+          kubectl apply -f k8s/base/namespace.yaml
+          kubectl apply -f k8s/base/serviceaccount.yaml
+          kubectl apply -f k8s/base/backend-deployment.yaml
+          kubectl apply -f k8s/base/frontend-deployment.yaml
+          kubectl apply -f k8s/base/backend-service.yaml
+          kubectl apply -f k8s/base/frontend-service.yaml
+          kubectl apply -f k8s/base/ingress.yaml
 
           # Wait for rollout to complete
           kubectl rollout status deployment/backend -n shovel-heroes --timeout=5m
