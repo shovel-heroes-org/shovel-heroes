@@ -66,7 +66,7 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     const { id } = req.params as any;
-  const { status } = (req.body as any) || {};
+    const { status } = (req.body as any) || {};
   // Full lifecycle: pending -> confirmed -> arrived -> completed
   // Branch exits: pending -> declined | cancelled; confirmed/arrived -> cancelled; completed/declined/cancelled terminal
   const allowed = ['pending','confirmed','arrived','completed','declined','cancelled'];
