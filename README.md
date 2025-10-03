@@ -220,21 +220,16 @@ A: `.env` 設 `VITE_USE_REST=true` 並設定 `VITE_API_BASE`。
 
 ### 快速部署
 
-**Staging 環境** (自動部署):
+**自動部署**:
 ```bash
 # 推送至 main 分支即觸發自動部署
 git push origin main
 ```
 
-**Production 環境** (需審核):
+**手動部署特定版本**:
 ```bash
-# 方式 1: 建立 Release
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
-# 至 GitHub Releases 建立發佈
-
-# 方式 2: 手動觸發工作流程
-# GitHub Actions → Deploy to Production (EKS) → Run workflow
+# GitHub Actions → Deploy to EKS → Run workflow
+# 輸入 image_tag (例如: v1.0.0)
 ```
 
 ### 本地建置 Docker 映像檔
@@ -262,10 +257,9 @@ git push origin v1.0.0
 
 ### 工作流程
 
-| 工作流程 | 觸發條件 | 環境 | 審核 |
-|---------|---------|------|------|
-| `deploy-staging.yml` | Push to `main` | Staging | 否 |
-| `deploy-production.yml` | Release / 手動 | Production | 是 |
+| 工作流程 | 觸發條件 |
+|---------|---------|
+| `deploy.yml` | Push to `main` 或手動觸發 |
 
 ### 應用程式端點
 
@@ -287,24 +281,18 @@ Kubernetes 清單檔位於 `k8s/` 目錄:
 
 ```
 k8s/
-  base/              # 基礎清單 (namespace, deployments, services, ingress)
-  overlays/
-    dev/             # 開發環境覆蓋層
-    staging/         # Staging 環境覆蓋層
-    production/      # Production 環境覆蓋層
+  base/              # Kubernetes 清單 (namespace, deployments, services, ingress)
 ```
 
 手動部署:
 ```bash
-# 驗證清單
-kubectl kustomize k8s/overlays/staging
-
-# 部署至 Staging
-kubectl apply -k k8s/overlays/staging
+# 部署
+kubectl apply -f k8s/base/
 
 # 檢查部署狀態
-kubectl get pods -n shovel-heroes-staging
-kubectl rollout status deployment/backend-staging -n shovel-heroes-staging
+kubectl get pods -n shovel-heroes
+kubectl rollout status deployment/backend -n shovel-heroes
+kubectl rollout status deployment/frontend -n shovel-heroes
 ```
 
 ### 故障排除
@@ -315,13 +303,13 @@ kubectl rollout status deployment/backend-staging -n shovel-heroes-staging
 A: 檢查 [GitHub Secrets 設定](./docs/GITHUB_SECRETS_SETUP.md) 是否完整
 
 **Q: Pod 無法啟動?**
-A: 查看 pod 日誌: `kubectl logs <pod-name> -n shovel-heroes-staging`
+A: 查看 pod 日誌: `kubectl logs <pod-name> -n shovel-heroes`
 
 **Q: 資料庫連線錯誤?**
 A: 確認 Kubernetes secret 中的 `DATABASE_URL` 正確
 
 **Q: 如何回滾部署?**
-A: `kubectl rollout undo deployment/backend-staging -n shovel-heroes-staging`
+A: `kubectl rollout undo deployment/backend -n shovel-heroes`
 
 詳細故障排除請參考 [部署手冊](./docs/DEPLOYMENT_RUNBOOK.md#troubleshooting)。
 

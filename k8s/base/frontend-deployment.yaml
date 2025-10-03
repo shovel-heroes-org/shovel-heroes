@@ -28,7 +28,7 @@ spec:
         image: FRONTEND_ECR_URL:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
           protocol: TCP
         resources:
@@ -38,18 +38,27 @@ spec:
           limits:
             cpu: 500m
             memory: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: false
         livenessProbe:
           httpGet:
-            path: /health
-            port: 80
+            path: /
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
-            port: 80
+            path: /
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 2

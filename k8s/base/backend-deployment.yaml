@@ -32,6 +32,15 @@ spec:
         - containerPort: 8787
           name: http
           protocol: TCP
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: true
         env:
         - name: NODE_ENV
           value: "production"

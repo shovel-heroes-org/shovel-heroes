@@ -14,12 +14,4 @@ resources:
 
 commonLabels:
   app.kubernetes.io/name: shovel-heroes
-  app.kubernetes.io/managed-by: kustomize
-
-images:
-  - name: BACKEND_ECR_URL
-    newName: BACKEND_ECR_URL
-    newTag: latest
-  - name: FRONTEND_ECR_URL
-    newName: FRONTEND_ECR_URL
-    newTag: latest
+  app.kubernetes.io/managed-by: kubernetes

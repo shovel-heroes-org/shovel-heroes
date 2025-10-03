@@ -4,4 +4,4 @@ metadata:
   name: shovel-heroes
   labels:
     app.kubernetes.io/name: shovel-heroes
-    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/managed-by: kubernetes

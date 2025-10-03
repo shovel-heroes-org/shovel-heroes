@@ -1,10 +1,15 @@
-name: Deploy to Staging (EKS)
+name: Deploy to EKS
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (e.g., v1.0.0)'
+        required: false
+        type: string
 
 env:
   AWS_REGION: ap-east-2
@@ -17,10 +22,9 @@ permissions:
   contents: read
 
 jobs:
-  deploy-staging:
-    name: Build and Deploy to Staging
+  deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
-    environment: staging
 
     steps:
       - name: Checkout code
@@ -36,42 +40,46 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push backend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: staging-${{ github.sha }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
         run: |
           docker build -f Dockerfile.backend \
             -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:staging-latest \
+            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:latest \
             .
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:staging-latest
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
 
       - name: Build and push frontend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: staging-${{ github.sha }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
         run: |
           docker build -f Dockerfile.frontend \
             -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:staging-latest \
+            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest \
             .
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:staging-latest
+          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: 'v1.31.0'
-
-      - name: Install kustomize
-        run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
 
       - name: Update kubeconfig for EKS
         run: |
@@ -80,7 +88,7 @@ jobs:
       - name: Create namespace and secrets
         run: |
           # Create namespace if it doesn't exist
-          kubectl create namespace shovel-heroes-staging --dry-run=client -o yaml | kubectl apply -f - --validate=false
+          kubectl create namespace shovel-heroes --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
           # Get secrets from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value \
@@ -103,43 +111,43 @@ jobs:
             --from-literal=database-url="$DATABASE_URL" \
             --from-literal=jwt-secret="$JWT_SECRET" \
             --from-literal=api-key="$API_KEY" \
-            -n shovel-heroes-staging \
+            -n shovel-heroes \
             --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
-      - name: Deploy to staging
+      - name: Deploy to Kubernetes
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: staging-${{ github.sha }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
           BACKEND_POD_ROLE_ARN: arn:aws:iam::447407243904:role/shovel-heros-staging-backend-20251002142616455400000002
         run: |
           # Replace IRSA role ARN placeholder in base manifests
           sed -i "s|BACKEND_POD_ROLE_ARN|$BACKEND_POD_ROLE_ARN|g" k8s/base/serviceaccount.yaml
 
-          # Update kustomization with actual ECR URLs and image tag
-          cd k8s/overlays/staging
-
-          # Replace placeholders with actual values
-          kustomize edit set image \
-            BACKEND_ECR_URL=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
-            FRONTEND_ECR_URL=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
+          # Update images in manifests
+          sed -i "s|BACKEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG|g" k8s/base/backend-deployment.yaml
+          sed -i "s|FRONTEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG|g" k8s/base/frontend-deployment.yaml
 
           # Apply the manifests
-          kustomize build . | kubectl apply -f -
+          kubectl apply -f k8s/base/
 
           # Wait for rollout to complete
-          kubectl rollout status deployment/backend-staging -n shovel-heroes-staging --timeout=5m
-          kubectl rollout status deployment/frontend-staging -n shovel-heroes-staging --timeout=5m
+          kubectl rollout status deployment/backend -n shovel-heroes --timeout=5m
+          kubectl rollout status deployment/frontend -n shovel-heroes --timeout=5m
 
       - name: Verify deployment
         run: |
           echo "=== Deployment Status ==="
-          kubectl get deployments -n shovel-heroes-staging
-          kubectl get pods -n shovel-heroes-staging
-          kubectl get services -n shovel-heroes-staging
-          kubectl get ingress -n shovel-heroes-staging
+          kubectl get deployments -n shovel-heroes
+          kubectl get pods -n shovel-heroes
+          kubectl get services -n shovel-heroes
+          kubectl get ingress -n shovel-heroes
 
       - name: Run health checks
         run: |
           echo "=== Health Checks ==="
-          kubectl exec -n shovel-heroes-staging deployment/backend-staging -- wget -qO- http://localhost:8787/healthz || echo "Backend health check failed"
-          kubectl exec -n shovel-heroes-staging deployment/frontend-staging -- wget -qO- http://localhost:80/health || echo "Frontend health check failed"
+          echo "Waiting for pods to be ready..."
+          sleep 10
+          echo "Backend health check:"
+          kubectl get pods -n shovel-heroes -l app.kubernetes.io/component=backend
+          echo "Frontend health check:"
+          kubectl get pods -n shovel-heroes -l app.kubernetes.io/component=frontend

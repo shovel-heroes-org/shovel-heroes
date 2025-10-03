@@ -1,4 +1,5 @@
 # Multi-stage Dockerfile for Shovel Heroes Backend (Fastify + TypeScript)
+# Uses distroless base image and runs as non-root user
 
 # Stage 1: Build
 FROM node:20-alpine AS builder
@@ -21,8 +22,8 @@ COPY api-spec ./api-spec
 # Build TypeScript to JavaScript
 RUN npm run build:api
 
-# Stage 2: Production
-FROM node:20-alpine
+# Stage 2: Production dependencies
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
@@ -33,18 +34,28 @@ COPY packages/backend/package*.json ./packages/backend/
 # Install only production dependencies
 RUN npm ci --workspace=packages/backend --omit=dev
 
+# Stage 3: Production (Distroless)
+FROM gcr.io/distroless/nodejs20-debian12:nonroot
+
+WORKDIR /app
+
+# Copy package files and dependencies
+COPY --from=deps --chown=nonroot:nonroot /app/node_modules ./node_modules
+COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/node_modules ./packages/backend/node_modules
+COPY --from=deps --chown=nonroot:nonroot /app/package.json ./package.json
+COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/package.json ./packages/backend/package.json
+
 # Copy compiled backend from builder
-COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
+COPY --from=builder --chown=nonroot:nonroot /app/packages/backend/dist ./packages/backend/dist
 
 # Copy shared-types (if needed at runtime)
-COPY --from=builder /app/packages/shared-types ./packages/shared-types
+COPY --from=builder --chown=nonroot:nonroot /app/packages/shared-types ./packages/shared-types
 
 # Expose backend port
 EXPOSE 8787
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8787/healthz', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
+# Run as non-root user (already set in base image)
+USER nonroot
 
 # Run the application
-CMD ["node", "packages/backend/dist/index.js"]
+CMD ["packages/backend/dist/index.js"]
