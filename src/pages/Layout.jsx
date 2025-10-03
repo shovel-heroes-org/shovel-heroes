@@ -73,7 +73,7 @@ export default function Layout({ children, currentPageName }) {
     const script2 = document.createElement('script');
     script2.innerHTML = `
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);} 
+      function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-DJE7FZLCHG');
     `;
@@ -126,50 +126,49 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16 gap-4">
-            {/* Logo */}
-            <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
-              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-tight">鏟子英雄</h1>
-                <p className="text-xs text-gray-500 whitespace-nowrap">花蓮颱風救援對接</p>
-              </div>
-            </Link>
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
+          <div className="px-4 min-w-[436px]">
+            <div className="flex justify-between items-center h-16 gap-4">
+              {/* Logo */}
+              <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
+                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-tight">鏟子英雄</h1>
+                  <p className="text-xs text-gray-500 whitespace-nowrap">花蓮颱風救援對接</p>
+                </div>
+              </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.url}
-                    className={`relative px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 group ${isActive(item.url)
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+              {/* Desktop Navigation */}
+              <nav className="hidden sm:flex items-center justify-center gap-1 flex-1 min-w-0">
+                {navigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.url);
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.url}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
+                        active
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
                       }`}
-                    title={item.name}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="hidden lg:inline">{item.name}</span>
-                    <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 lg:hidden">
-                      {item.name}
-                    </span>
-                  </Link>
-                );
-              })}
-            </nav>
+                      title={item.name}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span className={active ? "inline" : "hidden lg:inline"}>{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
 
             {/* User Menu and Main Action */}
             <div className="flex items-center space-x-4 flex-shrink-0">
               <Button
                 onClick={handleNewGridClick}
-                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center"
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center whitespace-nowrap"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 我要人力
@@ -179,7 +178,7 @@ export default function Layout({ children, currentPageName }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90"
+                      className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90 flex-shrink-0"
                       title={user.name || user.full_name || '使用者'}
                     >
                       {user.avatar_url ? (
@@ -216,7 +215,7 @@ export default function Layout({ children, currentPageName }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="sm:hidden"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -227,7 +226,7 @@ export default function Layout({ children, currentPageName }) {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-t border-gray-200">
+          <div className="sm:hidden bg-white border-t border-gray-200">
             <div className="px-2 pt-2 pb-3 space-y-1">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
@@ -258,7 +257,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 relative z-[100] flex-shrink-0 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="px-4 py-6 min-w-[436px]">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">

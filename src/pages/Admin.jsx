@@ -279,7 +279,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 min-w-0">
+    <div className="px-4 py-6 min-w-[436px]">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4 justify-between">
           <div className="flex items-center gap-3">
