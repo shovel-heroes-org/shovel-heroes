@@ -16,7 +16,7 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
-import { AuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
+import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
 
 const app = Fastify({ logger: true });
 
@@ -66,6 +66,8 @@ app.addHook('preHandler', async (req, reply) => {
   }
 });
 
+
+const AuditLogMiddleware = createAuditLogMiddleware(app);
 app.addHook("onRequest", AuditLogMiddleware.start);
 app.addHook("onSend", AuditLogMiddleware.onSend);
 app.addHook("onResponse", AuditLogMiddleware.onResponse);
