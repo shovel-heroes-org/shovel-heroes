@@ -38,6 +38,15 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Use existing nginx user (UID/GID 82 in Alpine) and configure for non-root
 RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run && \
     chmod -R 755 /usr/share/nginx/html && \
+    # Create necessary nginx cache directories with proper permissions
+    mkdir -p /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp \
+             /var/cache/nginx/scgi_temp && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chmod -R 700 /var/cache/nginx && \
+    # Create and set permissions for nginx pid file
     touch /var/run/nginx.pid && \
     chown nginx:nginx /var/run/nginx.pid && \
     # Update nginx.conf to run on port 8080 (non-privileged)
