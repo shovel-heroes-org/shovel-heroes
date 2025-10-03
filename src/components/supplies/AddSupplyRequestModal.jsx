@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Grid } from '@/api/entities';
+import { Grid, User } from '@/api/entities';
 import { Plus, Trash2 } from 'lucide-react';
 
 export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grids }) {
@@ -19,6 +19,18 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
   const [supplies, setSupplies] = useState([{ name: '', quantity: '', unit: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const u = await User.me();
+        setUser(u);
+      } catch (e) {
+        setUser(null);
+      }
+    })();
+  }, []);
 
   const handleAddSupply = () => {
     setSupplies([...supplies, { name: '', quantity: '', unit: '' }]);
@@ -152,11 +164,28 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
 
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? '新增中...' : '確認新增'}
-          </Button>
+        <DialogFooter className="flex flex-col items-stretch space-y-2">
+          <div className="flex w-full justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>取消</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !user}
+              className={!user ? 'bg-gray-400 cursor-not-allowed' : ''}
+            >
+              {submitting ? '新增中...' : '確認新增'}
+            </Button>
+          </div>
+          {!user && (
+            <div className="text-xs text-gray-500 text-center space-y-1">
+              <p>請先登入以新增物資需求。</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => User.login()}
+              >立即登入</Button>
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
