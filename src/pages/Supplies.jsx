@@ -185,14 +185,14 @@ export default function SuppliesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="px-4 py-[1.2rem] min-w-[436px]">
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">物資管理中心</h1>
             <p className="text-gray-600">管理物資捐贈與配送狀況</p>
           </div>
-          <Button 
+          <Button
             className="bg-green-600 hover:bg-green-700"
             onClick={handleAddSupplyRequest}
           >
@@ -205,56 +205,56 @@ export default function SuppliesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-6">
+          <CardContent className="p-[1.2rem]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
+              <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
                 <Package className="w-6 h-6 text-blue-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-                <p className="text-sm text-gray-600">總捐贈數</p>
+                <p className="text-sm text-gray-600 whitespace-nowrap">總捐贈數</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-6">
+          <CardContent className="p-[1.2rem]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
+              <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
                 <Clock className="w-6 h-6 text-blue-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-3xl font-bold text-gray-900">{stats.pledged}</p>
-                <p className="text-sm text-gray-600">已承諾</p>
+                <p className="text-sm text-gray-600 whitespace-nowrap">已承諾</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="p-6">
+          <CardContent className="p-[1.2rem]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-yellow-100 rounded-lg">
+              <div className="p-3 bg-yellow-100 rounded-lg flex-shrink-0">
                 <Truck className="w-6 h-6 text-yellow-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-3xl font-bold text-gray-900">{stats.confirmed}</p>
-                <p className="text-sm text-gray-600">已確認</p>
+                <p className="text-sm text-gray-600 whitespace-nowrap">已確認</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-6">
+          <CardContent className="p-[1.2rem]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-lg">
+              <div className="p-3 bg-green-100 rounded-lg flex-shrink-0">
                 <CheckCircle2 className="w-6 h-6 text-green-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-3xl font-bold text-gray-900">{stats.delivered}</p>
-                <p className="text-sm text-gray-600">已送達</p>
+                <p className="text-sm text-gray-600 whitespace-nowrap">已送達</p>
               </div>
             </div>
           </CardContent>
