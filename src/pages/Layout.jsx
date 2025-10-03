@@ -96,7 +96,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
+      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px]">
         <div className="px-4 min-w-[436px]">
           <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo */}
@@ -235,8 +235,8 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 relative z-[100] flex-shrink-0 mt-auto">
-        <div className="px-4 py-6 min-w-[436px]">
+      <footer className="bg-white border-t border-gray-200 relative flex-shrink-0 mt-auto">
+        <div className="px-4 py-2 min-w-[436px]">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">
