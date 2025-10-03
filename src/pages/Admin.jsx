@@ -279,7 +279,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 min-w-0">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4 justify-between">
           <div className="flex items-center gap-3">
@@ -311,9 +311,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <MapPin className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <MapPin className="w-8 h-8 text-blue-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.totalAreas}</p>
-              <p className="text-sm text-gray-600">災區數量</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">災區數量</p>
             </div>
           </CardContent>
         </Card>
@@ -321,9 +321,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-purple-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <BarChart3 className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <BarChart3 className="w-8 h-8 text-purple-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.totalGrids}</p>
-              <p className="text-sm text-gray-600">網格總數</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">網格總數</p>
             </div>
           </CardContent>
         </Card>
@@ -331,9 +331,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <Users className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <Users className="w-8 h-8 text-green-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.totalVolunteers}</p>
-              <p className="text-sm text-gray-600">志工報名</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">志工報名</p>
             </div>
           </CardContent>
         </Card>
@@ -341,9 +341,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-orange-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <Package className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+              <Package className="w-8 h-8 text-orange-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.totalSupplies}</p>
-              <p className="text-sm text-gray-600">物資捐贈</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">物資捐贈</p>
             </div>
           </CardContent>
         </Card>
@@ -351,9 +351,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.completedGrids}</p>
-              <p className="text-sm text-gray-600">已完成</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">已完成</p>
             </div>
           </CardContent>
         </Card>
@@ -361,9 +361,9 @@ export default function AdminPage() {
         <Card className="border-l-4 border-l-red-500">
           <CardContent className="p-4">
             <div className="text-center">
-              <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+              <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2 flex-shrink-0" />
               <p className="text-2xl font-bold text-gray-900">{stats.urgentGrids}</p>
-              <p className="text-sm text-gray-600">急需支援</p>
+              <p className="text-sm text-gray-600 whitespace-nowrap">急需支援</p>
             </div>
           </CardContent>
         </Card>
