@@ -37,7 +37,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
 
     if (grid.grid_type === 'manpower') {
       if (grid.volunteer_needed === 0) return '#9CA3AF';
-      
+
       const shortage = (grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed;
       if (shortage >= 0.6) return '#DC2626';
       if (shortage >= 0.4) return '#EA580C';
@@ -57,12 +57,12 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
     if (isDragging && dragStart) {
       const deltaLat = e.latlng.lat - dragStart.x;
       const deltaLng = e.latlng.lng - dragStart.y;
-      
+
       const newCenter = {
         lat: grid.center_lat + deltaLat,
         lng: grid.center_lng + deltaLng
       };
-      
+
       onGridMove(grid.id, newCenter);
     }
     setIsDragging(false);
@@ -134,7 +134,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
           mouseup: handleMouseUp,
         }}
       />
-      
+
       {gridLabelIcon && (
         <Marker
           position={[grid.center_lat, grid.center_lng]}
@@ -164,13 +164,13 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
                     {gridTypeFullText}
                   </Badge>
                   <Badge className="text-xs">
-                    {grid.status === 'completed' ? '已完成' : 
-                     grid.status === 'open' ? '開放中' : 
+                    {grid.status === 'completed' ? '已完成' :
+                     grid.status === 'open' ? '開放中' :
                      grid.status === 'closed' ? '已關閉' : '準備中'}
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="space-y-2 mb-3">
                 {grid.grid_type === 'manpower' && (
                   <div className="flex items-center gap-2 text-sm">
@@ -178,7 +178,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
                     <span>人力: {grid.volunteer_registered}/{grid.volunteer_needed}</span>
                   </div>
                 )}
-                
+
                 {grid.supplies_needed?.length > 0 && (
                   <div className="flex items-center gap-2 text-sm">
                     <Package className="w-4 h-4 text-green-600" />
@@ -186,7 +186,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
                   </div>
                 )}
               </div>
-              
+
               {/* 查看詳情按鈕 - 點擊後才打開 Modal */}
               <button
                 onClick={(e) => {
@@ -207,7 +207,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
 
 const MapFlyToController = ({ target }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (target && map) {
       // 添加檢查確保地圖已完全初始化
@@ -221,13 +221,13 @@ const MapFlyToController = ({ target }) => {
       }
     }
   }, [target, map]);
-  
+
   return null;
 };
 
 const MapResizer = ({ mapCollapsed }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (!mapCollapsed && map) {
       const timer = setTimeout(() => {
@@ -239,11 +239,11 @@ const MapResizer = ({ mapCollapsed }) => {
         } catch (error) {
           console.warn('Map resize error:', error);
         }
-      }, 350); 
+      }, 350);
       return () => clearTimeout(timer);
     }
   }, [mapCollapsed, map]);
-  
+
   return null;
 };
 
@@ -281,7 +281,7 @@ export default function MapPage() {
 
     // 初次檢查
     checkMapCollapseRequest();
-    
+
     // 只監聽自定義事件，不使用 setInterval
     window.addEventListener('collapseMap', handleCollapseMapEvent);
 
@@ -312,10 +312,10 @@ export default function MapPage() {
         DisasterArea.list(),
         Grid.list()
       ]);
-      
+
       setDisasterAreas(areasData);
       setGrids(gridsData);
-      
+
       const completedGrids = gridsData.filter(g => g.status === 'completed').length;
       const totalVolunteers = gridsData.reduce((sum, g) => sum + (g.volunteer_registered || 0), 0);
       const urgentGrids = gridsData.filter(g => {
@@ -324,7 +324,7 @@ export default function MapPage() {
         return shortage >= 0.6 && g.status === 'open';
       });
       setUrgentGridsList(urgentGrids);
-      
+
       setStats({
         totalGrids: gridsData.length,
         completedGrids,
@@ -340,16 +340,16 @@ export default function MapPage() {
 
   const getUrgencyScore = (grid) => {
     if (grid.grid_type !== 'manpower' || grid.status !== 'open') return -1;
-    const volunteerShortage = grid.volunteer_needed > 0 
-      ? (grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed 
+    const volunteerShortage = grid.volunteer_needed > 0
+      ? (grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed
       : 0;
     return volunteerShortage;
   };
-  
+
   const getGridTypeText = (type) => {
     const types = {
       mud_disposal: '污泥暫置場',
-      manpower: '人力任務', 
+      manpower: '人力任務',
       supply_storage: '物資停放處',
       accommodation: '住宿地點',
       food_area: '領吃食區域'
@@ -366,8 +366,8 @@ export default function MapPage() {
     return typeStats;
   };
 
-  const filteredGrids = selectedGridType === 'all' 
-    ? grids 
+  const filteredGrids = selectedGridType === 'all'
+    ? grids
     : grids.filter(g => g.grid_type === selectedGridType);
 
   const sortedAndFilteredGrids = [...filteredGrids].sort((a, b) => getUrgencyScore(b) - getUrgencyScore(a));
@@ -394,7 +394,7 @@ export default function MapPage() {
     try {
       const grid = grids.find(g => g.id === gridId);
       if (!grid) return;
-      
+
       const size = 0.001; // Assuming a fixed size for simplification, adjust if necessary
       await Grid.update(gridId, {
         center_lat: newCenter.lat,
@@ -406,13 +406,13 @@ export default function MapPage() {
           west: newCenter.lng - size
         }
       });
-      
+
       // 只更新本地狀態，不重新載入所有數據
-      setGrids(prevGrids => prevGrids.map(g => 
-        g.id === gridId 
-          ? { 
-              ...g, 
-              center_lat: newCenter.lat, 
+      setGrids(prevGrids => prevGrids.map(g =>
+        g.id === gridId
+          ? {
+              ...g,
+              center_lat: newCenter.lat,
               center_lng: newCenter.lng,
               bounds: {
                 north: newCenter.lat + size,
@@ -431,13 +431,13 @@ export default function MapPage() {
   const handleManualMapToggle = () => {
     const isCurrentlyCollapsed = mapCollapsed;
     setMapCollapsed(!isCurrentlyCollapsed);
-    
+
     // 如果要展開地圖，強制重新渲染以避免 Leaflet 錯誤
     if (isCurrentlyCollapsed) {
       setMapKey(prev => prev + 1);
     }
   };
-  
+
   const getShortageRate = (grid) => {
     if (grid.volunteer_needed === 0) return 0;
     return ((grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed) * 100;
@@ -458,7 +458,7 @@ export default function MapPage() {
   const typeStats = getGridTypeStats();
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="flex flex-col">
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="max-w-full mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -496,7 +496,7 @@ export default function MapPage() {
                 </div>
               </PopoverContent>
             </Popover>
-            
+
             <Card className="border-l-4 border-l-green-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -567,7 +567,7 @@ export default function MapPage() {
               </PopoverContent>
             </Popover>
           </div>
-          
+
           <div className="flex flex-wrap gap-2 justify-center">
             <Button
               size="sm"
@@ -626,7 +626,7 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 180px)' }}>
         <div className={`relative transition-all duration-300 ${
           mapCollapsed ? 'hidden lg:w-0 lg:overflow-hidden' : 'h-64 lg:h-auto lg:flex-[2]'
         }`}>
@@ -647,7 +647,7 @@ export default function MapPage() {
               />
               <MapFlyToController target={mapFlyToTarget} />
               <MapResizer mapCollapsed={mapCollapsed} />
-              
+
               {filteredGrids.map((grid) => (
                 <DraggableRectangle
                   key={grid.id}
@@ -661,7 +661,7 @@ export default function MapPage() {
 
           <button
             onClick={handleManualMapToggle}
-            style={{ zIndex: 1000 }}
+            style={{ zIndex: 10 }}
             className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200 hidden lg:block"
             title={mapCollapsed ? "顯示地圖" : "隱藏地圖"}
           >
@@ -677,8 +677,8 @@ export default function MapPage() {
           </button>
 
           {!mapCollapsed && (
-            <div 
-              style={{ zIndex: 1000 }} 
+            <div
+              style={{ zIndex: 10 }}
               className={`absolute bottom-4 left-4 bg-white rounded-lg shadow-lg transition-all duration-300 hidden lg:block ${
                 legendCollapsed ? 'p-2' : 'p-4'
               }`}
@@ -701,7 +701,7 @@ export default function MapPage() {
                   )}
                 </button>
               </div>
-              
+
               {!legendCollapsed && (
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center gap-2">
@@ -761,14 +761,14 @@ export default function MapPage() {
             <h2 className="text-lg font-bold text-gray-900">救援任務列表</h2>
             <p className="text-sm text-gray-600">點擊任務可查看詳情並報名</p>
             <p className="text-xs text-gray-500 mt-1">
-              目前顯示: {selectedGridType === 'all' ? '全部網格' : getGridTypeText(selectedGridType)} 
+              目前顯示: {selectedGridType === 'all' ? '全部網格' : getGridTypeText(selectedGridType)}
               ({sortedAndFilteredGrids.length} 個)
             </p>
-            
-            <div className="mt-3 lg:hidden">
+
+            <div className={`mt-3 ${!mapCollapsed ? 'lg:hidden' : ''}`}>
               <Button
                 onClick={handleManualMapToggle}
-                variant="outline" 
+                variant="outline"
                 size="sm"
                 className="w-full"
               >
@@ -777,16 +777,16 @@ export default function MapPage() {
               </Button>
             </div>
           </div>
-          
-          <ScrollArea className="flex-1 h-[400px] lg:h-[calc(100vh-180px)]">
+
+          <ScrollArea className="h-[calc(100vh-280px)]">
             <div className="p-4 space-y-4">
               <AnimatePresence>
                 {sortedAndFilteredGrids.map((grid) => {
                   const shortageRate = grid.grid_type === 'manpower' ? getShortageRate(grid) : 0;
                   const supplyShortage = getSupplyShortage(grid.supplies_needed);
-                  
+
                   return (
-                    <Card 
+                    <Card
                       key={grid.id}
                       className={`cursor-pointer hover:shadow-md transition-all duration-200 border-l-4 ${
                         grid.status === 'completed' ? 'border-l-green-500' :
@@ -820,7 +820,7 @@ export default function MapPage() {
                             }>
                               {grid.status === 'completed' ? '已完成' :
                                grid.status === 'open' ? '開放中' :
-                               grid.status === 'closed' ? '已關閉' : 
+                               grid.status === 'closed' ? '已關閉' :
                                grid.status === 'in_progress' ? '進行中' : '準備中'}
                             </Badge>
                           </div>
@@ -842,7 +842,7 @@ export default function MapPage() {
                                 {grid.volunteer_registered}/{grid.volunteer_needed}
                               </span>
                             </div>
-                            
+
                             {shortageRate > 0 && (
                               <div className="bg-red-50 p-2 rounded text-xs text-red-700">
                                 還缺 {grid.volunteer_needed - (grid.volunteer_registered || 0)} 位志工
@@ -884,8 +884,8 @@ export default function MapPage() {
 
                         <div className="flex gap-2 mt-3">
                           {grid.grid_type === 'manpower' && !['completed', 'closed'].includes(grid.status) && (grid.volunteer_registered || 0) < grid.volunteer_needed && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               className="flex-1 bg-blue-600 hover:bg-blue-700"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -898,8 +898,8 @@ export default function MapPage() {
                             </Button>
                           )}
                           {grid.grid_type === 'supply_storage' && grid.status === 'open' && supplyShortage.length > 0 && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               className="flex-1"
                               onClick={(e) => {
@@ -918,7 +918,7 @@ export default function MapPage() {
                   );
                 })}
               </AnimatePresence>
-              
+
               {sortedAndFilteredGrids.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
                   <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -931,8 +931,8 @@ export default function MapPage() {
       </div>
 
       {selectedGrid && (
-        <GridDetailModal 
-          grid={selectedGrid} 
+        <GridDetailModal
+          grid={selectedGrid}
           onClose={handleModalClose}
           onUpdate={loadData}
         />

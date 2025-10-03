@@ -10,9 +10,14 @@ import Admin from "./Admin";
 
 import About from "./About";
 
+import Privacy from "./Privacy";
+import LineReturn from "./LineReturn";
+
 import GridMonitor from "./GridMonitor";
 
 import RequestHelp from "./RequestHelp";
+
+import NotFound from "./NotFound";
 
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -27,6 +32,9 @@ const PAGES = {
     Admin: Admin,
     
     About: About,
+
+    Privacy: Privacy,
+    LineReturn: LineReturn,
     
     GridMonitor: GridMonitor,
     
@@ -68,11 +76,15 @@ function PagesContent() {
                 <Route path="/Admin" element={<Admin />} />
                 
                 <Route path="/About" element={<About />} />
+
+                <Route path="/Privacy" element={<Privacy />} />
+                <Route path="/auth/line/return" element={<LineReturn />} />
                 
                 <Route path="/GridMonitor" element={<GridMonitor />} />
                 
                 <Route path="/RequestHelp" element={<RequestHelp />} />
                 
+                <Route path="*" element={<NotFound />} />
             </Routes>
         </Layout>
     );

@@ -3,6 +3,17 @@ module.exports = {
     darkMode: ["class"],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
+    screens: {
+	  'xxs': '450px',    // 自訂斷點：手機版主標題
+	  'xs': '510px',     // 自訂斷點：手機版副標題
+      'sm': '640px',
+      'md': '768px',
+      'title': '860px',  // 自訂斷點：主標題
+      'subtitle': '1095px', // 自訂斷點：副標題
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
   	extend: {
   		borderRadius: {
   			lg: 'var(--radius)',
