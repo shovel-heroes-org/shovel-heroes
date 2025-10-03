@@ -161,16 +161,9 @@ button:focus-visible {
   }
 }
 
-/* 修正 Leaflet 地圖 z-index，防止覆蓋 Layout */
-.leaflet-container {
-  z-index: 1 !important;
-}
-
-.leaflet-pane {
-  z-index: auto !important;
-}
-
-.leaflet-top,
-.leaflet-bottom {
-  z-index: 10 !important;
-}
+/* Leaflet stacking:
+   Default panes (tile 200, overlay 400, shadow 500, marker 600, tooltip 650, popup 700)
+   Keep container low relative to app layout but DO NOT reset .leaflet-pane globally
+   or tooltips/popups will lose their intended z-index layering. */
+.leaflet-container { z-index: 1; }
+.leaflet-top, .leaflet-bottom { z-index: 10; }
