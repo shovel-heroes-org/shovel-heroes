@@ -5,7 +5,7 @@ namespace: shovel-heroes-production
 
 nameSuffix: -prod
 
-bases:
+resources:
   - ../../base
 
 commonLabels:

@@ -5,7 +5,7 @@ namespace: shovel-heroes-staging
 
 nameSuffix: -staging
 
-bases:
+resources:
   - ../../base
 
 commonLabels:
