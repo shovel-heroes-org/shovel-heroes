@@ -120,6 +120,24 @@ CREATE TABLE IF NOT EXISTS announcements (
   updated_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  query JSONB,
+  ip TEXT,
+  headers JSONB,
+  status_code INT,
+  error TEXT,
+  duration_ms INT,
+  request_body JSONB,
+  response_body JSONB,
+  user_id TEXT,
+  resource_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
 -- Future-proof: ensure new columns exist if schema was created before this update
 ALTER TABLE disaster_areas
   ADD COLUMN IF NOT EXISTS township TEXT,
