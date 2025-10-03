@@ -1,0 +1,50 @@
+# Multi-stage Dockerfile for Shovel Heroes Backend (Fastify + TypeScript)
+
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+COPY packages/shared-types/package*.json ./packages/shared-types/
+
+# Install dependencies for backend and shared-types workspaces
+RUN npm ci --workspace=packages/backend --workspace=packages/shared-types
+
+# Copy source code
+COPY packages/backend ./packages/backend
+COPY packages/shared-types ./packages/shared-types
+COPY api-spec ./api-spec
+
+# Build TypeScript to JavaScript
+RUN npm run build:api
+
+# Stage 2: Production
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+
+# Install only production dependencies
+RUN npm ci --workspace=packages/backend --omit=dev
+
+# Copy compiled backend from builder
+COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
+
+# Copy shared-types (if needed at runtime)
+COPY --from=builder /app/packages/shared-types ./packages/shared-types
+
+# Expose backend port
+EXPOSE 8787
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8787/healthz', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
+
+# Run the application
+CMD ["node", "packages/backend/dist/index.js"]
