@@ -1,10 +1,12 @@
 openapi: 3.1.0
 info:
   title: Shovel Heroes API
-  description: >
-    API for disaster relief coordination: tasks, volunteer sign-ups, check-ins, and resource points.
-    Includes server-side rate limiting, idempotent POSTs, and security headers guidance.
-  version: 0.1.0
+  version: 0.2.0
+  description: |
+    Current implementation spec for Shovel Heroes backend.
+    This document reflects the actually implemented routes (LINE OAuth, grids, disaster areas,
+    volunteer registrations, volunteers aggregate view, supply donations, announcements, grid discussions, users).
+    Deprecated / planned endpoints from earlier drafts (tasks, checkins, resource-points) removed to avoid confusion.
   contact:
     name: Maintainers
     email: shovel-heroes@noreply.github.com
@@ -15,203 +17,405 @@ servers:
     description: Staging (placeholder)
 
 tags:
-  - name: Health
-    description: System health and status monitoring
-  - name: Tasks
-    description: Disaster relief task management
+  - name: Auth
+    description: Authentication & LINE OAuth
+  - name: Users
+    description: User & identity endpoints
+  - name: DisasterAreas
+    description: Disaster area management
+  - name: Grids
+    description: Grid (需求) management
+  - name: VolunteerRegistrations
+    description: Volunteer registration records (per grid)
   - name: Volunteers
-    description: Volunteer registration and management
-  - name: Checkins
-    description: Field check-in tracking for volunteers
-  - name: ResourcePoints
-    description: Resource point locations (shelters, supplies, medical)
+    description: Aggregated volunteer listing & stats
+  - name: SupplyDonations
+    description: Supply donation records
+  - name: Announcements
+    description: System / public announcements
+  - name: GridDiscussions
+    description: Comments / discussions under grids
 
 paths:
-  /health:
+  /auth/line/login:
     get:
-      tags: [Health]
-      summary: Health check
-      description: Check API service health and uptime
+      tags: [Auth]
+      summary: LINE OAuth start (redirect)
+      description: Redirects user agent to LINE authorization page.
+      responses:
+        '302':
+          description: Redirect to LINE authorization URL
+  /auth/line/callback:
+    get:
+      tags: [Auth]
+      summary: LINE OAuth callback (redirect to frontend)
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string }
+        - in: query
+          name: state
+          schema: { type: string }
+        - in: query
+          name: error
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirect to frontend /auth/line/return with code & state or error
+  /auth/line/exchange:
+    post:
+      tags: [Auth]
+      summary: Exchange LINE code/state for app JWT
+      description: Validates state, exchanges code with LINE, creates/updates user, issues short-lived JWT (2h).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, state]
+              properties:
+                code: { type: string }
+                state: { type: string }
       responses:
         '200':
-          description: Service is healthy
+          description: JWT issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /auth/logout:
+    get:
+      tags: [Auth]
+      summary: Logical logout
+      description: Stateless JWT – client discards token.
+      responses:
+        '200':
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required: [status, uptimeSec]
                 properties:
-                  status: { type: string, enum: [ok] }
-                  uptimeSec: { type: number, minimum: 0 }
-              example:
-                status: ok
-                uptimeSec: 3600
-  /tasks:
+                  message: { type: string, example: ok }
+
+  /users:
     get:
-      tags: [Tasks]
-      summary: List tasks
-      description: Retrieve list of disaster relief tasks with optional filtering
-      parameters:
-        - in: query
-          name: status
-          description: Filter tasks by status
-          schema: { type: string, enum: [open, assigned, done, cancelled] }
-        - in: query
-          name: bbox
-          description: Filter by bounding box [minLon,minLat,maxLon,maxLat]
-          style: form
-          explode: false
-          schema:
-            type: array
-            minItems: 4
-            maxItems: 4
-            items: { type: number }
-          example: [121.5, 24.0, 121.6, 24.1]
+      tags: [Users]
+      summary: List users
       responses:
         '200':
-          description: Task list
-          headers:
-            RateLimit:
-              description: Number of requests remaining in current window
-              schema: { type: string }
-              example: "100"
-            RateLimit-Policy:
-              description: Rate limit policy in effect
-              schema: { type: string }
-              example: "100;w=30"
+          description: User list
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Task' }
-                  nextCursor: { type: string, nullable: true }
-  /tasks/{id}:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+  /me:
     get:
-      tags: [Tasks]
-      summary: Get one task
-      description: Retrieve detailed information for a specific task
-      parameters:
-        - in: path
-          name: id
-          required: true
-          description: Task UUID
-          schema: { type: string, format: uuid }
+      tags: [Users]
+      summary: Current user profile
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: Task details
+          description: Authenticated user
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Task' }
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /disaster-areas:
+    get:
+      tags: [DisasterAreas]
+      summary: List disaster areas
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DisasterArea' }
+    post:
+      tags: [DisasterAreas]
+      summary: Create disaster area
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DisasterAreaCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/DisasterArea' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /disaster-areas/{id}:
+    get:
+      tags: [DisasterAreas]
+      summary: Get disaster area
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DisasterArea' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [DisasterAreas]
+      summary: Update disaster area
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DisasterAreaUpdate' }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/DisasterArea' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [DisasterAreas]
+      summary: Delete disaster area
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /volunteers/signups:
-    post:
-      tags: [Volunteers]
-      summary: Create a volunteer signup (idempotent)
-      description: >
-        Register a new volunteer. Accepts an optional `Idempotency-Key` header
-        to deduplicate identical submissions within a 10-minute window.
-      parameters:
-        - in: header
-          name: Idempotency-Key
-          required: false
-          description: UUID v4 for idempotent submission (prevents duplicate signups within 10 minutes)
-          schema:
-            type: string
-            format: uuid
-            maxLength: 36
-            minLength: 36
-          example: "123e4567-e89b-12d3-a456-426614174000"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/VolunteerSignup' }
-      responses:
-        '201':
-          description: Volunteer signup created successfully
-          headers:
-            RateLimit:
-              description: Requests remaining in current window
-              schema: { type: string }
-            RateLimit-Policy:
-              description: Rate limit policy
-              schema: { type: string }
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VolunteerSignupReceipt' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409':
-          description: Duplicate submission detected within idempotency window
-          headers:
-            Retry-After:
-              description: Seconds until the idempotency window resets
-              schema: { type: integer }
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-
-  /checkins:
-    post:
-      tags: [Checkins]
-      summary: Field check-in
-      description: Record volunteer location check-in (requires authentication)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: header
-          name: Idempotency-Key
-          required: false
-          description: UUID v4 for idempotent submission
-          schema:
-            type: string
-            format: uuid
-            maxLength: 36
-            minLength: 36
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/Checkin' }
-      responses:
-        '201':
-          description: Check-in recorded successfully
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/CheckinReceipt' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-
-  /resource-points:
+  /grids:
     get:
-      tags: [ResourcePoints]
-      summary: List resource points
-      description: Retrieve locations of shelters, supply depots, and medical facilities
+      tags: [Grids]
+      summary: List grids
+      description: Returns grids ordered by created_at DESC.
       responses:
         '200':
-          description: Resource point list
+          description: List of grids
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/ResourcePoint' }
+                type: array
+                items: { $ref: '#/components/schemas/Grid' }
+    post:
+      tags: [Grids]
+      summary: Create grid
+      description: Optional Turnstile token included when TURNSTILE_SECRET_KEY set.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Grid' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /grids/{id}:
+    get:
+      tags: [Grids]
+      summary: Get grid
+      parameters: [ { $ref: '#/components/parameters/IdPath' } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Grid' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Grids]
+      summary: Update grid
+      security: [{ bearerAuth: [] }]
+      parameters: [ { $ref: '#/components/parameters/IdPath' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridUpdate' }
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/ActingRoleHeader'
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Grid' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [Grids]
+      summary: Delete grid
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/ActingRoleHeader'
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Has related records, content: { application/json: { schema: { $ref: '#/components/schemas/GridDependencyConflict' } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /volunteer-registrations:
+    get:
+      tags: [VolunteerRegistrations]
+      summary: List volunteer registrations
+      parameters:
+        - in: query
+          name: grid_id
+          schema: { type: string }
+          description: Filter by grid id
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/VolunteerRegistration' } } } } }
+    post:
+      tags: [VolunteerRegistrations]
+      summary: Create volunteer registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VolunteerRegistrationCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/VolunteerRegistration' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /volunteer-registrations/{id}:
+    put:
+      tags: [VolunteerRegistrations]
+      summary: Update registration status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VolunteerRegistrationStatusUpdate' }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/VolunteerRegistration' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [VolunteerRegistrations]
+      summary: Delete registration
+      parameters: [ { $ref: '#/components/parameters/IdPath' } ]
+      responses:
+        '204': { description: Deleted }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /volunteers:
+    get:
+      tags: [Volunteers]
+      summary: Aggregated volunteers list
+      parameters:
+        - in: query
+          name: grid_id
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/VolunteerRegistrationStatus' }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 200, minimum: 1, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0, minimum: 0 }
+        - in: query
+          name: include_counts
+          schema: { type: string, enum: ['true','false'], default: 'true' }
+      responses:
+        '200':
+          description: Aggregated list & counts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VolunteersAggregateResponse' }
+
+  /supply-donations:
+    get:
+      tags: [SupplyDonations]
+      summary: List supply donations
+      parameters:
+        - in: query
+          name: grid_id
+          schema: { type: string }
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SupplyDonation' } } } } }
+    post:
+      tags: [SupplyDonations]
+      summary: Create supply donation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupplyDonationCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SupplyDonation' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: List announcements
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } } } } }
+    post:
+      tags: [Announcements]
+      summary: Create announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnnouncementCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /grid-discussions:
+    get:
+      tags: [GridDiscussions]
+      summary: List grid discussions
+      parameters:
+        - in: query
+          name: grid_id
+          schema: { type: string }
+          description: Filter by grid id
+      responses:
+        '200': { description: List, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/GridDiscussion' } } } } }
+    post:
+      tags: [GridDiscussions]
+      summary: Create grid discussion message
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridDiscussionCreate' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/GridDiscussion' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    ActingRoleHeader:
+      name: X-Acting-Role
+      in: header
+      required: false
+      description: "Optional acting perspective. Only value currently used is 'user'; omitted means real role (e.g. admin)."
+      schema:
+        type: string
+        enum: ['user']
+
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token for authenticated requests
+      description: >
+        Custom HS256 JWT issued by /auth/line/exchange. Short-lived (2h). No refresh yet. Include as `Authorization: Bearer <token>`.
 
   responses:
     BadRequest:
@@ -224,279 +428,342 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Operation not permitted (role / ownership / actingRole restriction)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-    TooManyRequests:
-      description: Rate limit exceeded or duplicate submission within cooldown
-      headers:
-        Retry-After:
-          description: Seconds until requests can resume
-          schema: { type: integer }
+    ServiceUnavailable:
+      description: Backend dependency (DB) not ready
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UpstreamError:
+      description: Upstream provider failure (e.g., LINE token exchange)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ServerError:
+      description: Internal server error
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
-    Task:
+    User:
       type: object
-      required: [id, title, status, location]
       properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique task identifier
-        title:
-          type: string
-          maxLength: 140
-          minLength: 1
-          description: Task title
-        description:
-          type: string
-          maxLength: 4000
-          nullable: true
-          description: Detailed task description
-        status:
-          type: string
-          enum: [open, assigned, done, cancelled]
-          description: Current task status
-        skills:
-          type: array
-          items:
-            type: string
-            maxLength: 50
-          maxItems: 20
-          nullable: true
-          description: Required skills for the task
-        location:
+        id: { type: string }
+        name: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        avatar_url: { type: string, nullable: true }
+        role: { type: string, nullable: true, description: "user | grid_manager | admin" }
+
+    DisasterArea:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        township: { type: string, nullable: true }
+        county: { type: string, nullable: true }
+        center_lat: { type: number }
+        center_lng: { type: number }
+        bounds: { $ref: '#/components/schemas/Bounds', nullable: true }
+        grid_size: { type: integer, nullable: true }
+        status: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+    DisasterAreaCreate:
+      allOf:
+        - $ref: '#/components/schemas/DisasterArea'
+      required: [name, center_lat, center_lng]
+    DisasterAreaUpdate:
+      type: object
+      description: Partial update
+      properties:
+        name: { type: string }
+        township: { type: string }
+        county: { type: string }
+        center_lat: { type: number }
+        center_lng: { type: number }
+        bounds: { $ref: '#/components/schemas/Bounds' }
+        grid_size: { type: integer }
+        status: { type: string }
+        description: { type: string }
+
+    Bounds:
+      type: object
+      properties:
+        north: { type: number }
+        south: { type: number }
+        east: { type: number }
+        west: { type: number }
+      required: [north, south, east, west]
+
+    SupplyNeed:
+      type: object
+      properties:
+        name: { type: string }
+        quantity: { type: number }
+        unit: { type: string }
+        received: { type: number, nullable: true }
+
+    Grid:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        grid_type: { type: string }
+        disaster_area_id: { type: string }
+        volunteer_needed: { type: integer, nullable: true }
+        volunteer_registered: { type: integer, nullable: true }
+        meeting_point: { type: string, nullable: true }
+        risks_notes: { type: string, nullable: true }
+        contact_info: { type: string, nullable: true }
+        center_lat: { type: number }
+        center_lng: { type: number }
+        bounds: { $ref: '#/components/schemas/Bounds', nullable: true }
+        status: { type: string, description: "open | completed | preparing (others may appear)" }
+        supplies_needed: { type: array, items: { $ref: '#/components/schemas/SupplyNeed' }, nullable: true }
+        grid_manager_id: { type: string, nullable: true }
+        completion_photo: { type: string, nullable: true }
+        created_by_id: { type: string, nullable: true }
+        created_by: { type: string, nullable: true }
+        is_sample: { type: boolean, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+    GridCreate:
+      type: object
+      required: [code, grid_type, disaster_area_id, center_lat, center_lng]
+      properties:
+        code: { type: string }
+        grid_type: { type: string }
+        disaster_area_id: { type: string }
+        volunteer_needed: { type: integer, nullable: true }
+        meeting_point: { type: string, nullable: true }
+        risks_notes: { type: string, nullable: true }
+        contact_info: { type: string, nullable: true }
+        center_lat: { type: number }
+        center_lng: { type: number }
+        bounds: { $ref: '#/components/schemas/Bounds' }
+        status: { type: string, nullable: true }
+        supplies_needed: { type: array, items: { $ref: '#/components/schemas/SupplyNeed' }, nullable: true }
+        grid_manager_id: { type: string, nullable: true }
+        completion_photo: { type: string, nullable: true }
+        __turnstile_token: { type: string, nullable: true, description: "Cloudflare Turnstile token (optional / env dependent)" }
+    GridUpdate:
+      type: object
+      description: Partial update; any GridCreate field optional.
+      properties:
+        code: { type: string }
+        grid_type: { type: string }
+        volunteer_needed: { type: integer }
+        meeting_point: { type: string }
+        risks_notes: { type: string }
+        contact_info: { type: string }
+        bounds: { $ref: '#/components/schemas/Bounds' }
+        status: { type: string }
+        supplies_needed: { type: array, items: { $ref: '#/components/schemas/SupplyNeed' } }
+        grid_manager_id: { type: string }
+        completion_photo: { type: string }
+
+    GridDependencyConflict:
+      type: object
+      properties:
+        message: { type: string, example: Grid has related records }
+        details:
           type: object
-          required: [lat, lon]
           properties:
-            lat: { type: number, minimum: -90, maximum: 90 }
-            lon: { type: number, minimum: -180, maximum: 180 }
-          description: Task location coordinates
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-      example:
-        id: "123e4567-e89b-12d3-a456-426614174000"
-        title: "清理街道淤泥"
-        description: "中山路一段需要清理淤泥約50公尺"
-        status: "open"
-        skills: ["體力勞動", "鏟子使用"]
-        location:
-          lat: 23.9739
-          lon: 121.6056
-        createdAt: "2025-10-02T10:00:00Z"
-        updatedAt: "2025-10-02T10:00:00Z"
+            vr_count: { type: string, description: "Volunteer registrations count (string from SQL)" }
+            sd_count: { type: string }
+            gd_count: { type: string }
 
-    VolunteerSignup:
+    VolunteerRegistrationStatus:
+      type: string
+      enum: [pending, confirmed, arrived, completed, declined, cancelled]
+      description: "Lifecycle: pending -> confirmed -> arrived -> completed; branches: declined, cancelled (terminal)."
+
+    VolunteerRegistration:
       type: object
-      required: [name, phone]
-      description: |
-        Volunteer signup schema with idempotent submission support.
-        Custom extension x-shovel-heroes-idempotency-window-seconds (600 seconds)
-        defines the deduplication window for preventing duplicate signups.
       properties:
-        name:
-          type: string
-          maxLength: 80
-          minLength: 1
-          description: Volunteer full name
-        phone:
-          type: string
-          description: |
-            Taiwan phone number validation (see x-phone-validation for pattern components).
-
-            Accepted formats:
-              • Mobile: 09XX-XXX-XXX (prefixes: 091x-099x, excludes 090x)
-              • Landline: 0X-XXXX-XXXX (area codes: 02, 03, 04, 05, 06, 07, 08, 049)
-              • International: +886-X-XXXX-XXXX or +886-9XX-XXX-XXX
-
-            Examples: 0912-345-678, 02-2345-6789, 049-123-4567, +886-2-2345-6789
-
-            Server performs additional validation.
-          pattern: "^(\\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}|0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}|09[1-9][0-9]-?[0-9]{3}-?[0-9]{3})$"
-          x-phone-validation:
-            components:
-              international-landline:
-                pattern: "\\+886-?(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}"
-                description: "International format with Taiwan area codes"
-                examples: ["+886-2-2345-6789", "+88622345678", "+886-49-123-4567"]
-              international-mobile:
-                pattern: "\\+886-?9[1-9][0-9]-?[0-9]{3}-?[0-9]{3}"
-                description: "International mobile format (prefixes 910-999)"
-                examples: ["+886-912-345-678", "+886912345678"]
-              domestic-landline:
-                pattern: "0(2|3|4|5|6|7|8|49)-?[0-9]{3,4}-?[0-9]{4}"
-                description: "Domestic landline with area code"
-                examples: ["02-2345-6789", "022345678", "049-123-4567"]
-              domestic-mobile:
-                pattern: "09[1-9][0-9]-?[0-9]{3}-?[0-9]{3}"
-                description: "Domestic mobile (prefixes 091x-099x)"
-                examples: ["0912-345-678", "0912345678"]
-            notes:
-              - "All dashes (-) are optional throughout"
-              - "Area code 049 is for Nantou County"
-              - "Mobile prefixes 090x are invalid and excluded"
-              - "Area codes 00, 01, 09 are invalid for landlines"
-        email:
-          type: string
-          format: email
-          maxLength: 254
-          nullable: true
-          description: Contact email address
-        skills:
-          type: array
-          items:
-            type: string
-            maxLength: 50
-          maxItems: 20
-          nullable: true
-          description: Volunteer skills and expertise
-        locationPref:
-          type: string
-          maxLength: 100
-          nullable: true
-          description: Preferred work location (e.g., city or district name)
-      x-shovel-heroes-idempotency-window-seconds: 600  # aligns with "10 minutes cooldown" in product spec
-      example:
-        name: "張小明"
-        phone: "0912-345-678"
-        email: "example@email.com"
-        skills: ["醫療", "重機具操作"]
-        locationPref: "花蓮市"
-
-    VolunteerSignupReceipt:
+        id: { type: string }
+        grid_id: { type: string }
+        user_id: { type: string, nullable: true }
+        volunteer_name: { type: string, nullable: true }
+        volunteer_phone: { type: string, nullable: true }
+        volunteer_email: { type: string, nullable: true }
+        available_time: { type: string, nullable: true }
+        skills: { type: array, items: { type: string }, nullable: true }
+        equipment: { type: array, items: { type: string }, nullable: true }
+        status: { $ref: '#/components/schemas/VolunteerRegistrationStatus' }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+    VolunteerRegistrationCreate:
       type: object
-      required: [id, receivedAt]
+      required: [grid_id]
       properties:
-        id:
-          type: string
-          format: uuid
-          description: Server-issued unique volunteer identifier
-        receivedAt:
-          type: string
-          format: date-time
-          description: Timestamp when signup was received
-      example:
-        id: "987fcdeb-51a2-43d7-b456-426614174999"
-        receivedAt: "2025-10-02T10:30:00Z"
-
-    Checkin:
+        grid_id: { type: string }
+        user_id: { type: string }
+        volunteer_name: { type: string }
+        volunteer_phone: { type: string }
+        volunteer_email: { type: string }
+        available_time: { type: string }
+        skills: { type: array, items: { type: string } }
+        equipment: { type: array, items: { type: string } }
+        status: { $ref: '#/components/schemas/VolunteerRegistrationStatus' }
+        notes: { type: string }
+      description: Either user_id or volunteer_name must be provided (server validation rule).
+    VolunteerRegistrationStatusUpdate:
       type: object
-      required: [position]
+      required: [status]
       properties:
-        position:
+        status: { $ref: '#/components/schemas/VolunteerRegistrationStatus' }
+      x-status-transitions:
+        description: Allowed transitions enforced server-side.
+        transitions:
+          pending: [confirmed, declined, cancelled]
+          confirmed: [arrived, cancelled]
+          arrived: [completed, cancelled]
+          completed: []
+          declined: []
+          cancelled: []
+
+    VolunteersAggregateItem:
+      type: object
+      properties:
+        id: { type: string }
+        grid_id: { type: string }
+        user_id: { type: string, nullable: true }
+        volunteer_name: { type: string }
+        volunteer_phone: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/VolunteerRegistrationStatus' }
+        available_time: { type: string, nullable: true }
+        skills: { type: array, items: { type: string } }
+        equipment: { type: array, items: { type: string } }
+        notes: { type: string, nullable: true }
+        created_date: { type: string, nullable: true }
+    VolunteersAggregateResponse:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/VolunteersAggregateItem' } }
+        can_view_phone: { type: boolean }
+        total: { type: integer }
+        status_counts:
           type: object
-          required: [lat, lon]
-          properties:
-            lat: { type: number, minimum: -90, maximum: 90 }
-            lon: { type: number, minimum: -180, maximum: 180 }
-          description: Check-in GPS coordinates
-        note:
-          type: string
-          maxLength: 500
+          additionalProperties: { type: integer }
           nullable: true
-          description: Optional check-in note or status update
-      example:
-        position:
-          lat: 23.9739
-          lon: 121.6056
-        note: "已抵達物資集散點"
+        limit: { type: integer }
+        page: { type: integer }
 
-    CheckinReceipt:
+    SupplyDonation:
       type: object
-      required: [id, at]
       properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique check-in record identifier
-        at:
-          type: string
-          format: date-time
-          description: Server timestamp of check-in
-      example:
-        id: "456e7890-a12b-34c5-d678-901234567890"
-        at: "2025-10-02T11:00:00Z"
+        id: { type: string }
+        grid_id: { type: string }
+        name: { type: string, nullable: true }
+        quantity: { type: number }
+        unit: { type: string, nullable: true }
+        donor_contact: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+    SupplyDonationCreate:
+      type: object
+      required: [grid_id, quantity]
+      properties:
+        grid_id: { type: string }
+        name: { type: string }
+        supply_name: { type: string }
+        quantity: { type: number }
+        unit: { type: string }
+        donor_name: { type: string }
+        donor_phone: { type: string }
+        donor_email: { type: string }
+        donor_contact: { type: string }
+        delivery_method: { type: string }
+        delivery_address: { type: string }
+        delivery_time: { type: string }
+        notes: { type: string }
+      description: Only subset persisted: name, quantity, unit, donor_contact.
 
-    ResourcePoint:
+    Announcement:
       type: object
-      required: [id, name, kind, location]
       properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique resource point identifier
-        name:
-          type: string
-          maxLength: 200
-          minLength: 1
-          description: Resource point name
-        kind:
-          type: string
-          enum: [shelter, supply, medical, other]
-          description: Type of resource point
-        location:
-          type: object
-          required: [lat, lon]
-          properties:
-            lat: { type: number, minimum: -90, maximum: 90 }
-            lon: { type: number, minimum: -180, maximum: 180 }
-          description: Resource point GPS coordinates
-        address:
-          type: string
-          maxLength: 300
-          nullable: true
-          description: Physical address
-        hours:
-          type: string
-          maxLength: 100
-          nullable: true
-          description: Operating hours
-      example:
-        id: "abc12345-def6-7890-ghij-klmnopqrstuv"
-        name: "花蓮市立體育館避難所"
-        kind: "shelter"
-        location:
-          lat: 23.9739
-          lon: 121.6056
-        address: "花蓮縣花蓮市中山路123號"
-        hours: "24小時開放"
+        id: { type: string }
+        title: { type: string }
+        body: { type: string }
+        content: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        is_pinned: { type: boolean, nullable: true }
+        external_links: { type: array, items: { type: object, properties: { name: { type: string }, url: { type: string } } }, nullable: true }
+        contact_phone: { type: string, nullable: true }
+        order: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+    AnnouncementCreate:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        content: { type: string }
+        category: { type: string }
+        is_pinned: { type: boolean }
+        external_links: { type: array, items: { type: object, properties: { name: { type: string }, url: { type: string } } } }
+        contact_phone: { type: string }
+        order: { type: integer }
+
+    GridDiscussion:
+      type: object
+      properties:
+        id: { type: string }
+        grid_id: { type: string }
+        user_id: { type: string, nullable: true }
+        content: { type: string }
+        author_name: { type: string, nullable: true }
+        author_role: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+    GridDiscussionCreate:
+      type: object
+      required: [grid_id]
+      properties:
+        grid_id: { type: string }
+        content: { type: string }
+        message: { type: string }
+      description: Either content or message required.
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        token: { type: string, description: "JWT (HS256)" }
+        user: { $ref: '#/components/schemas/User' }
 
     Error:
       type: object
-      required: [code, message]
       properties:
-        code:
-          type: string
-          maxLength: 50
-          description: Machine-readable error code
-        message:
-          type: string
-          maxLength: 500
-          description: Human-readable error message
-        traceId:
-          type: string
-          format: uuid
-          nullable: true
-          description: Request trace ID for debugging
-      example:
-        code: "VALIDATION_ERROR"
-        message: "電話號碼格式不正確"
-        traceId: "trace-123e4567-e89b-12d3-a456-426614174000"
+        message: { type: string }
+        code: { type: string, nullable: true }
+        details: { type: object, nullable: true }
+      required: [message]
 
 x-guidelines:
-  rateLimit:
-    defaultPolicy: "100 requests/30s; 1000 requests/day"
-    headers: ["RateLimit", "RateLimit-Policy", "Retry-After(429)"]
-  securityHeaders:
-    - "HSTS"
-    - "CORS strict"
-    - "No detailed stack traces to clients"
-  customExtensions:
-    x-shovel-heroes-idempotency-window-seconds:
-      description: "Specifies the time window (in seconds) for idempotency key deduplication. Used on POST endpoints to prevent duplicate submissions."
-      usage: "Server maintains idempotency keys for this duration. Duplicate requests within the window return 409 Conflict with Retry-After header."
+  actingRole:
+    description: "X-Acting-Role header narrows privileges (e.g. admin acting as 'user'). Currently applied to /grids PUT/DELETE."
+  security:
+    jwt: "Custom HS256 short-lived token. Consider future refresh rotation + JWKS for LINE id_token verification."
+  volunteerRegistrationLifecycle:
+    states: [pending, confirmed, arrived, completed, declined, cancelled]
+    transitions:
+      pending: [confirmed, declined, cancelled]
+      confirmed: [arrived, cancelled]
+      arrived: [completed, cancelled]
+      declined: []
+      completed: []
+      cancelled: []
+  gridDeletion:
+    conflict: "DELETE /grids/{id} returns 409 if related volunteer_registrations, supply_donations, or grid_discussions exist."
+
