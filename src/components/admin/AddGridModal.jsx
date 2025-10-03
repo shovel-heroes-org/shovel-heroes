@@ -286,7 +286,6 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
         },
         status: 'open',
         supplies_needed: [],
-        created_at: grid.created_at || '', // 加送一個 created_at 欄位
       };
       
       // 如果用戶已登入，則將其設為格主，否則留空
