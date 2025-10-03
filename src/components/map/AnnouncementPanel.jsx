@@ -20,6 +20,12 @@ export default function AnnouncementPanel() {
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Determine acting role from localStorage; default to admin mode when not explicitly set to 'user'
+  const actingRole = (typeof window !== 'undefined' && typeof localStorage !== 'undefined')
+    ? (localStorage.getItem('sh-acting-role') || null)
+    : null;
+  const isAdminMode = currentUser?.role === 'admin' && actingRole !== 'user';
+
   useEffect(() => {
     loadData();
   }, []);
@@ -141,7 +147,7 @@ export default function AnnouncementPanel() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {currentUser?.role === 'admin' && (
+              {isAdminMode && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -197,7 +203,7 @@ export default function AnnouncementPanel() {
                             <span className="ml-1">{getCategoryName(category)}</span>
                           </Badge>
                         </div>
-                        {currentUser?.role === 'admin' && (
+                        {isAdminMode && (
                           <Button
                             size="sm"
                             variant="ghost"
