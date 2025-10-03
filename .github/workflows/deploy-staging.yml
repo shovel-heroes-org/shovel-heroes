@@ -77,11 +77,44 @@ jobs:
         run: |
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
 
+      - name: Create namespace and secrets
+        run: |
+          # Create namespace if it doesn't exist
+          kubectl create namespace shovel-heroes-staging --dry-run=client -o yaml | kubectl apply -f -
+
+          # Get secrets from AWS Secrets Manager
+          DB_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-db-2025100214083654490000000c-89ytP5" \
+            --region ap-east-2 \
+            --query SecretString --output text)
+
+          APP_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-app-2025100214083654480000000a-PnHCMb" \
+            --region ap-east-2 \
+            --query SecretString --output text)
+
+          # Extract values
+          DATABASE_URL=$(echo $DB_SECRET | jq -r '.url')
+          JWT_SECRET=$(echo $APP_SECRET | jq -r '.jwt_secret')
+          API_KEY=$(echo $APP_SECRET | jq -r '.api_key')
+
+          # Create Kubernetes secret
+          kubectl create secret generic shovel-heroes-secrets \
+            --from-literal=database-url="$DATABASE_URL" \
+            --from-literal=jwt-secret="$JWT_SECRET" \
+            --from-literal=api-key="$API_KEY" \
+            -n shovel-heroes-staging \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy to staging
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: staging-${{ github.sha }}
+          BACKEND_POD_ROLE_ARN: arn:aws:iam::447407243904:role/shovel-heros-staging-backend-20251002142616455400000002
         run: |
+          # Replace IRSA role ARN placeholder in base manifests
+          sed -i "s|BACKEND_POD_ROLE_ARN|$BACKEND_POD_ROLE_ARN|g" k8s/base/serviceaccount.yaml
+
           # Update kustomization with actual ECR URLs and image tag
           cd k8s/overlays/staging
 
