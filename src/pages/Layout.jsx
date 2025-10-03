@@ -7,56 +7,25 @@ import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIc
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
+import { useAuth } from '@/context/AuthContext.jsx';
 import AddGridModal from "@/components/admin/AddGridModal";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const [user, setUser] = React.useState(null);
+  const { user, actingRole, toggleActingRole } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
   const [showConsent, setShowConsent] = React.useState(false);
   const [analyticsAllowed, setAnalyticsAllowed] = React.useState(false);
 
+  // Load disaster areas & consent
   React.useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [currentUser, areasData] = await Promise.all([
-          User.me().catch(() => null),
-          DisasterArea.list()
-        ]);
-        setUser(currentUser);
-        setDisasterAreas(areasData);
-      } catch (error) {
-        setUser(null);
-        setDisasterAreas([]);
-        console.error("Failed to load initial data for layout:", error);
-      }
-    };
-    loadData();
-
-    const handleAuthChanged = () => {
-      // Re-fetch user when auth token changes (login/logout)
-      User.me().then(u => setUser(u)).catch(()=>setUser(null));
-    };
-    window.addEventListener('sh-auth-changed', handleAuthChanged);
-
-    // Consent handling
+    DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
     const consent = localStorage.getItem('sh-privacy-consent-v1');
-    if (!consent) {
-      setShowConsent(true);
-    } else {
-      try {
-        const parsed = JSON.parse(consent);
-        if (parsed.analytics) {
-          setAnalyticsAllowed(true);
-        }
-      } catch {/* ignore */}
+    if (!consent) setShowConsent(true); else {
+      try { const parsed = JSON.parse(consent); if (parsed.analytics) setAnalyticsAllowed(true); } catch {/* ignore */}
     }
-
-    return () => {
-      window.removeEventListener('sh-auth-changed', handleAuthChanged);
-    };
   }, []);
 
   // Load GA only when analyticsAllowed becomes true
@@ -126,43 +95,43 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
-          <div className="px-4 min-w-[436px]">
-            <div className="flex justify-between items-center h-16 gap-4">
-              {/* Logo */}
-              <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
-                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex flex-col justify-center">
-                  <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-tight">鏟子英雄</h1>
-                  <p className="text-xs text-gray-500 whitespace-nowrap">花蓮颱風救援對接</p>
-                </div>
-              </Link>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
+        <div className="px-4 min-w-[436px]">
+          <div className="flex justify-between items-center h-16 gap-4">
+            {/* Logo */}
+            <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
+              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex flex-col justify-center">
+                <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-tight">鏟子英雄</h1>
+                <p className="text-xs text-gray-500 whitespace-nowrap">花蓮颱風救援對接</p>
+              </div>
+            </Link>
 
-              {/* Desktop Navigation */}
-              <nav className="hidden sm:flex items-center justify-center gap-1 flex-1 min-w-0">
-                {navigationItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.url);
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.url}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
-                        active
-                          ? "bg-blue-50 text-blue-700"
-                          : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-                      }`}
-                      title={item.name}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className={active ? "inline" : "hidden lg:inline"}>{item.name}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
+            {/* Desktop Navigation */}
+            <nav className="hidden sm:flex items-center justify-center gap-1 flex-1 min-w-0">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.url);
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.url}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
+                      active
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                    }`}
+                    title={item.name}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className={active ? "inline" : "hidden lg:inline"}>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </nav>
 
             {/* User Menu and Main Action */}
             <div className="flex items-center space-x-4 flex-shrink-0">
@@ -178,33 +147,43 @@ export default function Layout({ children, currentPageName }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center ring-2 ring-white shadow hover:opacity-90 flex-shrink-0"
-                      title={user.name || user.full_name || '使用者'}
+                      className="relative w-10 h-10 flex items-center justify-center overflow-visible group focus:outline-none flex-shrink-0"
+                      title={(user.role === 'admin' && actingRole === 'admin') ? '管理模式中' : (user.name || user.full_name || '使用者')}
                     >
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
-                      ) : (
-                        <span className="font-semibold text-sm">
-                          {(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}
-                        </span>
+                      {user.role === 'admin' && actingRole === 'admin' && (
+                        <>
+                          {/* Soft outer ambient glow */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-pink-300/30 blur-[3px] animate-pulse" />
+                          {/* Thin soft ring */}
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-pink-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                        </>
+                      )}
+                      {/* Actual avatar circle */}
+                      <span className="relative inline-flex w-full h-full rounded-full ring-2 ring-white shadow bg-gradient-to-br from-blue-500 to-indigo-600 text-white items-center justify-center group-hover:opacity-90 transition">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
+                        ) : (
+                          <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>
+                        )}
+                      </span>
+                      {user.role === 'admin' && actingRole === 'admin' && (
+                        <span className="sr-only">管理模式啟用</span>
                       )}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuContent align="end" className="w-64">
                     <div className="px-3 py-2 text-xs text-gray-500">
-                      <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-blue-600" />
-                        <span>{user.name || user.full_name || '使用者'}</span>
-                      </div>
+                      <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2"><UserIcon className="w-4 h-4 text-blue-600" /><span>{user.name || user.full_name || '使用者'}</span></div>
                       <div>{user.email}</div>
-                      <div className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">
-                        {user.role || 'user'}
+                      <div className="mt-1 inline-flex items-center gap-1 flex-wrap">
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role || 'user'}</span>
+                        {user.role === 'admin' && (
+                          <button onClick={toggleActingRole} className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">視角: {actingRole === 'admin' ? '管理' : '一般'}</button>
+                        )}
                       </div>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
-                      <LogOut className="w-4 h-4 mr-2" /> 登出
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> 登出</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -283,8 +262,13 @@ export default function Layout({ children, currentPageName }) {
           isOpen={showNewGridModal}
           onClose={() => setShowNewGridModal(false)}
           onSuccess={() => {
+            
             setShowNewGridModal(false);
+            
+          
             window.location.reload(); // Reload to see the new grid
+          
+          
           }}
           disasterAreas={disasterAreas}
         />

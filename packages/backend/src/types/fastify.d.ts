@@ -16,6 +16,11 @@ declare module 'fastify' {
       avatar_url?: string | null;
       role?: string | null;
     };
+    startTime?: number;
+  }
+
+  interface FastifyReply {
+    locals?: Record<string, any>;
   }
 }
 

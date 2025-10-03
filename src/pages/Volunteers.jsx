@@ -129,7 +129,8 @@ export default function VolunteersPage() {
       case 'confirmed': return 'bg-blue-100 text-blue-800';
       case 'arrived': return 'bg-purple-100 text-purple-800';
       case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'declined': return 'bg-red-100 text-red-800';
+      case 'cancelled': return 'bg-gray-200 text-gray-700';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -140,6 +141,7 @@ export default function VolunteersPage() {
       case 'confirmed': return '已確認';
       case 'arrived': return '已到場';
       case 'completed': return '已完成';
+      case 'declined': return '已婉拒';
       case 'cancelled': return '已取消';
       default: return status;
     }
@@ -370,10 +372,10 @@ export default function VolunteersPage() {
                                     size="sm"
                                     variant="outline"
                                     className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                                    onClick={() => handleStatusUpdate(registration, 'cancelled')}
+                                    onClick={() => handleStatusUpdate(registration, 'declined')}
                                   >
                                     <X className="w-4 h-4 mr-2" />
-                                    拒絕
+                                    婉拒
                                   </Button>
                                 </>
                               )}
