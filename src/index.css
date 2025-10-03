@@ -152,8 +152,12 @@ button:focus-visible {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    min-width: 436px;
+  }
   body {
     @apply bg-background text-foreground;
+    min-width: 436px;
   }
 }
 
