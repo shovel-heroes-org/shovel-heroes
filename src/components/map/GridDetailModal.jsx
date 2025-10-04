@@ -54,6 +54,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const [user, setUser] = useState(null);
   const [discussions, setDiscussions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [volunteerAgreedToTerms, setVolunteerAgreedToTerms] = useState(false);
 
   // If user logs out while on volunteer tab, fallback to info
   React.useEffect(() => {
@@ -143,6 +144,11 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     
     if (!volunteerForm.volunteer_name) {
         alert("請填寫姓名");
+        return;
+    }
+
+    if (!volunteerAgreedToTerms) {
+        alert("請先同意並理解相關條款。");
         return;
     }
 
@@ -481,10 +487,23 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     </ul>
                   </div>
 
+                  <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="volunteer-terms-checkbox"
+                      checked={volunteerAgreedToTerms}
+                      onChange={(e) => setVolunteerAgreedToTerms(e.target.checked)}
+                      className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="volunteer-terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
+                      我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊將提供需求方參考，以利志工與需求方互相聯繫。
+                    </label>
+                  </div>
+
                   <Button
                     type="submit"
-                    className={`w-full ${(!user ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
-                    disabled={submitting || !user}
+                    className={`w-full ${(!user || !volunteerAgreedToTerms ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
+                    disabled={submitting || !user || !volunteerAgreedToTerms}
                   >
                     {submitting ? "提交中..." : "確認報名"}
                   </Button>
