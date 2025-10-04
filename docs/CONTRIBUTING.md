@@ -39,3 +39,6 @@
 
 ## 行為準則
 我們採用 Contributor Covenant 原則：尊重、安全、包容、聚焦任務。
+
+## 社群與討論空間
+- [Line社群](https://line.me/ti/g2/X4H7PCoUKV_kx5LN5VtfVj9qA93vNquolxCdmQ)
