@@ -44,6 +44,8 @@ function ensureArray(value: unknown): unknown[] {
 export function registerVolunteersRoutes(app: FastifyInstance) {
   app.get('/volunteers', async (req: any, reply) => {
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+    // Require authentication to view any volunteer aggregated data
+    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
 
     const { grid_id, status, limit = 200, offset = 0, include_counts = 'true' } = req.query as any;
 
@@ -57,6 +59,19 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     if (status) {
       conditions.push(`vr.status = $${paramIndex++}`);
       params.push(status);
+    }
+
+    // Acting role logic: only real admin in admin mode (no X-Acting-Role=user) can see ALL volunteers.
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+    const isAdminMode = req.user?.role === 'admin' && actingRole !== 'user';
+    if (!isAdminMode) {
+      // Restrict to: (a) registrations user created (vr.user_id) OR (b) grids created/managed by user
+      // Use three bound params for clarity
+      const uid = req.user.id;
+      conditions.push(`(vr.user_id = $${paramIndex} OR vr.grid_id IN (SELECT id FROM grids WHERE created_by_id=$${paramIndex+1} OR grid_manager_id=$${paramIndex+2}))`);
+      params.push(uid, uid, uid);
+      paramIndex += 3;
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -76,28 +91,34 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     `;
     params.push(Number(limit), Number(offset));
 
-    const { rows } = await app.db.query(sql, params) as { rows: RawRow[] };
+  const { rows } = await app.db.query(sql, params) as { rows: RawRow[] };
 
-    // Placeholder: derive can_view_phone (stub: true if any auth header present)
-    const auth = req.headers['authorization'];
-    const can_view_phone = Boolean(auth); // integrate real auth/roles later
+  // View phone only if admin in admin mode OR user is owner/manager of that grid OR is the volunteer themselves.
+  // For simplicity: admin mode => true, else we compute per row (mask others).
+  const canViewAllPhone = isAdminMode;
 
     // Map rows to VolunteerListItem spec shape.
-    const data = rows.map(r => ({
-      id: r.id,
-      grid_id: r.grid_id,
-      user_id: r.user_id || undefined,
-      volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
-      volunteer_phone: can_view_phone ? r.volunteer_phone : undefined,
-      status: r.status || 'pending',
-      available_time: r.available_time,
-      skills: ensureArray(r.skills),
-      equipment: ensureArray(r.equipment),
-      notes: r.notes,
-      created_date: r.created_at
-    }));
+    const currentUserId = req.user.id;
+    const data = rows.map(r => {
+      // basic row
+      const base = {
+        id: r.id,
+        grid_id: r.grid_id,
+        user_id: r.user_id || undefined,
+        volunteer_name: r.volunteer_name || r.user_name || '匿名志工',
+        status: r.status || 'pending',
+        available_time: r.available_time,
+        skills: ensureArray(r.skills),
+        equipment: ensureArray(r.equipment),
+        notes: r.notes,
+        created_date: r.created_at
+      };
+      // Determine phone visibility: self OR admin mode. For non-admin mode owner/manager check would require join; omitted to avoid extra query.
+      const showPhone = canViewAllPhone || (r.user_id && r.user_id === currentUserId);
+      return { ...base, volunteer_phone: showPhone ? r.volunteer_phone : undefined };
+    });
 
-    let status_counts: any = undefined;
+  let status_counts: any = undefined;
     if (include_counts !== 'false') {
       // Aggregate counts by status dynamically
       const counts: Record<string, number> = {};
@@ -120,6 +141,6 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const { rows: countRows } = await app.db.query(countSql, params.slice(0, params.length - 2));
     const total = countRows[0]?.c ?? data.length;
 
-    return { data, can_view_phone, total, status_counts, limit: Number(limit), page: Math.floor(Number(offset) / Number(limit)) + 1 };
+    return { data, can_view_phone: canViewAllPhone, total, status_counts, limit: Number(limit), page: Math.floor(Number(offset) / Number(limit)) + 1 };
   });
 }

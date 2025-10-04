@@ -31,12 +31,15 @@ export default function Layout({ children, currentPageName }) {
   // Load GA only when analyticsAllowed becomes true
   React.useEffect(() => {
     if (!analyticsAllowed) return;
+    const MID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!MID) return; // 未設定測量 ID 則不載入
     const gaScriptId = 'google-analytics-script';
     if (document.getElementById(gaScriptId)) return;
     const script1 = document.createElement('script');
     script1.id = gaScriptId;
     script1.async = true;
-    script1.src = "https://www.googletagmanager.com/gtag/js?id=G-DJE7FZLCHG";
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${MID}`; // should be G-DJE7FZLCHG
+
     document.head.appendChild(script1);
 
     const script2 = document.createElement('script');
@@ -44,10 +47,24 @@ export default function Layout({ children, currentPageName }) {
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-DJE7FZLCHG');
+      gtag('config', '${MID}', { send_page_view: false, anonymize_ip: true });
     `;
     document.head.appendChild(script2);
   }, [analyticsAllowed]);
+  
+  // SPA route page_view tracking (avoid double initial by disabling default send_page_view above)
+  React.useEffect(() => {
+    if (!analyticsAllowed) return;
+    // Ensure GA loaded & gtag exists
+    const MID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!MID) return;
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_path: location.pathname + location.search,
+        page_title: document.title
+      });
+    }
+  }, [location.pathname, location.search, analyticsAllowed]);
 
   const handleConsentAccept = (opts = { analytics: true }) => {
     const payload = { ts: Date.now(), analytics: !!opts.analytics };
@@ -66,14 +83,14 @@ export default function Layout({ children, currentPageName }) {
       { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
     ];
     if (user) {
-      base.push(
-        { name: "志工中心", url: createPageUrl("Volunteers"), icon: Users },
-        { name: "管理後台", url: createPageUrl("Admin"), icon: Shield },
-      );
+      base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
+      if (user.role === 'admin' && actingRole === 'admin') {
+        base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
+      }
     }
     base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
     return base;
-  }, [user]);
+  }, [user, actingRole]);
 
   const isActive = (url) => location.pathname === url;
 
@@ -96,7 +113,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-[100] shadow-sm flex-shrink-0 min-w-[436px]">
+      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px]">
         <div className="px-4 min-w-[436px]">
           <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo */}
@@ -235,8 +252,8 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 relative z-[100] flex-shrink-0 mt-auto">
-        <div className="px-4 py-6 min-w-[436px]">
+      <footer className="bg-white border-t border-gray-200 relative flex-shrink-0 mt-auto">
+        <div className="px-4 py-2 min-w-[436px]">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">
