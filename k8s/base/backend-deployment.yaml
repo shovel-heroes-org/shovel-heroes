@@ -34,8 +34,8 @@ spec:
           protocol: TCP
         securityContext:
           runAsNonRoot: true
-          runAsUser: 65532
-          runAsGroup: 65532
+          runAsUser: 1001
+          runAsGroup: 1001
           allowPrivilegeEscalation: false
           capabilities:
             drop:
