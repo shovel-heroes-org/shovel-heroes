@@ -29,7 +29,13 @@ export function createPool(): Pool {
     console.error('[db] DATABASE_URL missing. CWD=', process.cwd(), 'envKeys=', Object.keys(process.env).filter(k => k.startsWith('DATABASE')));
     throw new Error('DATABASE_URL not set');
   }
-  return new Pool({ connectionString, max: 10 });
+  console.log('[db] Creating connection pool with 10s timeout...');
+  return new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 10000, // 10 second timeout
+    query_timeout: 30000 // 30 second query timeout
+  });
 }
 
 export async function attachDb(app: FastifyInstance, pool: Pool) {

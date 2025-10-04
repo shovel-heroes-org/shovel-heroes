@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shovel-heroes
+  namespace: shovel-heroes
+  labels:
+    app.kubernetes.io/name: shovel-heroes
+  annotations:
+    # AWS Load Balancer Controller annotations
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/success-codes: "200"
+
+    # Use existing ALB and target groups from Terraform
+    alb.ingress.kubernetes.io/load-balancer-name: ALB_NAME
+    alb.ingress.kubernetes.io/target-group-arn: BACKEND_TARGET_GROUP_ARN
+
+    # Health check paths
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+    # SSL/TLS (configure when domain is set up)
+    # alb.ingress.kubernetes.io/certificate-arn: ACM_CERTIFICATE_ARN
+    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    # alb.ingress.kubernetes.io/ssl-redirect: "443"
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      # API routes to backend
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8787
+      - path: /healthz
+        pathType: Exact
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8787
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8787
+      # All other routes to frontend (SPA routing)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80

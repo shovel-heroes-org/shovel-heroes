@@ -203,11 +203,18 @@ ALTER TABLE grid_discussions
 
 export async function initDb(app: FastifyInstance) {
   try {
+    console.log('[db] Creating connection pool...');
     const pool = createPool();
+    console.log('[db] Executing schema SQL...');
     await pool.query(SCHEMA_SQL);
+    console.log('[db] Schema applied successfully');
+    console.log('[db] Attaching DB to Fastify app...');
     await attachDb(app, pool);
+    console.log('[db] ✓ Database initialized successfully');
     app.log.info('[db] connected & schema ensured');
   } catch (err) {
-    app.log.warn({ err }, '[db] initialization failed – continuing without DB');
+    console.error('[db] ERROR during initialization:', err);
+    app.log.error({ err }, '[db] initialization failed');
+    throw err; // Re-throw to trigger the catch block in index.ts
   }
 }

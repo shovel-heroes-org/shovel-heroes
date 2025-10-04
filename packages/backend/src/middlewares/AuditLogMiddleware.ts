@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest, FastifyInstance } from "fastify";
-import type { AuditLog } from "../modules/audit-logs/audit-log.types";
-import { AuditLogService } from "../modules/audit-logs/audit-log.service";
+import type { AuditLog } from "../modules/audit-logs/audit-log.types.js";
+import { AuditLogService } from "../modules/audit-logs/audit-log.service.js";
 
 export function createAuditLogMiddleware(app: FastifyInstance) {
   const service = new AuditLogService(app.db.pool);
