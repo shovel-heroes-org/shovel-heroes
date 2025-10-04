@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRequireLogin } from "@/hooks/useRequireLogin";
 import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +30,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     grid = { ...grid, supplies_needed: [] };
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // 取得訪客模式狀態
+  const { guestMode } = useAuth();
 
   // 登入檢查
   const volunteerLogin = useRequireLogin("報名志工");
@@ -63,12 +67,6 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const [submitting, setSubmitting] = useState(false);
   const [volunteerAgreedToTerms, setVolunteerAgreedToTerms] = useState(false);
 
-  // If user logs out while on volunteer tab, fallback to info
-  React.useEffect(() => {
-    if (!user && activeTab === 'volunteer') {
-      setActiveTab('info');
-    }
-  }, [user, activeTab]);
 
   React.useEffect(() => {
     const loadUser = async () => {
@@ -120,6 +118,16 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
     loadUser();
     loadDiscussions();
+
+    // 監聽全域登入狀態變化事件（與右上角登入連動）
+    const handleAuthChange = () => {
+      loadUser();
+    };
+    window.addEventListener('sh-auth-changed', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('sh-auth-changed', handleAuthChange);
+    };
   }, [grid.id]);
 
   // When defaultTab changes, update activeTab
@@ -129,6 +137,33 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   // Notify parent when tab changes
   const handleTabChange = (val) => {
+    // 如果切換到志工報名 tab，檢查登入狀態
+    if (val === 'volunteer') {
+      if (volunteerLogin.requireLogin(() => {
+        setActiveTab(val);
+        if (onTabChange) onTabChange(val);
+      })) {
+        // 已登入，執行回調
+        return;
+      }
+      // 未登入，不切換 tab
+      return;
+    }
+
+    // 如果切換到物資捐贈 tab，檢查登入狀態
+    if (val === 'supply') {
+      if (supplyLogin.requireLogin(() => {
+        setActiveTab(val);
+        if (onTabChange) onTabChange(val);
+      })) {
+        // 已登入，執行回調
+        return;
+      }
+      // 未登入，不切換 tab
+      return;
+    }
+
+    // 其他 tab 直接切換
     setActiveTab(val);
     if (onTabChange) onTabChange(val);
   };
@@ -222,7 +257,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         ...supplyForm,
         grid_id: grid.id,
         quantity: parseFloat(supplyForm.quantity),
-        unit: unit, 
+        unit: unit,
       });
 
       // 2. Update the received count in the Grid entity
@@ -249,8 +284,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         notes: ""
       });
 
-      onUpdate(); 
-      setActiveTab("info"); 
+      onUpdate();
+      setActiveTab("info");
     } catch (error) {
       console.error('Failed to register supply:', error);
       alert('捐贈失敗，請稍後再試。');
@@ -322,17 +357,15 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               基本資訊
             </TabsTrigger>
-            {user && (
-              <TabsTrigger value="volunteer" className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
-                志工報名
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="volunteer" className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              志工報名
+            </TabsTrigger>
             <TabsTrigger value="supply" className="flex items-center gap-2">
               <PackagePlus className="w-4 h-4" />
               物資捐贈
@@ -428,14 +461,64 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Card>
           </TabsContent>
 
-          {user && (
           <TabsContent value="volunteer">
             <Card>
               <CardHeader>
                 <CardTitle>志工報名</CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleVolunteerSubmit} className="space-y-4">
+                {!user || guestMode ? (
+                  // 未登入或訪客模式：顯示登入提示卡片
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8">
+                    <div className="flex flex-col items-center text-center space-y-6">
+                      <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+                        <AlertTriangle className="w-8 h-8 text-white" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-gray-900">
+                          請先登入以報名志工
+                        </h3>
+                        <p className="text-gray-700 max-w-md mx-auto">
+                          為了確保志工資訊的真實性與可追蹤性，請先使用 Line 帳號登入。
+                          登入後您可以報名志工、查看您的報名記錄。
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span>快速登入</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span>管理報名</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span>即時追蹤</span>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => User.login()}
+                        size="lg"
+                        className="bg-[#06C755] hover:bg-[#05B04D] text-white text-lg px-12 py-6 h-auto rounded-xl shadow-lg hover:shadow-xl transition-all font-medium"
+                      >
+                        <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                        </svg>
+                        使用 LINE 帳號登入
+                      </Button>
+
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                        我們使用 LINE 帳號登入以確保資料安全。登入後您的個人資訊將受到保護。
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  // 已登入狀態：顯示報名表單
+                  <form onSubmit={handleVolunteerSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="volunteer_name" className="flex items-center gap-1">
@@ -520,7 +603,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                     />
                     <label htmlFor="volunteer-terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
-                      我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊將提供需求方參考，以利志工與需求方互相聯繫。
+                      我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
                     </label>
                   </div>
 
@@ -531,22 +614,11 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   >
                     {submitting ? "提交中..." : "確認報名"}
                   </Button>
-                  {!user && (
-                    <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
-                      <p>請先登入以完成報名。您可以先查看需要填寫的欄位。</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => User.login()}
-                      >立即登入</Button>
-                    </div>
-                  )}
                 </form>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-          )}
 
           <TabsContent value="supply">
             <Card>
@@ -657,6 +729,34 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     </div>
 
                     <div>
+                      <Label htmlFor="delivery_method">配送方式</Label>
+                      <Select
+                        value={supplyForm.delivery_method}
+                        onValueChange={(value) => setSupplyForm({...supplyForm, delivery_method: value})}
+                      >
+                        <SelectTrigger id="delivery_method">
+                          <SelectValue placeholder="選擇配送方式" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="direct">直接送達</SelectItem>
+                          <SelectItem value="pickup_point">轉運點</SelectItem>
+                          <SelectItem value="volunteer_pickup">志工取貨</SelectItem>
+                          <SelectItem value="delivery">物流配送</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="delivery_address">送達地址</Label>
+                      <Input
+                        id="delivery_address"
+                        placeholder="請輸入送達地址"
+                        value={supplyForm.delivery_address}
+                        onChange={(e) => setSupplyForm({...supplyForm, delivery_address: e.target.value})}
+                      />
+                    </div>
+
+                    <div>
                       <Label htmlFor="delivery_time">預計送達時間</Label>
                       <Input
                         id="delivery_time"
@@ -675,23 +775,43 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       />
                     </div>
 
-                    <Button
-                      type="submit"
-                      className={`w-full ${(!user ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700')}`}
-                      disabled={submitting || !user}
-                    >
-                      {submitting ? "提交中..." : "確認捐贈"}
-                    </Button>
-                    {!user && (
-                      <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
-                        <p>請先登入以完成捐贈。您可以先查看需要填寫的欄位。</p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => User.login()}
-                        >立即登入</Button>
+                    {!user || guestMode ? (
+                      // 未登入或訪客模式：顯示登入提示
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 mt-4">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                          <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                            <AlertTriangle className="w-6 h-6 text-white" />
+                          </div>
+
+                          <div className="space-y-1">
+                            <h4 className="text-lg font-bold text-gray-900">
+                              請先登入以完成捐贈
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              登入後可以追蹤您的捐贈記錄
+                            </p>
+                          </div>
+
+                          <Button
+                            onClick={() => User.login()}
+                            className="bg-[#06C755] hover:bg-[#05B04D] text-white px-8 py-3 rounded-lg shadow-md hover:shadow-lg transition-all font-medium"
+                          >
+                            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                            </svg>
+                            使用 LINE 帳號登入
+                          </Button>
+                        </div>
                       </div>
+                    ) : (
+                      // 已登入狀態：顯示提交按鈕
+                      <Button
+                        type="submit"
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        disabled={submitting}
+                      >
+                        {submitting ? "提交中..." : "確認捐贈"}
+                      </Button>
                     )}
                   </form>
                 </div>
@@ -707,18 +827,36 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <CardTitle className="text-lg">發表訊息</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!user && (
-                    <div className="space-y-4 text-sm text-gray-600">
-                      <div className="p-4 border border-dashed rounded-md bg-gray-50 text-center">
-                        <p className="mb-2 font-medium">請登入後再發送討論訊息。</p>
-                        <Button type="button" variant="outline" onClick={() => User.login()}>
-                          立即登入
+                  {!user || guestMode ? (
+                    // 未登入或訪客模式：顯示登入提示
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                      <div className="flex flex-col items-center text-center space-y-4">
+                        <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                          <AlertTriangle className="w-6 h-6 text-white" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="text-lg font-bold text-gray-900">
+                            請先登入以發表討論
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            登入後可即時交流現場狀況與協作需求
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={() => User.login()}
+                          className="bg-[#06C755] hover:bg-[#05B04D] text-white px-8 py-3 rounded-lg shadow-md hover:shadow-lg transition-all font-medium"
+                        >
+                          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                          </svg>
+                          使用 LINE 帳號登入
                         </Button>
                       </div>
-                      <p className="text-xs text-gray-500 text-center">登入後可即時交流現場狀況與協作需求。</p>
                     </div>
-                  )}
-                  {user && (
+                  ) : (
+                    // 已登入：顯示發表表單
                     <form onSubmit={handleDiscussionSubmit} className="space-y-4">
                       <div>
                         <Label htmlFor="author_name" className="flex items-center gap-1">

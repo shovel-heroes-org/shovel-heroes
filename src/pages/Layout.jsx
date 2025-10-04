@@ -8,6 +8,8 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext.jsx';
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 import AddGridModal from "@/components/admin/AddGridModal";
 
 export default function Layout({ children, currentPageName }) {
@@ -18,6 +20,9 @@ export default function Layout({ children, currentPageName }) {
   const [disasterAreas, setDisasterAreas] = React.useState([]);
   const [showConsent, setShowConsent] = React.useState(false);
   const [analyticsAllowed, setAnalyticsAllowed] = React.useState(false);
+
+  // 登入檢查
+  const createGridLogin = useRequireLogin("建立救援需求");
 
   // Load disaster areas & consent
   React.useEffect(() => {
@@ -101,14 +106,20 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const handleNewGridClick = () => {
-    // 如果當前在地圖頁面，先關閉地圖
-    if (location.pathname === createPageUrl("Map")) {
-      // 使用 localStorage 來通知 Map 組件關閉地圖
-      localStorage.setItem('collapseMapForModal', 'true');
-      // 立即觸發自定義事件，確保地圖即時收起
-      window.dispatchEvent(new Event('collapseMap'));
+    // 檢查登入狀態（包含訪客模式）
+    if (createGridLogin.requireLogin(() => {
+      // 如果當前在地圖頁面，先關閉地圖
+      if (location.pathname === createPageUrl("Map")) {
+        // 使用 localStorage 來通知 Map 組件關閉地圖
+        localStorage.setItem('collapseMapForModal', 'true');
+        // 立即觸發自定義事件，確保地圖即時收起
+        window.dispatchEvent(new Event('collapseMap'));
+      }
+      setShowNewGridModal(true);
+    })) {
+      // 已登入，執行回調
+      return;
     }
-    setShowNewGridModal(true);
   };
 
   return (
@@ -375,17 +386,24 @@ export default function Layout({ children, currentPageName }) {
           isOpen={showNewGridModal}
           onClose={() => setShowNewGridModal(false)}
           onSuccess={() => {
-            
+
             setShowNewGridModal(false);
-            
-          
+
+
             window.location.reload(); // Reload to see the new grid
-          
-          
+
+
           }}
           disasterAreas={disasterAreas}
         />
       )}
+
+      {/* 登入請求對話框 */}
+      <LoginRequiredDialog
+        open={createGridLogin.showLoginDialog}
+        onOpenChange={createGridLogin.setShowLoginDialog}
+        action={createGridLogin.action}
+      />
       {/* Privacy & Cookie Consent Modal */}
       {showConsent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">

@@ -347,17 +347,14 @@ export default function VolunteersPage() {
                                   <MapPin className="w-4 h-4" />
                                   <span>救援區域: {grid.code || '未知區域'}</span>
                                 </div>
-                                {registration.volunteer_phone ? (
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="w-4 h-4" />
+                                <div className="flex items-center gap-2">
+                                  <Phone className="w-4 h-4" />
+                                  {canViewPhone && registration.volunteer_phone ? (
                                     <span>{registration.volunteer_phone}</span>
-                                  </div>
-                                ) : canViewPhone ? null : ( // If no phone number from backend AND current user cannot view phones, show message
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="w-4 h-4" />
-                                    <span className="text-gray-500 italic text-xs">僅限管理員查看</span>
-                                  </div>
-                                )}
+                                  ) : (
+                                    <span className="text-gray-500 italic text-xs">僅限管理員/相關格主查看電話</span>
+                                  )}
+                                </div>
                                 {registration.available_time && (
                                   <div className="flex items-center gap-2">
                                     <Calendar className="w-4 h-4" />

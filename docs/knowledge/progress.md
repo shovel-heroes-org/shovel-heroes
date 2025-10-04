@@ -1,5 +1,5 @@
 # Project: 鏟子英雄 (Shovel Heroes)
-*Last updated: 2025-10-04 14:00*
+*Last updated: 2025-10-04 19:00*
 
 ## Context Index
 - 專案類型: 災後救援志願者媒合平台
@@ -19,6 +19,7 @@
 - 一般用戶只能編輯自己建立的資源
 - 超級管理員才能訪問權限設定頁面
 - 所有權限操作需記錄稽核日誌
+- 垃圾桶視圖切換時必須主動重新載入資料，確保顯示最新的垃圾桶項目
 
 ## Decisions
 - 2025-10-03 00:00: 決定實作三層權限管理系統（Admin/User/訪客），強化平台管理能力與資料安全性
@@ -29,6 +30,9 @@
 - 2025-10-04 14:00: 確定採用 Hook + 組件雙軌權限檢查機制（usePermission Hook + PermissionGate 組件），提供靈活的權限控制方式
 - 2025-10-04 14:00: 敲定權限快取策略，在 Hook 層面實作快取機制提升效能
 - 2025-10-04 14:00: 最終選擇建立 UnauthorizedAccess 獨立頁面，提供友善的無權限提示體驗
+- 2025-10-04 16:00: 決定在 announcements 表新增 priority 欄位（預設值 'normal'），支援三種優先級：low、normal、high
+- 2025-10-04 17:00: 決定垃圾桶視圖切換時主動重新載入資料，確保即時顯示最新的垃圾桶項目
+- 2025-10-04 18:00: 確定垃圾桶功能的統一實作模式：切換狀態 + 重新載入垃圾桶資料
 
 ## TODO
 - [P0][OPEN][#1] 調整資料庫結構：在 users 表新增 role 欄位（admin/user/guest）與軟刪除相關欄位
@@ -36,7 +40,7 @@
 - [P1][OPEN][#4] 在現有頁面套用權限控制：Supplies 頁面的物資管理權限檢查
 - [P1][OPEN][#5] 實作垃圾桶功能：建立軟刪除 API、垃圾桶列表頁面、還原與永久刪除功能
 - [P1][OPEN][#6] 實作 CSV 匯入功能：支援批量匯入救援地點、志工資料
-- [P1][OPEN][#7] 實作 CSV 匯出功能：支援匯出救援地點、志工報名資料
+- [P1][DONE][#7] 實作 CSV 匯出功能：支援匯出救援地點、志工報名資料（公告匯出功能已修復）
 - [P1][OPEN][#11] 執行各角色的完整權限功能測試
 - [P1][OPEN][#12] 測試權限切換時的 UI 即時更新
 - [P2][OPEN][#8] 建立權限管理頁面：Admin 可查看並修改使用者權限
@@ -60,6 +64,10 @@
 - 2025-10-04: [#26] 完成了權限訪問測試，驗證訪客模式與未登入狀態的權限控制 (evidence: tests/permission-access-test.spec.js)
 - 2025-10-04: [#2] 完成了後端權限中間件實作與 API 端點保護 (evidence: packages/backend/src/middlewares/AuthMiddleware.ts, packages/backend/src/routes/permissions.ts)
 - 2025-10-04: [#10] 完成了權限系統基礎測試，包含訪客模式與未登入的權限檢查 (evidence: tests/permission-access-test.spec.js)
+- 2025-10-04: [#27] 完成了公告匯出 CSV 功能修復，解決 priority 欄位缺失與 updated_date 欄位名稱錯誤問題 (evidence: packages/backend/src/lib/db-init.ts, packages/backend/src/routes/csv.ts, packages/backend/scripts/verify-priority-column.ts, packages/backend/scripts/test-announcements-export.ts)
+- 2025-10-04: [#28] 完成了需求管理頁面垃圾桶視圖資料載入修復，解決切換到垃圾桶時資料未即時顯示的問題 (evidence: src/pages/Admin.jsx line 1471-1486)
+- 2025-10-04: [#29] 完成了所有垃圾桶功能頁面的檢查與驗證，確認三個垃圾桶功能（需求管理、災區管理、公告管理）的實作狀態 (evidence: src/pages/Admin.jsx, src/components/admin/AnnouncementManagement.jsx)
+- 2025-10-04: [#30] 完成了公告管理垃圾桶資料格式處理修復，統一處理 API 回傳的兩種資料格式（response?.data 和 response），確保垃圾桶切換時資料正確顯示 (evidence: src/components/admin/AnnouncementManagement.jsx line 86-99)
 
 ## Risks & Assumptions
 - 2025-10-03: 假設現有 AuthContext 已正確實作基礎認證功能，只需擴充 role 管理
@@ -86,3 +94,11 @@
 - 2025-10-04: [Tech] usePermission Hook 提供快取機制，避免重複 API 呼叫
 - 2025-10-04: [Tech] PermissionButton 自動禁用無權限按鈕，提供一致的 UI 體驗
 - 2025-10-04: [Tech] withPermission HOC 可包裝整個頁面元件進行權限保護
+- 2025-10-04: [Tech] announcements 表 priority 欄位支援三種值：low, normal, high（預設 normal）
+- 2025-10-04: [Bug-Fixed] 修復公告 CSV 匯出錯誤：新增 priority 欄位、修正 updated_at → updated_date 欄位名稱
+- 2025-10-04: [Bug-Fixed] 修復需求管理垃圾桶視圖問題：垃圾桶按鈕 onClick 新增 getTrashGrids() 呼叫，確保切換時重新載入最新資料
+- 2025-10-04: [Tech] 垃圾桶視圖資料載入邏輯：切換時主動呼叫 API 取得最新垃圾桶項目，避免僅依賴初次載入的資料
+- 2025-10-04: [Verification] 完成垃圾桶功能檢查：需求管理（已修復）、災區管理（正常）、公告管理（已修復），統一採用「切換狀態 + 重新載入資料」模式
+- 2025-10-04: [Bug-Fixed] 修復公告管理垃圾桶問題：loadTrashAnnouncements 函數未正確處理 API 回傳格式，新增資料格式檢查處理 response?.data 和 response 兩種格式
+- 2025-10-04: [Tech] 垃圾桶資料處理統一模式：三個垃圾桶功能（需求管理、災區管理、公告管理）現在都使用一致的資料處理邏輯，確保資料格式正確處理
+- 2025-10-04: [Tech] API 回傳格式相容性：處理兩種可能的回傳格式 {data: []} 或直接陣列 []，增強系統容錯性

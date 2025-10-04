@@ -73,8 +73,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `變更用戶 ${rows[0].name} 的角色為 ${role}`,
         action_type: 'update',
         resource_type: 'user',
@@ -118,8 +118,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `將網格 ${rows[0].code} 移至垃圾桶`,
         action_type: 'delete',
         resource_type: 'grid',
@@ -161,8 +161,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `還原網格 ${rows[0].code} 從垃圾桶`,
         action_type: 'restore',
         resource_type: 'grid',
@@ -217,8 +217,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `永久刪除網格 ${gridInfo[0]?.code || gridId}`,
         action_type: 'permanent_delete',
         resource_type: 'grid',
@@ -281,8 +281,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `批量移動 ${rows.length} 個網格至垃圾桶`,
         action_type: 'batch_delete',
         resource_type: 'grid',
@@ -327,8 +327,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `將災區 ${rows[0].name} 移至垃圾桶`,
         action_type: 'delete',
         resource_type: 'disaster_area',
@@ -370,8 +370,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `還原災區 ${rows[0].name} 從垃圾桶`,
         action_type: 'restore',
         resource_type: 'disaster_area',
@@ -434,8 +434,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `永久刪除災區 ${areaInfo[0]?.name || areaId}`,
         action_type: 'permanent_delete',
         resource_type: 'disaster_area',
@@ -497,8 +497,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `批量移動 ${rows.length} 個災區至垃圾桶`,
         action_type: 'batch_delete',
         resource_type: 'disaster_area',
@@ -565,7 +565,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
       );
 
       // Delete disaster areas
-      const { rowCount } = await app.db.query(
+      const { rows: deleteResult } = await app.db.query(
         `DELETE FROM disaster_areas WHERE id IN (${placeholders})`,
         areaIds
       );
@@ -574,9 +574,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `批量永久刪除 ${rowCount} 個災區`,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量永久刪除 ${deleteResult.length} 個災區`,
         action_type: 'batch_permanent_delete',
         resource_type: 'disaster_area',
         details: { area_names: areaNames.map(r => r.name) },
@@ -584,8 +584,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Permanently deleted ${rowCount} disaster areas`);
-      return { message: `${rowCount} disaster areas permanently deleted` };
+      app.log.info(`[admin] Permanently deleted ${deleteResult.length} disaster areas`);
+      return { message: `${deleteResult.length} disaster areas permanently deleted` };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete disaster areas');
       return reply.status(500).send({ message: 'Failed to permanently delete disaster areas' });
@@ -633,7 +633,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await app.db.query(`DELETE FROM grid_discussions WHERE grid_id IN (${placeholders})`, gridIds);
 
       // Delete grids
-      const { rowCount } = await app.db.query(
+      const { rows: deleteResult } = await app.db.query(
         `DELETE FROM grids WHERE id IN (${placeholders})`,
         gridIds
       );
@@ -642,9 +642,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `批量永久刪除 ${rowCount} 個網格`,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量永久刪除 ${deleteResult.length} 個網格`,
         action_type: 'batch_permanent_delete',
         resource_type: 'grid',
         details: { grid_codes: gridCodes.map(r => r.code) },
@@ -652,8 +652,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Permanently deleted ${rowCount} grids`);
-      return { message: `${rowCount} grids permanently deleted` };
+      app.log.info(`[admin] Permanently deleted ${deleteResult.length} grids`);
+      return { message: `${deleteResult.length} grids permanently deleted` };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete grids');
       return reply.status(500).send({ message: 'Failed to permanently delete grids' });
@@ -714,8 +714,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `將用戶 ${rows[0].name} 加入黑名單`,
         action_type: 'blacklist',
         resource_type: 'user',
@@ -754,8 +754,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `將用戶 ${rows[0].name} 從黑名單移除`,
         action_type: 'unblacklist',
         resource_type: 'user',
@@ -811,7 +811,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
       );
 
       // Delete users
-      const { rowCount } = await app.db.query(
+      const { rows: deleteResult } = await app.db.query(
         `DELETE FROM users WHERE id IN (${placeholders})`,
         userIds
       );
@@ -820,9 +820,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `批量永久刪除 ${rowCount} 個黑名單用戶`,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量永久刪除 ${deleteResult.length} 個黑名單用戶`,
         action_type: 'batch_permanent_delete',
         resource_type: 'blacklist_user',
         details: { user_names: userNames.map(r => r.name) },
@@ -830,8 +830,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Permanently deleted ${rowCount} blacklisted users`);
-      return { message: `${rowCount} blacklisted users permanently deleted` };
+      app.log.info(`[admin] Permanently deleted ${deleteResult.length} blacklisted users`);
+      return { message: `${deleteResult.length} blacklisted users permanently deleted` };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete blacklisted users');
       return reply.status(500).send({ message: 'Failed to delete blacklisted users' });
@@ -862,8 +862,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `將公告「${rows[0].title}」移至垃圾桶`,
         action_type: 'delete',
         resource_type: 'announcement',
@@ -903,8 +903,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `還原公告「${rows[0].title}」`,
         action_type: 'update',
         resource_type: 'announcement',
@@ -944,8 +944,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `永久刪除公告「${rows[0].title}」`,
         action_type: 'delete',
         resource_type: 'announcement',
@@ -996,7 +996,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
     try {
       const placeholders = announcementIds.map((_, i) => `$${i + 1}`).join(',');
-      const { rowCount } = await app.db.query(
+      const { rows: deleteResult } = await app.db.query(
         `UPDATE announcements SET status = 'deleted', updated_date = NOW() WHERE id IN (${placeholders}) AND status != 'deleted'`,
         announcementIds
       );
@@ -1005,18 +1005,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `批量移除 ${rowCount} 則公告至垃圾桶`,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量移除 ${deleteResult.length} 則公告至垃圾桶`,
         action_type: 'delete',
         resource_type: 'announcement',
-        details: { count: rowCount, announcement_ids: announcementIds },
+        details: { count: deleteResult.length, announcement_ids: announcementIds },
         ip_address: req.ip,
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Batch moved ${rowCount} announcements to trash`);
-      return { message: `${rowCount} announcements moved to trash` };
+      app.log.info(`[admin] Batch moved ${deleteResult.length} announcements to trash`);
+      return { message: `${deleteResult.length} announcements moved to trash` };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch move announcements to trash');
       return reply.status(500).send({ message: 'Failed to move announcements to trash' });
@@ -1037,7 +1037,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
     try {
       const placeholders = announcementIds.map((_, i) => `$${i + 1}`).join(',');
-      const { rowCount } = await app.db.query(
+      const { rows: deleteResult } = await app.db.query(
         `DELETE FROM announcements WHERE id IN (${placeholders}) AND status = 'deleted'`,
         announcementIds
       );
@@ -1046,18 +1046,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `批量永久刪除 ${rowCount} 則公告`,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量永久刪除 ${deleteResult.length} 則公告`,
         action_type: 'delete',
         resource_type: 'announcement',
-        details: { count: rowCount, announcement_ids: announcementIds, permanent: true },
+        details: { count: deleteResult.length, announcement_ids: announcementIds, permanent: true },
         ip_address: req.ip,
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Batch permanently deleted ${rowCount} announcements`);
-      return { message: `${rowCount} announcements permanently deleted` };
+      app.log.info(`[admin] Batch permanently deleted ${deleteResult.length} announcements`);
+      return { message: `${deleteResult.length} announcements permanently deleted` };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete announcements');
       return reply.status(500).send({ message: 'Failed to delete announcements' });

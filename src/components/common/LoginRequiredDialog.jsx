@@ -31,16 +31,16 @@ export default function LoginRequiredDialog({ open, onOpenChange, action = "執�
           </AlertDialogTitle>
           <AlertDialogDescription className="text-base">
             您需要登入才能{action}。
-            <br />
-            <br />
-            登入後您可以：
-            <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700">
+          </AlertDialogDescription>
+          <div className="mt-4 space-y-2">
+            <p className="text-sm text-gray-700">登入後您可以：</p>
+            <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 ml-2">
               <li>建立救災需求網格</li>
               <li>報名成為志工</li>
               <li>捐贈物資</li>
               <li>查看您的活動記錄</li>
             </ul>
-          </AlertDialogDescription>
+          </div>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>

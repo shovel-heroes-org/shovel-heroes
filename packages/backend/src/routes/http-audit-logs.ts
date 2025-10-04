@@ -186,23 +186,60 @@ export function registerHttpAuditLogRoutes(app: FastifyInstance) {
         params
       );
 
-      const csv = stringify(rows, {
+      // 格式化時間欄位
+      const formatDateTime = (date: Date | string | number | null | undefined): string => {
+        if (!date) return '';
+
+        try {
+          const d = new Date(date);
+          if (isNaN(d.getTime())) return '';
+
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          const seconds = String(d.getSeconds()).padStart(2, '0');
+
+          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        } catch {
+          return '';
+        }
+      };
+
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at)
+      }));
+
+      const csv = stringify(formattedRows, {
         header: true,
         columns: {
-          method: 'HTTP Method',
-          path: 'Path',
-          ip: 'IP Address',
-          status_code: 'Status Code',
-          error: 'Error',
-          duration_ms: 'Duration (ms)',
-          user_id: 'User ID',
-          created_at: 'Created At'
+          method: 'HTTP 方法',
+          path: '路徑',
+          ip: 'IP 位址',
+          status_code: '狀態碼',
+          error: '錯誤訊息',
+          duration_ms: '耗時 (ms)',
+          user_id: '使用者 ID',
+          created_at: '建立時間'
         }
       });
 
-      reply.type('text/csv');
+      // 記錄審計日誌
+      await createAdminAuditLogFromRequest(app, req, {
+        action: `匯出 ${rows.length} 筆 HTTP 審計日誌為 CSV`,
+        action_type: AuditActionType.EXPORT,
+        resource_type: 'http_audit_logs',
+        details: { count: rows.length }
+      });
+
+      // 添加 UTF-8 BOM 以確保 Excel 正確識別編碼
+      const csvWithBOM = '\uFEFF' + csv;
+
+      reply.type('text/csv; charset=utf-8');
       reply.header('Content-Disposition', `attachment; filename="http_audit_logs_${new Date().toISOString().split('T')[0]}.csv"`);
-      return csv;
+      return csvWithBOM;
     } catch (err: any) {
       app.log.error({ err }, '[http-audit-log] Failed to export HTTP audit logs');
       return reply.status(500).send({ message: 'Failed to export HTTP audit logs' });
@@ -230,19 +267,20 @@ export function registerHttpAuditLogRoutes(app: FastifyInstance) {
         params.push(days);
       }
 
-      const result = await app.db.query(deleteQuery, params);
+      const { rows } = await app.db.query(deleteQuery, params);
+      const deletedCount = rows.length;
 
       // 記錄清除操作到管理日誌
       await createAdminAuditLogFromRequest(app, req, {
         action: query.days ? `清除 ${query.days} 天前的 HTTP 審計日誌` : '清除所有 HTTP 審計日誌',
         action_type: AuditActionType.CLEAR,
         resource_type: 'http_audit_logs',
-        details: { days: query.days, deletedCount: result.rowCount }
+        details: { days: query.days, deletedCount }
       });
 
       return {
         message: 'HTTP audit logs cleared successfully',
-        deletedCount: result.rowCount
+        deletedCount
       };
     } catch (err: any) {
       app.log.error({ err }, '[http-audit-log] Failed to clear HTTP audit logs');

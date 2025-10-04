@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Package, Truck, CheckCircle2, Clock, MapPin, 
+import {
+  Package, Truck, CheckCircle2, Clock, MapPin,
   Phone, Calendar, AlertCircle, Plus, ShoppingCart
 } from "lucide-react";
 import AddSupplyRequestModal from "@/components/supplies/AddSupplyRequestModal";
 import GridDetailModal from "@/components/map/GridDetailModal"; // 新增導入
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 
 
 export default function SuppliesPage() {
@@ -29,6 +31,10 @@ export default function SuppliesPage() {
   const [selectedGridForDonation, setSelectedGridForDonation] = useState(null); // 彈窗選取之網格
   const [gridDetailTab, setGridDetailTab] = useState('supply'); // 控制 GridDetailModal 分頁 (與 URL 同步)
   const initialQueryApplied = useRef(false);
+
+  // 登入檢查
+  const addSupplyLogin = useRequireLogin("新增物資需求");
+  const donateSupplyLogin = useRequireLogin("捐贈物資");
 
   useEffect(() => {
     loadData();
@@ -69,7 +75,8 @@ export default function SuppliesPage() {
                 totalNeeded: supply.quantity,
                 received: supply.received || 0,
                 remaining: remaining,
-                unit: supply.unit
+                unit: supply.unit,
+                createdDate: grid.created_date // 新增：需求創建時間
               });
             }
           });
@@ -175,20 +182,29 @@ export default function SuppliesPage() {
   };
 
   const handleAddSupplyRequest = () => {
-    setShowAddRequestModal(true);
+    // 檢查登入狀態（包含訪客模式）
+    if (addSupplyLogin.requireLogin(() => {
+      setShowAddRequestModal(true);
+    })) {
+      // 已登入，執行回調
+      return;
+    }
   };
 
   const handleDonateToRequest = async (request) => {
-    // 移除強制登入邏輯，允許未登入用戶直接開啟捐贈表單。
-    // 登入驗證將由 GridDetailModal 或 SupplyDonation 實體內部處理。
-    
-    // 找到對應的網格
-    const grid = grids.find(g => g.id === request.gridId);
-    if (grid) {
-      setSelectedGridForDonation(grid);
-      setGridDetailTab('supply');
-    } else {
-      alert('找不到對應的救援網格，請稍後再試。');
+    // 檢查登入狀態（包含訪客模式）
+    if (donateSupplyLogin.requireLogin(() => {
+      // 找到對應的網格
+      const grid = grids.find(g => g.id === request.gridId);
+      if (grid) {
+        setSelectedGridForDonation(grid);
+        setGridDetailTab('supply');
+      } else {
+        alert('找不到對應的救援網格，請稍後再試。');
+      }
+    })) {
+      // 已登入，執行回調
+      return;
     }
   };
 
@@ -354,7 +370,7 @@ export default function SuppliesPage() {
                             </Badge>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600 mb-2">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
                               <span>救援區域: {request.gridCode}</span>
@@ -368,6 +384,10 @@ export default function SuppliesPage() {
                               <span className="text-orange-600 font-medium">
                                 還需要: {request.remaining} {request.unit}
                               </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              <span>創建: {request.createdDate ? new Date(request.createdDate).toLocaleString('zh-TW') : '未記錄'}</span>
                             </div>
                           </div>
 
@@ -383,7 +403,7 @@ export default function SuppliesPage() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          <Button 
+                          <Button
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => handleDonateToRequest(request)}
                           >
@@ -427,9 +447,13 @@ export default function SuppliesPage() {
                     <div className="space-y-4">
                       {filterDonations(tabValue).map((donation) => {
                         const grid = getGridInfo(donation.grid_id);
+                        // 權限檢查：管理員、網格建立者(A)、網格管理員、或捐贈者本人(C)可以看到聯絡資訊
                         const canViewPhone = currentUser && (
-                          currentUser.role === 'admin' || 
-                          (currentUser.role === 'grid_manager' && currentUser.id === grid.grid_manager_id)
+                          currentUser.role === 'admin' ||
+                          currentUser.role === 'super_admin' ||
+                          currentUser.id === grid?.created_by_id ||  // 網格建立者(A)
+                          currentUser.id === grid?.grid_manager_id || // 網格管理員
+                          currentUser.id === donation.created_by_id  // 捐贈者本人(C)
                         );
 
                         return (
@@ -439,7 +463,7 @@ export default function SuppliesPage() {
                                 <div className="flex-1">
                                   <div className="flex items-center gap-3 mb-3">
                                     <h3 className="text-lg font-semibold text-gray-900">
-                                      {donation.supply_name}
+                                      {donation.supply_name || donation.name}
                                     </h3>
                                     <Badge className={getStatusColor(donation.status)}>
                                       {getStatusText(donation.status)}
@@ -462,12 +486,16 @@ export default function SuppliesPage() {
                                     <div className="flex items-center gap-2">
                                       <Phone className="w-4 h-4" />
                                       {canViewPhone ? (
-                                        <span>{donation.donor_name} - {donation.donor_phone}</span>
-                                      ) : (
-                                        <span className="flex items-center">
-                                          {donation.donor_name}
-                                          <span className="text-gray-400 italic text-xs ml-2">(僅限管理員/相關格主查看電話)</span>
+                                        <span>
+                                          {donation.donor_name || donation.donor_contact || '未提供'}
+                                          {donation.donor_phone && ` - ${donation.donor_phone}`}
                                         </span>
+                                      ) : (
+                                        donation.donor_name || donation.donor_contact || donation.donor_phone ? (
+                                          <span className="text-gray-400 italic text-xs">(僅限管理員/相關格主/捐贈者本人查看聯絡資訊)</span>
+                                        ) : (
+                                          <span>未提供</span>
+                                        )
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -495,8 +523,11 @@ export default function SuppliesPage() {
                                     </div>
                                   )}
 
-                                  <div className="mt-2 text-xs text-gray-500">
-                                    捐贈時間: {new Date(donation.created_date).toLocaleString('zh-TW')}
+                                  <div className="mt-2 space-y-1 text-xs text-gray-500">
+                                    {donation.delivery_time && (
+                                      <div>預計送達時間: {donation.delivery_time}</div>
+                                    )}
+                                    <div>捐贈時間: {donation.created_at ? new Date(donation.created_at).toLocaleString('zh-TW') : '尚未記錄'}</div>
                                   </div>
                                 </div>
 
@@ -571,7 +602,21 @@ export default function SuppliesPage() {
           grids={grids}
         />
       )}
-      
+
+      {/* 登入請求對話框 - 新增物資需求 */}
+      <LoginRequiredDialog
+        open={addSupplyLogin.showLoginDialog}
+        onOpenChange={addSupplyLogin.setShowLoginDialog}
+        action={addSupplyLogin.action}
+      />
+
+      {/* 登入請求對話框 - 捐贈物資 */}
+      <LoginRequiredDialog
+        open={donateSupplyLogin.showLoginDialog}
+        onOpenChange={donateSupplyLogin.setShowLoginDialog}
+        action={donateSupplyLogin.action}
+      />
+
       {/* 新增：物資捐贈彈窗 */}
       {selectedGridForDonation && (
         <GridDetailModal

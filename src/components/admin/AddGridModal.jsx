@@ -150,17 +150,17 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
 
     if (isOpen) {
       loadUser();
-      
+
       // 當 modal 打開時，確保地圖已收起
       localStorage.setItem('collapseMapForModal', 'true');
       window.dispatchEvent(new Event('collapseMap'));
-      
+
       // 找到光復鄉重災區並設為預設值
-      const defaultArea = disasterAreas.find(area => 
-        area.name === '光復鄉重災區' || 
+      const defaultArea = disasterAreas.find(area =>
+        area.name === '光復鄉重災區' ||
         area.name.includes('光復鄉')
       );
-      
+
       // Reset form data and errors when modal opens
       setFormData({
         code: '',
@@ -171,7 +171,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
         risks_notes: '',
         contact_info: '',
       });
-      
+
       // 如果找到預設災區，也設定地圖中心點
       if (defaultArea) {
         const newPos = { lat: defaultArea.center_lat, lng: defaultArea.center_lng };
@@ -180,7 +180,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       } else {
         setPosition(null);
       }
-      
+
       setError('');
       setAddressQuery('');
     }
@@ -259,14 +259,14 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       setError('請先同意並理解相關條款。');
       return;
     }
-    
+
     // Check for duplicate grid code
     try {
       const existingGrids = await Grid.list();
-      const duplicateGrid = existingGrids.find(grid => 
+      const duplicateGrid = existingGrids.find(grid =>
         grid.code.toLowerCase() === formData.code.toLowerCase()
       );
-      
+
       if (duplicateGrid) {
         setError(`網格代碼 "${formData.code}" 已存在，請選擇其他代碼。`);
         return;
@@ -297,13 +297,13 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
         status: 'open',
         supplies_needed: [],
       };
-      
+
       // 如果用戶已登入，則將其設為格主，否則留空
       if (currentUser) {
         payload.grid_manager_id = currentUser.id;
       }
       // 注意：不設置 grid_manager_id 時，該欄位將為空
-      
+
       await Grid.create({ ...payload, __turnstile_token: turnstileToken });
       onSuccess();
     } catch (err) {
@@ -313,7 +313,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       setSubmitting(false);
     }
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -401,39 +401,33 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
                 placeholder="提供手機或 Line ID 以便聯繫"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                <Info className="w-3 h-3"/>
-                您所提供的聯絡資訊將公開顯示於相關頁面，以便彼此聯繫。請自行評估是否提供。
-              </p>
             </div>
 
             {/* 確認同意條款 */}
-            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+            <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Checkbox
+                <input
+                  type="checkbox"
                   id="agree-terms"
                   checked={agreedToTerms}
-                  onCheckedChange={setAgreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
                   className="mt-1"
                 />
                 <label
                   htmlFor="agree-terms"
-                  className="text-sm leading-relaxed cursor-pointer flex-1"
+                  className="text-sm text-orange-900 cursor-pointer font-medium flex-1"
                 >
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-semibold text-red-600">我已理解並同意：</span>
-                      <span className="text-gray-700">
-                        本站為緊急救災媒合平台，我所提供的聯絡資訊將公開顯示於相關頁面，以便志工與需求方互相聯繫。我了解這些資訊可能被他人查看，並自行評估提供資訊的風險。
-                      </span>
-                    </div>
+                    <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                    <span>
+                      我已理解並同意：本站為緊急救災媒合平台，我所提供的聯絡資訊將公開顯示於相關頁面，以便志工與需求方互相聯繫。我了解這些資訊可能被他人查看，並自行評估提供資訊的風險。
+                    </span>
                   </div>
                 </label>
               </div>
             </div>
           </div>
-          
+
           <div className="space-y-4">
             <div className="h-96 w-full rounded-md overflow-hidden border">
                <MapContainer center={mapCenter} zoom={13} className="h-full w-full">
@@ -468,8 +462,8 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             {!turnstileToken && <p className="text-xs text-gray-500">請完成下方的驗證以啟用建立按鈕。</p>}
           </div>
         )}
-        
-        <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
+
+        {/* <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
           <input
             type="checkbox"
             id="grid-terms-checkbox"
@@ -480,7 +474,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
           <label htmlFor="grid-terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
             我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
           </label>
-        </div>
+        </div> */}
 
         {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
         <DialogFooter className="mt-6 flex flex-col items-stretch space-y-2">

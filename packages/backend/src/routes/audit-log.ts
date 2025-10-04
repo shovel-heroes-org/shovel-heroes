@@ -3,6 +3,31 @@ import { stringify } from 'csv-stringify/sync';
 import { createAdminAuditLogFromRequest, AuditActionType, AuditResourceType } from '../lib/audit-logger.js';
 import { requireManagePermission } from '../middlewares/PermissionMiddleware.js';
 
+/**
+ * 格式化日期時間為可讀格式 (YYYY-MM-DD HH:MM:SS)
+ * @param date - Date 物件或時間戳
+ * @returns 格式化的日期時間字串,如果無效則返回空字串
+ */
+function formatDateTime(date: Date | string | number | null | undefined): string {
+  if (!date) return '';
+
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return '';
+  }
+}
+
 export function registerAuditLogRoutes(app: FastifyInstance) {
   // 查詢審計日誌
   app.get('/admin/audit-logs', { preHandler: requireManagePermission('audit_logs') }, async (req, reply) => {
@@ -128,7 +153,13 @@ export function registerAuditLogRoutes(app: FastifyInstance) {
         params
       );
 
-      const csv = stringify(rows, {
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at)
+      }));
+
+      const csv = stringify(formattedRows, {
         header: true,
         columns: {
           user_role: '權限等級',
@@ -143,9 +174,18 @@ export function registerAuditLogRoutes(app: FastifyInstance) {
         }
       });
 
-      reply.type('text/csv');
-      reply.header('Content-Disposition', `attachment; filename="audit_logs_${new Date().toISOString().split('T')[0]}.csv"`);
-      return csv;
+      // 記錄匯出操作到審計日誌
+      await createAdminAuditLogFromRequest(app, req, {
+        action: `匯出 ${rows.length} 筆管理操作日誌為 CSV`,
+        action_type: AuditActionType.EXPORT,
+        resource_type: AuditResourceType.AUDIT_LOG,
+        details: { count: rows.length }
+      });
+
+      const csvWithBOM = '\uFEFF' + csv;
+      reply.type('text/csv; charset=utf-8');
+      reply.header('Content-Disposition', 'attachment; filename="audit_logs_export.csv"');
+      return csvWithBOM;
     } catch (err: any) {
       app.log.error({ err }, '[audit-log] Failed to export audit logs');
       return reply.status(500).send({ message: 'Failed to export audit logs' });

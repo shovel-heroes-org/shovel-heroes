@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware';
+import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
 
 const CreateSchema = z.object({
   title: z.string(),

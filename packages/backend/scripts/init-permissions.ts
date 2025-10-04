@@ -1,4 +1,7 @@
 import { createPool } from '../src/lib/db.js';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const permissions = [
   // 訪客權限
@@ -6,6 +9,10 @@ const permissions = [
   { role: 'guest', permission_key: 'grids', permission_name: '網格管理', permission_category: '基礎管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視網格資訊' },
   { role: 'guest', permission_key: 'volunteers', permission_name: '志工管理', permission_category: '人員管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視志工列表' },
   { role: 'guest', permission_key: 'supplies', permission_name: '物資管理', permission_category: '資源管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視物資資訊' },
+  // 隱私管理權限（訪客）
+  { role: 'guest', permission_key: 'view_volunteer_contact', permission_name: '檢視志工聯絡資訊', permission_category: '隱私管理', can_view: 0, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '無權限檢視志工的聯絡資訊（電話、電子郵件等）' },
+  { role: 'guest', permission_key: 'view_donor_contact', permission_name: '檢視捐贈者聯絡資訊', permission_category: '隱私管理', can_view: 0, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '無權限檢視捐贈者的聯絡資訊（電話、電子郵件等）' },
+  { role: 'guest', permission_key: 'view_grid_contact', permission_name: '檢視網格區域聯絡人資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視網格區域聯絡人的公開資訊' },
 
   // 一般使用者權限
   { role: 'user', permission_key: 'disaster_areas', permission_name: '災區管理', permission_category: '基礎管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視災區列表和詳細資訊' },
@@ -24,9 +31,10 @@ const permissions = [
   { role: 'user', permission_key: 'trash_grids', permission_name: '網格垃圾桶', permission_category: '垃圾桶管理', can_view: 0, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '無網格垃圾桶檢視和還原權限' },
   { role: 'user', permission_key: 'trash_areas', permission_name: '災區垃圾桶', permission_category: '垃圾桶管理', can_view: 0, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '無災區垃圾桶檢視和還原權限' },
   { role: 'user', permission_key: 'trash_announcements', permission_name: '公告垃圾桶', permission_category: '垃圾桶管理', can_view: 0, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '無公告垃圾桶檢視和還原權限' },
-  // 個人資料與資源權限
-  { role: 'user', permission_key: 'profile', permission_name: '個人資料', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和編輯自己的個人資料' },
-  { role: 'user', permission_key: 'my_resources', permission_name: '我的資源', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、編輯和刪除自己建立的網格、物資等資源' },
+  // 隱私管理權限（一般使用者）
+  { role: 'user', permission_key: 'view_volunteer_contact', permission_name: '檢視志工聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視自己建立的網格中志工的聯絡資訊，以及自己作為志工的聯絡資訊' },
+  { role: 'user', permission_key: 'view_donor_contact', permission_name: '檢視捐贈者聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視自己建立的網格中捐贈者的聯絡資訊，以及自己作為捐贈者的聯絡資訊' },
+  { role: 'user', permission_key: 'view_grid_contact', permission_name: '檢視網格區域聯絡人資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格區域聯絡人的資訊' },
 
   // 網格管理員權限
   { role: 'grid_manager', permission_key: 'disaster_areas', permission_name: '災區管理', permission_category: '基礎管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和編輯災區資訊' },
@@ -45,9 +53,10 @@ const permissions = [
   { role: 'grid_manager', permission_key: 'trash_grids', permission_name: '網格垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和還原網格垃圾桶項目（edit=還原）' },
   { role: 'grid_manager', permission_key: 'trash_areas', permission_name: '災區垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和還原災區垃圾桶項目（edit=還原）' },
   { role: 'grid_manager', permission_key: 'trash_announcements', permission_name: '公告垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和還原公告垃圾桶項目（edit=還原）' },
-  // 個人資料與資源權限
-  { role: 'grid_manager', permission_key: 'profile', permission_name: '個人資料', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和編輯自己的個人資料' },
-  { role: 'grid_manager', permission_key: 'my_resources', permission_name: '我的資源', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、編輯和刪除自己建立的網格、物資等資源' },
+  // 隱私管理權限（網格管理員）
+  { role: 'grid_manager', permission_key: 'view_volunteer_contact', permission_name: '檢視志工聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格中志工的聯絡資訊' },
+  { role: 'grid_manager', permission_key: 'view_donor_contact', permission_name: '檢視捐贈者聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格中捐贈者的聯絡資訊' },
+  { role: 'grid_manager', permission_key: 'view_grid_contact', permission_name: '檢視網格區域聯絡人資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格區域聯絡人的資訊' },
 
   // 管理員權限
   { role: 'admin', permission_key: 'disaster_areas', permission_name: '災區管理', permission_category: '基礎管理', can_view: 1, can_create: 1, can_edit: 1, can_delete: 1, can_manage: 1, description: '可完整管理災區' },
@@ -66,9 +75,10 @@ const permissions = [
   { role: 'admin', permission_key: 'trash_grids', permission_name: '網格垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除網格垃圾桶項目' },
   { role: 'admin', permission_key: 'trash_areas', permission_name: '災區垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除災區垃圾桶項目' },
   { role: 'admin', permission_key: 'trash_announcements', permission_name: '公告垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除公告垃圾桶項目' },
-  // 個人資料與資源權限
-  { role: 'admin', permission_key: 'profile', permission_name: '個人資料', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和編輯自己的個人資料' },
-  { role: 'admin', permission_key: 'my_resources', permission_name: '我的資源', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 1, description: '可完整管理自己建立的網格、物資等資源' },
+  // 隱私管理權限（管理員）
+  { role: 'admin', permission_key: 'view_volunteer_contact', permission_name: '檢視志工聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有志工的聯絡資訊' },
+  { role: 'admin', permission_key: 'view_donor_contact', permission_name: '檢視捐贈者聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有捐贈者的聯絡資訊' },
+  { role: 'admin', permission_key: 'view_grid_contact', permission_name: '檢視網格區域聯絡人資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格區域聯絡人的資訊' },
 
   // 超級管理員權限
   { role: 'super_admin', permission_key: 'disaster_areas', permission_name: '災區管理', permission_category: '基礎管理', can_view: 1, can_create: 1, can_edit: 1, can_delete: 1, can_manage: 1, description: '完整災區管理權限' },
@@ -87,9 +97,10 @@ const permissions = [
   { role: 'super_admin', permission_key: 'trash_grids', permission_name: '網格垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除網格垃圾桶項目' },
   { role: 'super_admin', permission_key: 'trash_areas', permission_name: '災區垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除災區垃圾桶項目' },
   { role: 'super_admin', permission_key: 'trash_announcements', permission_name: '公告垃圾桶', permission_category: '垃圾桶管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 0, description: '可檢視、還原和永久刪除公告垃圾桶項目' },
-  // 個人資料與資源權限
-  { role: 'super_admin', permission_key: 'profile', permission_name: '個人資料', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 0, can_manage: 0, description: '可檢視和編輯自己的個人資料' },
-  { role: 'super_admin', permission_key: 'my_resources', permission_name: '我的資源', permission_category: '個人管理', can_view: 1, can_create: 0, can_edit: 1, can_delete: 1, can_manage: 1, description: '可完整管理自己建立的網格、物資等資源' },
+  // 隱私管理權限（超級管理員）
+  { role: 'super_admin', permission_key: 'view_volunteer_contact', permission_name: '檢視志工聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有志工的聯絡資訊' },
+  { role: 'super_admin', permission_key: 'view_donor_contact', permission_name: '檢視捐贈者聯絡資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有捐贈者的聯絡資訊' },
+  { role: 'super_admin', permission_key: 'view_grid_contact', permission_name: '檢視網格區域聯絡人資訊', permission_category: '隱私管理', can_view: 1, can_create: 0, can_edit: 0, can_delete: 0, can_manage: 0, description: '可檢視所有網格區域聯絡人的資訊' },
 ];
 
 async function initPermissions() {

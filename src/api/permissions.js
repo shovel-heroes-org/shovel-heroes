@@ -68,7 +68,7 @@ export async function checkPermission(role, permissionKey, action) {
 export async function exportPermissions() {
   console.log('[Export] 開始匯出權限設定');
 
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('sh_token');
   if (!token) {
     throw new Error('未登入，請先登入系統');
   }

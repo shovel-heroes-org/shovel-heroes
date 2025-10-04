@@ -350,6 +350,44 @@ export async function importAreasFromCSV(csvData, skipDuplicates = true) {
   return http.post('/csv/import/areas', { csv: csvData, skipDuplicates });
 }
 
+// 匯出垃圾桶災區 CSV
+export async function exportTrashAreasToCSV() {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-areas`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      await handleCSVExportError(response, '垃圾桶災區');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trash_areas_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Export trash areas failed:', error);
+    throw new Error(`Failed to export trash disaster areas: ${error.message}`);
+  }
+}
+
+// CSV 匯入垃圾桶災區功能
+export async function importTrashAreasFromCSV(csvData, skipDuplicates = true) {
+  return http.post('/csv/import/trash-areas', { csv: csvData, skipDuplicates });
+}
+
 // ==================== 黑名單管理（僅超級管理員）====================
 
 // 取得黑名單用戶列表
@@ -401,7 +439,7 @@ export async function exportAuditLogsToCSV(params = {}) {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+  a.download = `audit_logs_export_${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(a);
   a.click();
   window.URL.revokeObjectURL(url);
@@ -423,7 +461,7 @@ export async function exportAnnouncementsCSV() {
   );
 
   if (!response.ok) {
-    await handleCSVExportError(response, '公告');
+    return await handleCSVExportError(response, '公告');
   }
 
   const blob = await response.blob();
@@ -435,6 +473,7 @@ export async function exportAnnouncementsCSV() {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+  return true;
 }
 
 // CSV 匯入公告功能

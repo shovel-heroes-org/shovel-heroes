@@ -24,8 +24,11 @@ const CreateSchema = z.object({
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
   app.get('/volunteer-registrations', async (req) => {
-    if (!app.hasDecorator('db')) return [];
+    if (!app.hasDecorator('db')) return { data: [], can_view_phone: false };
     const gridId = (req.query as any)?.grid_id;
+
+    // 檢查使用者是否為管理員
+    const isUserAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'super_admin');
 
     if (gridId) {
       // 取得志工報名資料和網格建立者資訊
@@ -40,9 +43,16 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       // 取得網格建立者 ID
       const gridCreatorId = rows.length > 0 ? rows[0].grid_creator_id : undefined;
 
+      // 檢查使用者是否為該網格的建立者
+      const isGridCreator = req.user && gridCreatorId && req.user.id === gridCreatorId;
+
       // 過濾隱私資訊
       const filtered = filterVolunteersPrivacy(rows, req.user || null, gridCreatorId);
-      return filtered;
+
+      return {
+        data: filtered,
+        can_view_phone: isUserAdmin || isGridCreator
+      };
     }
 
     // 取得所有志工報名（需要分別處理每個網格的隱私）
@@ -58,7 +68,11 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       return filterVolunteerPrivacy(row, req.user || null, row.grid_creator_id);
     });
 
-    return filtered;
+    // 對於列表查詢，只有管理員才能看到所有電話
+    return {
+      data: filtered,
+      can_view_phone: isUserAdmin
+    };
   });
   app.post('/volunteer-registrations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);

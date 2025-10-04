@@ -23,7 +23,7 @@ export async function exportHttpAuditLogsToCSV(params = {}) {
     {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
       }
     }
   );

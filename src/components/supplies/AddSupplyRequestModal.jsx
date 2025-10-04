@@ -184,7 +184,7 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
             />
             <label htmlFor="terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
-              我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊將提供需求方參考，以利志工與需求方互相聯繫。
+              我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
             </label>
           </div>
 

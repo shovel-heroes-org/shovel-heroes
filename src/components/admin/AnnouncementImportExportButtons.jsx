@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 import { exportAnnouncementsCSV, importAnnouncementsCSV } from '@/api/admin';
 
-export default function AnnouncementImportExportButtons({ onImportSuccess }) {
+export default function AnnouncementImportExportButtons({ onImportSuccess, showMessage }) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -12,10 +12,12 @@ export default function AnnouncementImportExportButtons({ onImportSuccess }) {
     setExporting(true);
     try {
       await exportAnnouncementsCSV();
-      alert('公告資料匯出成功！');
+      const message = '公告資料匯出成功！';
+      showMessage ? showMessage(message, 'success') : alert(message);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('匯出失敗，請稍後再試。');
+      const message = '匯出失敗，請稍後再試。';
+      showMessage ? showMessage(message, 'error') : alert(message);
     } finally {
       setExporting(false);
     }
@@ -35,14 +37,21 @@ export default function AnnouncementImportExportButtons({ onImportSuccess }) {
         const result = response.data;
 
         if (result.success) {
-          alert(`${result.message}\n${result.errors?.length > 0 ? '\n前幾個錯誤：\n' + result.errors.map(e => `第${e.row}行: ${e.error}`).join('\n') : ''}`);
+          const message = `${result.message}`;
+          if (result.errors?.length > 0) {
+            showMessage ? showMessage(message, 'warning') : alert(message);
+          } else {
+            showMessage ? showMessage(message, 'success') : alert(message);
+          }
           onImportSuccess();
         } else {
-          alert(`匯入失敗：${result.error}`);
+          const message = `匯入失敗：${result.error}`;
+          showMessage ? showMessage(message, 'error') : alert(message);
         }
       } catch (error) {
         console.error('Import failed:', error);
-        alert('匯入失敗，請檢查檔案格式或網路連線。');
+        const message = '匯入失敗，請檢查檔案格式或網路連線。';
+        showMessage ? showMessage(message, 'error') : alert(message);
       } finally {
         setImporting(false);
         event.target.value = '';
@@ -64,7 +73,7 @@ export default function AnnouncementImportExportButtons({ onImportSuccess }) {
         {exporting ? '匯出中...' : '匯出CSV'}
       </Button>
 
-      <div className="relative inline-block">
+      <label htmlFor="announcement-csv-importer" className="relative inline-block cursor-pointer">
         <Input
           type="file"
           accept=".csv"
@@ -77,14 +86,12 @@ export default function AnnouncementImportExportButtons({ onImportSuccess }) {
           size="sm"
           variant="outline"
           disabled={importing}
-          as="label"
-          htmlFor="announcement-csv-importer"
-          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer"
+          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer pointer-events-none"
         >
           <Upload className="w-4 h-4 mr-2" />
           {importing ? '匯入中...' : '匯入CSV'}
         </Button>
-      </div>
+      </label>
     </div>
   );
 }

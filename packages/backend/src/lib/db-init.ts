@@ -87,10 +87,22 @@ CREATE TABLE IF NOT EXISTS supply_donations (
   id TEXT PRIMARY KEY,
   grid_id TEXT NOT NULL REFERENCES grids(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  supply_name TEXT,
   quantity INTEGER NOT NULL,
   unit TEXT NOT NULL,
+  donor_name TEXT,
+  donor_phone TEXT,
+  donor_email TEXT,
   donor_contact TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  delivery_method TEXT,
+  delivery_address TEXT,
+  delivery_time TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'pledged',
+  created_by_id TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS grid_discussions (
@@ -109,6 +121,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   body TEXT NOT NULL,
   content TEXT,
   category TEXT,
+  priority TEXT DEFAULT 'normal',
   is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
   external_links JSONB,
   contact_phone TEXT,
@@ -197,6 +210,7 @@ ALTER TABLE volunteer_registrations
 ALTER TABLE announcements
   ADD COLUMN IF NOT EXISTS content TEXT,
   ADD COLUMN IF NOT EXISTS category TEXT,
+  ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal',
   ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS external_links JSONB,
   ADD COLUMN IF NOT EXISTS contact_phone TEXT,
@@ -259,6 +273,11 @@ export async function initDb(app: FastifyInstance) {
   try {
     const pool = createPool();
     await pool.query(SCHEMA_SQL);
+
+    // 執行遷移：添加 supply_donations 欄位
+    const { addSupplyDonationsFields } = await import('./migrations/add-supply-donations-fields.js');
+    await addSupplyDonationsFields(pool);
+
     await attachDb(app, pool);
     app.log.info('[db] connected & schema ensured');
   } catch (err) {

@@ -5,6 +5,18 @@ import { stringify } from 'csv-stringify/sync';
 import { createAdminAuditLog } from '../lib/audit-logger.js';
 
 /**
+ * 移除 BOM (Byte Order Mark) 字元
+ * @param text - 可能包含 BOM 的文字
+ * @returns 移除 BOM 後的文字
+ */
+function removeBOM(text: string): string {
+  if (text.charCodeAt(0) === 0xFEFF) {
+    return text.substring(1);
+  }
+  return text;
+}
+
+/**
  * 格式化日期時間為可讀格式 (YYYY-MM-DD HH:MM:SS)
  * @param date - Date 物件或時間戳
  * @returns 格式化的日期時間字串，如果無效則返回空字串
@@ -61,7 +73,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           id: 'ID',
           code: '網格代碼',
           grid_type: '類型',
-          area_name: '災區',
+          area_name: '災區名稱',
           volunteer_needed: '需求人數',
           volunteer_registered: '已登記人數',
           meeting_point: '集合點',
@@ -78,8 +90,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `匯出 ${rows.length} 筆網格資料為 CSV`,
         action_type: 'export',
         resource_type: 'grid',
@@ -146,7 +158,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -157,23 +171,24 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
+      for (const record of records as any[]) {
+        // 支援兩種格式：範本格式（含必填標記）和匯出格式（無標記）
+        const code = record['網格代碼（必填）'] || record['網格代碼'];
+        const gridType = record['類型（必填：residential/commercial/industrial）'] || record['類型'] || 'residential';
+        const areaName = record['災區名稱（必填）'] || record['災區'];
+        const centerLat = parseFloat(record['緯度（必填）'] || record['緯度']);
+        const centerLng = parseFloat(record['經度（必填）'] || record['經度']);
+
         // Validate required fields
-        if (!record['網格代碼（必填）'] || !record['災區名稱（必填）'] ||
-            !record['緯度（必填）'] || !record['經度（必填）']) {
+        if (!code || !areaName || isNaN(centerLat) || isNaN(centerLng)) {
           errors.push(`Missing required fields in row: ${JSON.stringify(record)}`);
           continue;
         }
 
-        const code = record['網格代碼（必填）'];
-        const gridType = record['類型（必填：residential/commercial/industrial）'] || 'residential';
-        const areaName = record['災區名稱（必填）'];
         const volunteerNeeded = parseInt(record['需求人數'] || '0');
         const meetingPoint = record['集合點'] || '';
         const risksNotes = record['風險備註'] || '';
         const contactInfo = record['聯絡資訊'] || '';
-        const centerLat = parseFloat(record['緯度（必填）']);
-        const centerLng = parseFloat(record['經度（必填）']);
 
         // Check if grid code exists
         if (body.skipDuplicates) {
@@ -229,8 +244,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
       await createAdminAuditLog(app, {
         user_id: req.user?.id,
         user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
         action: `匯入 ${imported} 筆網格資料（略過 ${skipped} 筆）`,
         action_type: 'import',
         resource_type: 'grid',
@@ -339,7 +354,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -350,26 +367,27 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        // Validate required fields
-        if (!record['災區名稱（必填）'] || !record['縣市（必填）'] ||
-            !record['鄉鎮區（必填）'] || !record['緯度（必填）'] || !record['經度（必填）']) {
-          errors.push(`Missing required fields in row: ${JSON.stringify(record)}`);
+      for (const record of records as any[]) {
+        // 支援兩種格式：範本格式（含必填標記）和匯出格式（無標記）
+        const name = record['災區名稱（必填）'] || record['災區名稱'];
+        const county = record['縣市（必填）'] || record['縣市'] || '';
+        const township = record['鄉鎮區（必填）'] || record['鄉鎮區'] || '';
+        const centerLat = parseFloat(record['緯度（必填）'] || record['緯度']);
+        const centerLng = parseFloat(record['經度（必填）'] || record['經度']);
+
+        // Validate required fields (只有名稱、經緯度為必填)
+        if (!name || isNaN(centerLat) || isNaN(centerLng)) {
+          errors.push(`缺少必填欄位（災區名稱、緯度、經度）: ${JSON.stringify(record)}`);
           continue;
         }
 
-        const name = record['災區名稱（必填）'];
-        const county = record['縣市（必填）'];
-        const township = record['鄉鎮區（必填）'];
         const description = record['描述'] || '';
-        const centerLat = parseFloat(record['緯度（必填）']);
-        const centerLng = parseFloat(record['經度（必填）']);
 
-        // Check if disaster area already exists
+        // Check if disaster area already exists (基於名稱和經緯度)
         if (body.skipDuplicates) {
           const { rows: existing } = await app.db.query(
-            'SELECT id FROM disaster_areas WHERE name = $1 AND county = $2 AND township = $3',
-            [name, county, township]
+            'SELECT id FROM disaster_areas WHERE name = $1 AND ABS(center_lat - $2) < 0.0001 AND ABS(center_lng - $3) < 0.0001',
+            [name, centerLat, centerLng]
           );
           if (existing.length > 0) {
             skipped++;
@@ -452,6 +470,31 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Export CSV template for volunteers
+  app.get('/csv/template/volunteers', { preHandler: requirePermission('volunteers', 'manage') }, async (req, reply) => {
+    const template = stringify([{
+      volunteer_name: '王小明',
+      volunteer_phone: '0912345678',
+      volunteer_email: 'volunteer@example.com',
+      available_time: '週一到週五 9:00-17:00',
+      grid_code: 'A1'
+    }], {
+      header: true,
+      columns: {
+        volunteer_name: '志工姓名（必填）',
+        volunteer_phone: '電話',
+        volunteer_email: 'Email',
+        available_time: '可服務時間',
+        grid_code: '網格代碼（必填）'
+      }
+    });
+
+    const templateWithBOM = '\uFEFF' + template;
+    reply.type('text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="volunteers_template.csv"');
+    return templateWithBOM;
+  });
+
   // Import volunteers from CSV
   app.post('/csv/import/volunteers', { preHandler: requirePermission('volunteers', 'manage') }, async (req: FastifyRequest, reply) => {
     if (!app.hasDecorator('db')) {
@@ -465,7 +508,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -476,11 +521,13 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        const volunteerName = record['志工姓名'];
-        const volunteerPhone = record['電話'];
-        const volunteerEmail = record['Email'];
-        const gridCode = record['網格代碼'];
+      for (const record of records as any[]) {
+        // 支援兩種格式：範本格式（含必填標記）和匯出格式（無標記）
+        const volunteerName = record['志工姓名（必填）'] || record['志工姓名'];
+        const volunteerPhone = record['電話（必填）'] || record['電話'] || '';
+        const volunteerEmail = record['Email'] || '';
+        const availableTime = record['可服務時間'] || '';
+        const gridCode = record['網格代碼（必填）'] || record['網格代碼'];
 
         if (!volunteerName || !gridCode) {
           errors.push(`Missing required fields in row: ${JSON.stringify(record)}`);
@@ -513,9 +560,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
         const regId = `reg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await app.db.query(
           `INSERT INTO volunteer_registrations (
-            id, grid_id, volunteer_name, volunteer_phone, volunteer_email, status
-          ) VALUES ($1, $2, $3, $4, $5, 'pending')`,
-          [regId, grids[0].id, volunteerName, volunteerPhone, volunteerEmail]
+            id, grid_id, volunteer_name, volunteer_phone, volunteer_email, available_time, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+          [regId, grids[0].id, volunteerName, volunteerPhone, volunteerEmail, availableTime]
         );
 
         imported++;
@@ -538,8 +585,10 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          sd.id, sd.donor_name, sd.donor_phone, sd.supply_items,
-          sd.quantity, sd.status, sd.created_at,
+          sd.id, sd.donor_name, sd.donor_phone, sd.donor_email,
+          sd.supply_name, sd.quantity, sd.unit,
+          sd.delivery_method, sd.delivery_address, sd.delivery_time,
+          sd.notes, sd.status, sd.created_at,
           g.code as grid_code,
           da.name as area_name
         FROM supply_donations sd
@@ -548,17 +597,29 @@ export function registerCSVRoutes(app: FastifyInstance) {
         ORDER BY sd.created_at DESC`
       );
 
-      const csv = stringify(rows, {
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at)
+      }));
+
+      const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
-          donor_name: '捐贈者姓名',
-          donor_phone: '電話',
-          supply_items: '物資項目',
-          quantity: '數量',
-          status: '狀態',
           grid_code: '網格代碼',
           area_name: '災區',
+          supply_name: '物資名稱',
+          quantity: '數量',
+          unit: '單位',
+          donor_name: '捐贈者姓名',
+          donor_phone: '聯絡電話',
+          donor_email: 'Email',
+          delivery_method: '配送方式',
+          delivery_address: '送達地址',
+          delivery_time: '預計送達時間',
+          notes: '備註',
+          status: '狀態',
           created_at: '捐贈時間'
         }
       });
@@ -571,6 +632,43 @@ export function registerCSVRoutes(app: FastifyInstance) {
       app.log.error({ err }, '[csv] Failed to export supplies');
       return reply.status(500).send({ message: 'Failed to export supplies' });
     }
+  });
+
+  // Export CSV template for supply donations
+  app.get('/csv/template/supplies', { preHandler: requirePermission('supplies', 'manage') }, async (req, reply) => {
+    const template = stringify([{
+      grid_code: 'A1',
+      supply_name: '礦泉水',
+      quantity: 100,
+      unit: '箱',
+      donor_name: '張三',
+      donor_phone: '0912345678',
+      donor_email: 'donor@example.com',
+      delivery_method: '自行送達',
+      delivery_address: '花蓮市中山路100號',
+      delivery_time: '2024-01-15 14:00',
+      notes: '請提前通知'
+    }], {
+      header: true,
+      columns: {
+        grid_code: '網格代碼（必填）',
+        supply_name: '物資名稱（必填）',
+        quantity: '數量',
+        unit: '單位',
+        donor_name: '捐贈者姓名（必填）',
+        donor_phone: '聯絡電話',
+        donor_email: 'Email',
+        delivery_method: '配送方式',
+        delivery_address: '送達地址',
+        delivery_time: '預計送達時間',
+        notes: '備註'
+      }
+    });
+
+    const templateWithBOM = '\uFEFF' + template;
+    reply.type('text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="supplies_template.csv"');
+    return templateWithBOM;
   });
 
   // Import supply donations from CSV
@@ -586,7 +684,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -597,15 +697,25 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        const donorName = record['捐贈者姓名'];
-        const donorPhone = record['電話'];
-        const supplyItems = record['物資項目'];
+      for (const record of records as any[]) {
+        // 支援兩種格式：範本格式（含必填標記）和匯出格式（無標記）
+        const recordId = record['ID'];
+        const gridCode = record['網格代碼（必填）'] || record['網格代碼'];
+        const supplyName = record['物資名稱（必填）'] || record['物資名稱'] || '';
         const quantity = parseInt(record['數量'] || '1');
-        const gridCode = record['網格代碼'];
+        const unit = record['單位'] || '';
+        const donorName = record['捐贈者姓名（必填）'] || record['捐贈者姓名'] || '';
+        const donorPhone = record['聯絡電話（必填）'] || record['聯絡電話'] || '';
+        const donorEmail = record['Email'] || '';
+        const deliveryMethod = record['配送方式'] || '';
+        const deliveryAddress = record['送達地址'] || '';
+        const deliveryTime = record['預計送達時間'] || '';
+        const notes = record['備註'] || '';
+        const status = record['狀態'] || 'pending';
 
-        if (!donorName || !gridCode || !supplyItems) {
-          errors.push(`Missing required fields in row: ${JSON.stringify(record)}`);
+        // 只驗證網格代碼為必填，允許物資名稱和捐贈者姓名為空
+        if (!gridCode) {
+          errors.push(`Missing required field (網格代碼) in row: ${JSON.stringify(record)}`);
           continue;
         }
 
@@ -620,12 +730,58 @@ export function registerCSVRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const donationId = `donation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // 如果有 ID，嘗試更新現有記錄
+        if (recordId) {
+          const { rows: existing } = await app.db.query(
+            'SELECT id FROM supply_donations WHERE id = $1',
+            [recordId]
+          );
+
+          if (existing.length > 0) {
+            // 更新現有記錄
+            await app.db.query(
+              `UPDATE supply_donations SET
+                grid_id = $1, supply_name = $2, quantity = $3, unit = $4,
+                donor_name = $5, donor_phone = $6, donor_email = $7,
+                delivery_method = $8, delivery_address = $9, delivery_time = $10,
+                notes = $11, status = $12
+              WHERE id = $13`,
+              [grids[0].id, supplyName, quantity, unit,
+               donorName, donorPhone, donorEmail,
+               deliveryMethod, deliveryAddress, deliveryTime,
+               notes, status, recordId]
+            );
+            imported++;
+            continue;
+          }
+        }
+
+        // Check for duplicates (基於捐贈者電話、物資名稱和網格)
+        // 只有當電話和物資名稱都不為空時才檢查重複
+        if (body.skipDuplicates && donorPhone && supplyName) {
+          const { rows: existing } = await app.db.query(
+            'SELECT id FROM supply_donations WHERE donor_phone = $1 AND supply_name = $2 AND grid_id = $3',
+            [donorPhone, supplyName, grids[0].id]
+          );
+          if (existing.length > 0) {
+            skipped++;
+            continue;
+          }
+        }
+
+        // 創建新記錄（使用 CSV 中的 ID 或生成新的）
+        const donationId = recordId || `donation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await app.db.query(
           `INSERT INTO supply_donations (
-            id, grid_id, donor_name, donor_phone, supply_items, quantity, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
-          [donationId, grids[0].id, donorName, donorPhone, supplyItems, quantity]
+            id, grid_id, supply_name, quantity, unit,
+            donor_name, donor_phone, donor_email,
+            delivery_method, delivery_address, delivery_time,
+            notes, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [donationId, grids[0].id, supplyName, quantity, unit,
+           donorName, donorPhone, donorEmail,
+           deliveryMethod, deliveryAddress, deliveryTime,
+           notes, status]
         );
 
         imported++;
@@ -637,6 +793,27 @@ export function registerCSVRoutes(app: FastifyInstance) {
       app.log.error({ err }, '[csv] Failed to import supplies');
       return reply.status(500).send({ message: 'Failed to import supplies', error: err.message });
     }
+  });
+
+  // Export CSV template for users
+  app.get('/csv/template/users', { preHandler: requirePermission('users', 'manage') }, async (req, reply) => {
+    const template = stringify([{
+      name: '王小明',
+      email: 'user@example.com',
+      role: 'user'
+    }], {
+      header: true,
+      columns: {
+        name: '姓名（必填）',
+        email: 'Email',
+        role: '角色（user/admin/moderator）'
+      }
+    });
+
+    const templateWithBOM = '\uFEFF' + template;
+    reply.type('text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="users_template.csv"');
+    return templateWithBOM;
   });
 
   // Export users to CSV
@@ -653,13 +830,19 @@ export function registerCSVRoutes(app: FastifyInstance) {
         ORDER BY created_at DESC`
       );
 
-      const csv = stringify(rows, {
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at)
+      }));
+
+      const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
-          name: '姓名',
+          name: '姓名（必填）',
           email: 'Email',
-          role: '角色',
+          role: '角色（user/admin/moderator）',
           is_blacklisted: '黑名單',
           created_at: '註冊時間'
         }
@@ -688,7 +871,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -699,18 +884,20 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        const name = record['姓名'];
-        const email = record['Email'];
-        const role = record['角色'] || 'user';
+      for (const record of records as any[]) {
+        const name = record['姓名（必填）'] || record['姓名'];
+        // Email 改為選填（支援 LINE 登入用戶沒有 Email）
+        const email = record['Email（必填）'] || record['Email'] || null;
+        const role = record['角色（user/admin/moderator）'] || record['角色'] || 'user';
 
-        if (!name || !email) {
-          errors.push(`Missing required fields in row: ${JSON.stringify(record)}`);
+        // 只驗證姓名為必填
+        if (!name) {
+          errors.push(`缺少必填欄位（姓名）: ${JSON.stringify(record)}`);
           continue;
         }
 
-        // Check for duplicates
-        if (body.skipDuplicates) {
+        // Check for duplicates - 如果有 email，基於 email 檢查；否則跳過重複檢查
+        if (body.skipDuplicates && email) {
           const { rows: existing } = await app.db.query(
             'SELECT id FROM users WHERE email = $1',
             [email]
@@ -738,6 +925,23 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Export CSV template for blacklist
+  app.get('/csv/template/blacklist', { preHandler: requirePermission('blacklist', 'manage') }, async (req, reply) => {
+    const template = stringify([{
+      email: 'blacklisted@example.com'
+    }], {
+      header: true,
+      columns: {
+        email: 'Email（必填）'
+      }
+    });
+
+    const templateWithBOM = '\uFEFF' + template;
+    reply.type('text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="blacklist_template.csv"');
+    return templateWithBOM;
+  });
+
   // Export blacklisted users to CSV
   app.get('/csv/export/blacklist', { preHandler: requirePermission('blacklist', 'manage') }, async (req, reply) => {
     if (!app.hasDecorator('db')) {
@@ -753,12 +957,18 @@ export function registerCSVRoutes(app: FastifyInstance) {
         ORDER BY created_at DESC`
       );
 
-      const csv = stringify(rows, {
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at)
+      }));
+
+      const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
           name: '姓名',
-          email: 'Email',
+          email: 'Email（必填）',
           role: '角色',
           created_at: '加入黑名單時間'
         }
@@ -787,7 +997,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -798,8 +1010,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        const email = record['Email'];
+      for (const record of records as any[]) {
+        const email = record['Email（必填）'] || record['Email'];
 
         if (!email) {
           errors.push(`Missing email in row: ${JSON.stringify(record)}`);
@@ -839,6 +1051,29 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Export CSV template for announcements
+  app.get('/csv/template/announcements', { preHandler: requirePermission('announcements', 'manage') }, async (req, reply) => {
+    const template = stringify([{
+      title: '緊急公告',
+      body: '公告內容',
+      priority: 'normal',
+      status: 'active'
+    }], {
+      header: true,
+      columns: {
+        title: '標題（必填）',
+        body: '內容',
+        priority: '優先級（low/normal/high）',
+        status: '狀態（active/inactive）'
+      }
+    });
+
+    const templateWithBOM = '\uFEFF' + template;
+    reply.type('text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="announcements_template.csv"');
+    return templateWithBOM;
+  });
+
   // Export announcements to CSV
   app.get('/csv/export/announcements', { preHandler: requirePermission('announcements', 'manage') }, async (req, reply) => {
     if (!app.hasDecorator('db')) {
@@ -848,8 +1083,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          id, title, body, priority, status, created_at, updated_at
+          id, title, body, priority, status, created_at, updated_date
         FROM announcements
+        WHERE status != 'deleted'
         ORDER BY created_at DESC`
       );
 
@@ -857,7 +1093,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
       const formattedRows = rows.map(row => ({
         ...row,
         created_at: formatDateTime(row.created_at),
-        updated_at: formatDateTime(row.updated_at)
+        updated_at: formatDateTime(row.updated_date)
       }));
 
       const csv = stringify(formattedRows, {
@@ -871,20 +1107,6 @@ export function registerCSVRoutes(app: FastifyInstance) {
           created_at: '建立時間',
           updated_at: '更新時間'
         }
-      });
-
-      // 記錄審計日誌
-      await createAdminAuditLog(app, {
-        user_id: req.user?.id,
-        user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `匯出 ${rows.length} 筆公告資料為 CSV`,
-        action_type: 'export',
-        resource_type: 'announcement',
-        details: { count: rows.length },
-        ip_address: req.ip,
-        user_agent: req.headers['user-agent']
       });
 
       const csvWithBOM = '\uFEFF' + csv;
@@ -910,7 +1132,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     try {
-      const records = parse(body.csv, {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -922,11 +1146,11 @@ export function registerCSVRoutes(app: FastifyInstance) {
       const errors: { row: number; error: string }[] = [];
 
       for (let i = 0; i < records.length; i++) {
-        const record = records[i];
-        const title = record['標題'];
+        const record = (records as any[])[i];
+        const title = record['標題（必填）'] || record['標題'];
         const body = record['內容'] || '';
-        const priority = record['優先級'] || 'normal';
-        const status = record['狀態'] || 'active';
+        const priority = record['優先級（low/normal/high）'] || record['優先級'] || 'normal';
+        const status = record['狀態（active/inactive）'] || record['狀態'] || 'active';
 
         if (!title) {
           errors.push({ row: i + 2, error: '缺少必填欄位：標題' });
@@ -967,20 +1191,6 @@ export function registerCSVRoutes(app: FastifyInstance) {
         imported++;
       }
 
-      // 記錄審計日誌
-      await createAdminAuditLog(app, {
-        user_id: req.user?.id,
-        user_role: req.user?.role || 'unknown',
-        line_id: req.user?.id,
-        line_name: req.user?.name,
-        action: `匯入 ${imported} 筆公告資料（略過 ${skipped} 筆）`,
-        action_type: 'import',
-        resource_type: 'announcement',
-        details: { imported, skipped, errors: errors.length },
-        ip_address: req.ip,
-        user_agent: req.headers['user-agent']
-      });
-
       app.log.info(`[csv] Announcements import completed: ${imported} imported, ${skipped} skipped`);
       return {
         success: true,
@@ -992,6 +1202,147 @@ export function registerCSVRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error({ err }, '[csv] Failed to import announcements');
       return reply.status(500).send({ message: 'Failed to import announcements', error: err.message });
+    }
+  });
+
+  // ==================== 垃圾桶災區 CSV 匯出/匯入 ====================
+
+  // Export trash disaster areas to CSV
+  app.get('/csv/export/trash-areas', { preHandler: requirePermission('disaster_areas', 'manage') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    try {
+      const { rows } = await app.db.query(
+        `SELECT
+          id, name, county, township, description, status,
+          center_lat, center_lng, created_at, deleted_at
+        FROM disaster_areas
+        WHERE status = 'deleted'
+        ORDER BY deleted_at DESC`
+      );
+
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at),
+        deleted_at: formatDateTime(row.deleted_at)
+      }));
+
+      const csv = stringify(formattedRows, {
+        header: true,
+        columns: {
+          id: 'ID',
+          name: '災區名稱',
+          county: '縣市',
+          township: '鄉鎮區',
+          description: '描述',
+          status: '狀態',
+          center_lat: '緯度',
+          center_lng: '經度',
+          created_at: '建立時間',
+          deleted_at: '刪除時間'
+        }
+      });
+
+      const csvWithBOM = '\uFEFF' + csv;
+      reply.type('text/csv; charset=utf-8');
+      reply.header('Content-Disposition', 'attachment; filename="trash_areas_export.csv"');
+      return csvWithBOM;
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to export trash disaster areas');
+      return reply.status(500).send({ message: 'Failed to export trash disaster areas' });
+    }
+  });
+
+  // Import trash disaster areas from CSV
+  app.post('/csv/import/trash-areas', { preHandler: requirePermission('disaster_areas', 'manage') }, async (req: FastifyRequest, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const body = req.body as { csv: string; skipDuplicates?: boolean };
+    const csvData = body.csv;
+    const skipDuplicates = body.skipDuplicates !== false;
+
+    if (!csvData || typeof csvData !== 'string') {
+      return reply.status(400).send({ message: 'Invalid CSV data' });
+    }
+
+    try {
+      // 移除 BOM 字符
+      const cleanedCsv = removeBOM(csvData);
+
+      const records = await new Promise<any[]>((resolve, reject) => {
+        parse(cleanedCsv, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true
+        }, (err, output) => {
+          if (err) reject(err);
+          else resolve(output);
+        });
+      });
+
+      app.log.info(`[csv] Parsed ${records.length} trash area records`);
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const record of records) {
+        const name = record['災區名稱'] || record['災區名稱（必填）'] || '';
+        const county = record['縣市'] || record['縣市（必填）'] || '';
+        const township = record['鄉鎮區'] || record['鄉鎮區（必填）'] || '';
+        const description = record['描述'] || '';
+        const centerLat = parseFloat(record['緯度'] || record['緯度（必填）']);
+        const centerLng = parseFloat(record['經度'] || record['經度（必填）']);
+
+        // 驗證必填欄位
+        if (!name || isNaN(centerLat) || isNaN(centerLng)) {
+          errors.push(`缺少必填欄位（災區名稱、緯度、經度）: ${JSON.stringify(record)}`);
+          continue;
+        }
+
+        // 檢查是否已存在（使用名稱和座標）
+        const { rows: existing } = await app.db.query(
+          `SELECT id FROM disaster_areas
+           WHERE name = $1 AND center_lat = $2 AND center_lng = $3 AND status = 'deleted'`,
+          [name, centerLat, centerLng]
+        );
+
+        if (existing.length > 0 && skipDuplicates) {
+          skipped++;
+          continue;
+        }
+
+        // 如果不存在，插入新的垃圾桶災區
+        if (existing.length === 0) {
+          const areaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await app.db.query(
+            `INSERT INTO disaster_areas
+             (id, name, county, township, description, status, center_lat, center_lng, created_at, deleted_at)
+             VALUES ($1, $2, $3, $4, $5, 'deleted', $6, $7, NOW(), NOW())`,
+            [areaId, name, county, township, description, centerLat, centerLng]
+          );
+          imported++;
+        } else {
+          skipped++;
+        }
+      }
+
+      app.log.info(`[csv] Trash areas import completed: ${imported} imported, ${skipped} skipped`);
+      return {
+        success: true,
+        message: `匯入完成：成功 ${imported} 筆，略過 ${skipped} 筆`,
+        imported,
+        skipped,
+        errors: errors.length > 0 ? errors : undefined
+      };
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to import trash disaster areas');
+      return reply.status(500).send({ message: 'Failed to import trash disaster areas', error: err.message });
     }
   });
 }

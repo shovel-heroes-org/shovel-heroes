@@ -58,9 +58,19 @@ const TRASH_PERMISSION_ACTIONS = [
   { key: 'can_delete', label: '刪除(永久)' }
 ];
 
+// 隱私管理權限只顯示：檢視
+const PRIVACY_PERMISSION_ACTIONS = [
+  { key: 'can_view', label: '檢視' }
+];
+
 // 判斷是否為垃圾桶權限
 const isTrashPermission = (permissionKey) => {
   return permissionKey?.startsWith('trash_');
+};
+
+// 判斷是否為隱私管理權限
+const isPrivacyPermission = (permissionCategory) => {
+  return permissionCategory === '隱私管理';
 };
 
 // 權限項目與管理後台頁籤的對應關係
@@ -78,6 +88,10 @@ const PERMISSION_TAB_MAP = {
   'trash_areas': { tab: 'areas', label: '災區管理（垃圾桶）' },
   'trash_announcements': { tab: 'announcements', label: '公告管理（垃圾桶）' },
   'admin_panel': { tab: 'grids', label: '需求管理' }, // 後台訪問導向需求管理
+  // 隱私管理權限對應頁面
+  'view_volunteer_contact': { path: '/Volunteers', label: '志工管理中心' },
+  'view_donor_contact': { path: '/Supplies', label: '物資管理中心' },
+  'view_grid_contact': { path: '/Map', label: '地圖（網格聯絡資訊）' },
 };
 
 export default function PermissionManagement() {
@@ -89,7 +103,15 @@ export default function PermissionManagement() {
   const [saving, setSaving] = useState(false);
   const [changes, setChanges] = useState({});
   const [message, setMessage] = useState(null);
-  const [expandedCategories, setExpandedCategories] = useState({});
+  const [expandedCategories, setExpandedCategories] = useState(() => {
+    // 從 localStorage 讀取上次展開的分類
+    try {
+      const saved = localStorage.getItem('permission-expanded-categories');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -97,6 +119,15 @@ export default function PermissionManagement() {
   useEffect(() => {
     loadPermissions();
   }, []);
+
+  // 當展開狀態變更時，儲存到 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('permission-expanded-categories', JSON.stringify(expandedCategories));
+    } catch (error) {
+      console.error('儲存展開狀態失敗:', error);
+    }
+  }, [expandedCategories]);
 
   // 根據選擇的角色過濾權限
   useEffect(() => {
@@ -241,13 +272,20 @@ export default function PermissionManagement() {
     setExpandedCategories({});
   };
 
-  // 導航到對應的管理後台頁籤
+  // 導航到對應的管理後台頁籤或獨立頁面
   const handleNavigateToTab = (permissionKey) => {
     console.log('導航權限 key:', permissionKey);
     const mapping = PERMISSION_TAB_MAP[permissionKey];
     console.log('對應的 mapping:', mapping);
     if (mapping) {
-      const targetUrl = `/admin?tab=${mapping.tab}`;
+      let targetUrl;
+      if (mapping.path) {
+        // 隱私權限：直接導航到獨立頁面
+        targetUrl = mapping.path;
+      } else if (mapping.tab) {
+        // 一般權限：導航到管理後台的特定頁籤
+        targetUrl = `/admin?tab=${mapping.tab}`;
+      }
       console.log('導航到:', targetUrl);
       navigate(targetUrl);
       // 滾動到頁面頂部
@@ -462,10 +500,20 @@ export default function PermissionManagement() {
                           <TableHead className="w-48">權限項目</TableHead>
                           <TableHead>說明</TableHead>
                           {(() => {
-                            // 檢查此分類是否全部都是垃圾桶權限
+                            // 檢查此分類的權限類型，決定顯示哪些操作欄位
                             const allPerms = Object.values(roleGroups).flat();
                             const isAllTrash = allPerms.every(p => isTrashPermission(p.permission_key));
-                            const actions = isAllTrash ? TRASH_PERMISSION_ACTIONS : PERMISSION_ACTIONS;
+                            const isAllPrivacy = allPerms.every(p => isPrivacyPermission(p.permission_category));
+
+                            let actions;
+                            if (isAllPrivacy) {
+                              actions = PRIVACY_PERMISSION_ACTIONS; // 隱私管理只顯示「檢視」
+                            } else if (isAllTrash) {
+                              actions = TRASH_PERMISSION_ACTIONS; // 垃圾桶顯示特定欄位
+                            } else {
+                              actions = PERMISSION_ACTIONS; // 其他顯示全部欄位
+                            }
+
                             return actions.map(action => (
                               <TableHead key={action.key} className="text-center w-24">
                                 {action.label}
@@ -478,9 +526,18 @@ export default function PermissionManagement() {
                       <TableBody>
                         {Object.entries(roleGroups).map(([role, perms]) =>
                           perms.map((perm, idx) => {
-                            // 根據該權限是否為垃圾桶權限決定顯示的欄位
+                            // 根據該權限的類型決定顯示的欄位
                             const isTrash = isTrashPermission(perm.permission_key);
-                            const actions = isTrash ? TRASH_PERMISSION_ACTIONS : PERMISSION_ACTIONS;
+                            const isPrivacy = isPrivacyPermission(perm.permission_category);
+
+                            let actions;
+                            if (isPrivacy) {
+                              actions = PRIVACY_PERMISSION_ACTIONS; // 隱私管理只顯示「檢視」
+                            } else if (isTrash) {
+                              actions = TRASH_PERMISSION_ACTIONS; // 垃圾桶顯示特定欄位
+                            } else {
+                              actions = PERMISSION_ACTIONS; // 其他顯示全部欄位
+                            }
 
                             return (
                               <TableRow key={perm.id}>

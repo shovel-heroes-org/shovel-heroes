@@ -24,6 +24,7 @@ import {
   ArrowDown,
   RotateCcw,
   XCircle,
+  CheckCircle2,
 } from "lucide-react";
 import AnnouncementModal from "@/components/map/AnnouncementModal";
 import AnnouncementImportExportButtons from "@/components/admin/AnnouncementImportExportButtons";
@@ -51,7 +52,16 @@ export default function AnnouncementManagement() {
   const [trashAnnouncements, setTrashAnnouncements] = useState([]);
   const [isTrashView, setIsTrashView] = useState(false);
 
+  // 訊息提示狀態
+  const [message, setMessage] = useState(null);
+
   const { canCreate, canEdit, canDelete, canView } = usePermission();
+
+  // 訊息提示函數
+  const showMessage = (text, type = 'info') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   useEffect(() => {
     loadAnnouncements();
@@ -75,10 +85,16 @@ export default function AnnouncementManagement() {
 
   const loadTrashAnnouncements = async () => {
     try {
-      const data = await getTrashAnnouncements();
-      setTrashAnnouncements(data || []);
+      const response = await getTrashAnnouncements();
+      const data = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+        ? response
+        : [];
+      setTrashAnnouncements(data);
     } catch (error) {
       console.error("載入垃圾桶公告失敗:", error);
+      setTrashAnnouncements([]);
     }
   };
 
@@ -271,6 +287,18 @@ export default function AnnouncementManagement() {
 
   return (
     <div className="space-y-4">
+      {/* 訊息提示 */}
+      {message && (
+        <div className={`p-4 rounded-lg flex items-center gap-2 ${
+          message.type === 'success' ? 'bg-green-50 text-green-800' :
+          message.type === 'error' ? 'bg-red-50 text-red-800' :
+          message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+          'bg-blue-50 text-blue-800'
+        }`}>
+          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+          {message.text}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -284,7 +312,7 @@ export default function AnnouncementManagement() {
               </p>
             </div>
             <div className="flex gap-2">
-              <AnnouncementImportExportButtons onImportSuccess={loadAnnouncements} />
+              <AnnouncementImportExportButtons onImportSuccess={loadAnnouncements} showMessage={showMessage} />
               {canCreate('announcements') && (
                 <Button onClick={handleAdd}>
                   <Plus className="w-4 h-4 mr-2" />

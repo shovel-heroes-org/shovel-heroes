@@ -7,7 +7,7 @@ import {
   importSuppliesFromCSV
 } from '@/api/admin';
 
-export default function SupplyImportExportButtons({ onImportSuccess }) {
+export default function SupplyImportExportButtons({ onImportSuccess, showMessage }) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -15,10 +15,12 @@ export default function SupplyImportExportButtons({ onImportSuccess }) {
     setExporting(true);
     try {
       await exportSuppliesToCSV();
-      alert('物資資料匯出成功！');
+      const message = '物資資料匯出成功！';
+      showMessage ? showMessage(message, 'success') : alert(message);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('匯出失敗，請稍後再試。');
+      const message = '匯出失敗，請稍後再試。';
+      showMessage ? showMessage(message, 'error') : alert(message);
     } finally {
       setExporting(false);
     }
@@ -37,21 +39,21 @@ export default function SupplyImportExportButtons({ onImportSuccess }) {
         const result = await importSuppliesFromCSV(csvContent, true);
 
         if (result.imported > 0 || result.skipped > 0) {
-          let message = `匯入完成！\n成功：${result.imported} 筆\n跳過：${result.skipped} 筆`;
+          const message = `匯入完成！成功：${result.imported} 筆，跳過：${result.skipped} 筆，錯誤：${result.errors?.length || 0} 筆`;
           if (result.errors && result.errors.length > 0) {
-            message += `\n\n錯誤：\n${result.errors.slice(0, 5).join('\n')}`;
-            if (result.errors.length > 5) {
-              message += `\n... 還有 ${result.errors.length - 5} 個錯誤`;
-            }
+            showMessage ? showMessage(message, 'warning') : alert(message);
+          } else {
+            showMessage ? showMessage(message, 'success') : alert(message);
           }
-          alert(message);
           onImportSuccess && onImportSuccess();
         } else {
-          alert('匯入失敗：沒有成功匯入任何資料');
+          const message = '匯入失敗：沒有成功匯入任何資料';
+          showMessage ? showMessage(message, 'error') : alert(message);
         }
       } catch (error) {
         console.error('Import failed:', error);
-        alert(`匯入失敗：${error.message || '請檢查檔案格式或網路連線'}`);
+        const message = `匯入失敗：${error.message || '請檢查檔案格式或網路連線'}`;
+        showMessage ? showMessage(message, 'error') : alert(message);
       } finally {
         setImporting(false);
         event.target.value = '';
@@ -73,7 +75,7 @@ export default function SupplyImportExportButtons({ onImportSuccess }) {
         {exporting ? '匯出中...' : '匯出CSV'}
       </Button>
 
-      <div className="relative inline-block">
+      <label htmlFor="supply-csv-importer" className="relative inline-block cursor-pointer">
         <Input
           type="file"
           accept=".csv"
@@ -86,14 +88,12 @@ export default function SupplyImportExportButtons({ onImportSuccess }) {
           size="sm"
           variant="outline"
           disabled={importing}
-          as="label"
-          htmlFor="supply-csv-importer"
-          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer"
+          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer pointer-events-none"
         >
           <Upload className="w-4 h-4 mr-2" />
           {importing ? '匯入中...' : '匯入CSV'}
         </Button>
-      </div>
+      </label>
     </div>
   );
 }

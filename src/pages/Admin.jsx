@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { User, DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
@@ -155,6 +155,9 @@ export default function AdminPage() {
   const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
   const [isAnnouncementTrashView, setIsAnnouncementTrashView] = useState(false);
 
+  // 訊息提示狀態
+  const [message, setMessage] = useState(null);
+
   // 黑名單用戶相關狀態
   const [blacklistedUsers, setBlacklistedUsers] = useState([]);
   const [selectedBlacklistUsers, setSelectedBlacklistUsers] = useState([]);
@@ -189,30 +192,36 @@ export default function AdminPage() {
     return null; // 沒有任何權限
   }, [canView]);
 
-  // 從 URL 參數讀取 tab，如果沒有則使用預設值
-  const urlTab = searchParams.get('tab');
-  const [currentTab, setCurrentTab] = useState(urlTab || getDefaultTab());
+  // 從 URL 參數讀取 tab，使用 useMemo 避免不必要的計算
+  const urlTab = useMemo(() => searchParams.get('tab'), [searchParams]);
+  const [currentTab, setCurrentTab] = useState(() => urlTab || 'grids');
+
+  // 處理 Tab 切換（優化：使用 useCallback 避免重新創建函數）
+  const handleTabChange = useCallback((newTab) => {
+    if (newTab === currentTab) return; // 避免重複切換
+    setCurrentTab(newTab);
+    setSearchParams({ tab: newTab }, { replace: true });
+  }, [currentTab, setSearchParams]);
+
+  // 初始化時設定預設 tab（只執行一次）
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    if (!urlTab) {
+      const defaultTab = getDefaultTab();
+      if (defaultTab && defaultTab !== currentTab) {
+        setCurrentTab(defaultTab);
+        setSearchParams({ tab: defaultTab }, { replace: true });
+      }
+    }
+  }, []); // 空依賴陣列，只在初始化時執行一次
 
   // 當 URL 參數變更時，同步更新 currentTab
   useEffect(() => {
     const newTab = searchParams.get('tab');
-    if (newTab) {
-      console.log('URL tab 參數變更:', newTab);
+    if (newTab && newTab !== currentTab) {
       setCurrentTab(newTab);
     }
-  }, [searchParams]);
-
-  // 確保 URL 與 currentTab 同步 - 如果 URL 沒有 tab 參數，則加入預設值
-  useEffect(() => {
-    const urlTab = searchParams.get('tab');
-    const defaultTab = getDefaultTab();
-
-    // 如果 URL 沒有 tab 參數且有預設 tab，則更新 URL
-    if (!urlTab && defaultTab && currentTab) {
-      console.log('設定預設 tab 到 URL:', currentTab);
-      setSearchParams({ tab: currentTab }, { replace: true });
-    }
-  }, [currentTab, searchParams, setSearchParams, getDefaultTab]);
+  }, [urlTab]); // 只監聽 urlTab（useMemo 的結果），避免不必要的重渲染
 
   // 移除自動跳轉邏輯，讓使用者停留在當前頁籤
   // 即使沒有權限，也會顯示「無權限訪問」訊息
@@ -222,7 +231,7 @@ export default function AdminPage() {
       setLoading(true);
 
       // Use safe backend API to get user list
-      const [areasData, gridsData, registrationsData, donationsData, usersResponse] = await Promise.all([
+      const [areasData, gridsData, registrationsResponse, donationsResponse, usersResponse] = await Promise.all([
         DisasterArea.list(),
         Grid.list(),
         VolunteerRegistration.list(),
@@ -233,8 +242,12 @@ export default function AdminPage() {
       // Ensure data is always an array to prevent iteration errors
       setDisasterAreas(areasData || []);
       setGrids(gridsData || []);
-      setRegistrations(registrationsData || []);
-      setDonations(donationsData || []);
+      // Handle volunteer registrations response which returns { data: [], can_view_phone: boolean }
+      const registrationsData = Array.isArray(registrationsResponse) ? registrationsResponse : (registrationsResponse?.data || []);
+      setRegistrations(registrationsData);
+      // Handle supply donations response which returns { data: [], can_view_phone: boolean }
+      const donationsData = Array.isArray(donationsResponse) ? donationsResponse : (donationsResponse?.data || []);
+      setDonations(donationsData);
 
       // Normalize /users response: backend currently returns a plain array (no wrapper)
       const normalizedUsers = Array.isArray(usersResponse)
@@ -325,9 +338,11 @@ export default function AdminPage() {
 
   // user 來自 AuthContext，已集中管理，這裡不再自行抓取
 
+  // 只在初次載入時載入資料，不要在每次 tab 切換時重新載入
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 空依賴陣列，只在 mount 時執行一次
 
   const handleAreaSettings = (area) => {
     setEditingArea(area);
@@ -622,16 +637,29 @@ export default function AdminPage() {
     }
   }, [currentTab, canView, loadAuditLogs]);
 
+  // 當切換到黑名單分頁時載入黑名單用戶
+  useEffect(() => {
+    if (currentTab === 'blacklist' && canView('blacklist')) {
+      loadBlacklistedUsers();
+    }
+  }, [currentTab, canView]);
+
+  // 訊息提示函數
+  const showMessage = (text, type = 'info') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const handleExportAuditLogs = async () => {
     try {
       const params = Object.fromEntries(
         Object.entries(auditLogsFilters).filter(([k, v]) => k !== 'limit' && v !== '')
       );
       await exportAuditLogsToCSV(params);
-      alert('審計日誌匯出成功！');
+      showMessage('審計日誌匯出成功！', 'success');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('匯出失敗，請稍後再試。');
+      showMessage('匯出失敗，請稍後再試。', 'error');
     }
   };
 
@@ -1073,7 +1101,7 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           {canView('disaster_areas') && (
             <TabsTrigger value="areas">災區管理</TabsTrigger>
@@ -1115,16 +1143,33 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>災區管理</CardTitle>
               <div className="flex items-center gap-3">
-                {canManage('grids') && !isAreaTrashView && (
-                  <AreaImportExportButtons onImportSuccess={loadData} />
+                {canManage('grids') && (
+                  <AreaImportExportButtons
+                    onImportSuccess={loadData}
+                    showMessage={showMessage}
+                    isTrashView={isAreaTrashView}
+                  />
                 )}
                 {!isAreaTrashView && canCreate('disaster_areas') && (
                   <Button
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
                     onClick={() => setShowNewAreaModal(true)}
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -1364,6 +1409,7 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+          </>
           )}
         </TabsContent>
 
@@ -1378,18 +1424,30 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>地區需求調整</CardTitle>
               <div className="flex items-center gap-3">
                 {canManage('grids') && (
-                  <GridImportExportButtons onImportSuccess={loadData} />
+                  <GridImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
                 )}
-                {/* 保留原有的新增網格按鈕，但改為較小的樣式 */}
+                {/* 保留原有的新增網格按鈕，改為與公告管理相同的樣式 */}
                 <Button
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={() => setShowNewGridModal(true)}
-                  size="sm"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   新增網格
@@ -1414,9 +1472,21 @@ export default function AdminPage() {
                     <Button
                       size="sm"
                       variant={isTrashView ? 'default' : 'outline'}
-                      onClick={() => {
+                      onClick={async () => {
                         setIsTrashView(true);
                         setSelectedGrids([]);
+                        // 切換到垃圾桶時重新載入垃圾桶資料
+                        try {
+                          const trashResponse = await getTrashGrids();
+                          const trashData = Array.isArray(trashResponse?.data)
+                            ? trashResponse.data
+                            : Array.isArray(trashResponse)
+                            ? trashResponse
+                            : [];
+                          setTrashGrids(trashData);
+                        } catch (error) {
+                          console.error('Failed to load trash grids:', error);
+                        }
                       }}
                       className={isTrashView ? 'bg-red-600 hover:bg-red-700' : ''}
                     >
@@ -1651,6 +1721,7 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+          </>
           )}
         </TabsContent>
 
@@ -1665,11 +1736,24 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>志工管理</CardTitle>
               {canManage('volunteers') && (
-                <VolunteerImportExportButtons onImportSuccess={loadData} />
+                <VolunteerImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
               )}
             </CardHeader>
             <CardContent>
@@ -1734,6 +1818,7 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+          </>
           )}
         </TabsContent>
 
@@ -1748,11 +1833,24 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>物資管理概覽</CardTitle>
               {canManage('supplies') && (
-                <SupplyImportExportButtons onImportSuccess={loadData} />
+                <SupplyImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
               )}
             </CardHeader>
             <CardContent>
@@ -1797,6 +1895,7 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+          </>
           )}
         </TabsContent>
 
@@ -1811,7 +1910,20 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -1822,7 +1934,7 @@ export default function AdminPage() {
                     管理系統用戶的角色和權限。只有管理員（管理模式）可以變更用戶權限。
                   </p>
                 </div>
-                <UserImportExportButtons onImportSuccess={loadData} />
+                <UserImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
               </CardHeader>
               <CardContent>
                 {(adminUsers.length > 0 || allUsers.length > 0) ? (
@@ -1982,6 +2094,7 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+          </>
           )}
         </TabsContent>
 
@@ -1997,6 +2110,19 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
+            <>
+            {/* 訊息提示 */}
+            {message && (
+              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                message.type === 'success' ? 'bg-green-50 text-green-800' :
+                message.type === 'error' ? 'bg-red-50 text-red-800' :
+                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                {message.text}
+              </div>
+            )}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -2010,7 +2136,7 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} />
+                    <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
                     <Button
                       variant="outline"
                       size="sm"
@@ -2134,6 +2260,7 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+            </>
           )}
         </TabsContent>
 
@@ -2149,15 +2276,27 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-indigo-600" />
-                  日誌管理
-                </CardTitle>
-                <p className="text-sm text-gray-600 mt-2">
-                  記錄系統中所有重要操作，用於安全審計和防範有心人士。只有超級管理員可以查看審計日誌。
-                </p>
+            <>
+              {/* 訊息提示 */}
+              {message && (
+                <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+                  message.type === 'success' ? 'bg-green-50 text-green-800' :
+                  message.type === 'error' ? 'bg-red-50 text-red-800' :
+                  'bg-blue-50 text-blue-800'
+                }`}>
+                  {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                  {message.text}
+                </div>
+              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-indigo-600" />
+                    日誌管理
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 mt-2">
+                    記錄系統中所有重要操作，用於安全審計和防範有心人士。只有超級管理員可以查看審計日誌。
+                  </p>
               </CardHeader>
               <CardContent>
                 {/* 日誌類型切換 */}
@@ -2487,6 +2626,7 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+            </>
           )}
         </TabsContent>
 
