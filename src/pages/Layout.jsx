@@ -3,7 +3,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, LogIn } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
@@ -156,8 +156,8 @@ export default function Layout({ children, currentPageName }) {
                 onClick={handleNewGridClick}
                 className="bg-orange-600 hover:bg-orange-700 text-white flex items-center whitespace-nowrap"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                我要人力
+                <UserPlus className="w-4 h-4" />
+                <span className="hidden sm:inline">我要人力</span>
               </Button>
 
               {user ? (
@@ -200,11 +200,17 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> 登出</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="flex gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                      <LogOut className="w-4 h-4" /> 
+                      <span className="hidden sm:inline">登出</span>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button onClick={() => User.login()} className="bg-blue-600 hover:bg-blue-700 text-white">登入</Button>
+                <Button onClick={() => User.login()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <LogIn className="w-4 h-4" />
+                  <span className="hidden sm:inline">登入</span>
+                </Button>
               )}
 
               {/* Mobile Menu Button */}
