@@ -109,6 +109,15 @@ button:focus-visible {
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+   
+    /**
+    * 統一寬度控制變數
+    * 用於設置各個組件的最小寬度和容器寬度
+    * 方便在需要調整整體寬度時，只需修改這裡的變數值
+    * 例如：--min-content-width: 370px; --container-width:
+    */
+    --min-content-width: 370px;
+    --container-width: auto;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -153,11 +162,11 @@ button:focus-visible {
     @apply border-border outline-ring/50;
   }
   html {
-    min-width: 436px;
+    min-width: var(--min-content-width);
   }
   body {
     @apply bg-background text-foreground;
-    min-width: 436px;
+    min-width: var(--min-content-width);
   }
 }
 

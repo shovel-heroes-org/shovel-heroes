@@ -244,7 +244,7 @@ export default function SuppliesPage() {
   }
 
   return (
-    <div className="px-4 py-[1.2rem] min-w-[436px]">
+    <div className="px-4 py-[1.2rem] min-w-content">
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
