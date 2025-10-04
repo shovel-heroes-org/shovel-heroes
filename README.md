@@ -25,10 +25,11 @@ src/                     # 前端 React 原始碼
 ## 快速開始 (前端 + 後端)
 
 ```bash
-npm install                 # 安裝依賴
-docker compose up -d db     # 啟動 Postgres (背景)
-npm run dev:api             # 啟動後端 (Fastify)
-npm run dev                 # 另開終端啟動前端
+npm install                          # 安裝依賴
+docker compose up -d db              # 啟動 Postgres (背景)
+npm run dev:api                      # 啟動後端 (Fastify)
+npm run dev                          # 另開終端啟動前端
+cd packages/backend/ && npm run seed # (選擇性)為資料庫產生測試資料
 ```
 
 切換到 REST：建立 `.env` 或 `.env.local`：
