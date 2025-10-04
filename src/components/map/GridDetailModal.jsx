@@ -534,7 +534,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <h4 className="font-medium text-gray-800">目前物資需求進度</h4>
                   {grid.supplies_needed && grid.supplies_needed.length > 0 ? (
                     grid.supplies_needed.map((supply, index) => {
-                      const progress = supply.quantity > 0 ? ((supply.received || 0) / supply.quantity) * 100 : 0;
+                      const progress = supply.quantity > 0 ? Math.min(((supply.received || 0) / supply.quantity) * 100, 100) : 0;
                       const remaining = supply.quantity - (supply.received || 0);
 
                       return (
