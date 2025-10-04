@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: shovel-heroes
     app.kubernetes.io/component: backend
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -66,11 +66,11 @@ spec:
               key: api-key
         resources:
           requests:
-            cpu: 250m
-            memory: 512Mi
+            cpu: 100m
+            memory: 256Mi
           limits:
-            cpu: 1000m
-            memory: 1Gi
+            cpu: 500m
+            memory: 512Mi
         livenessProbe:
           httpGet:
             path: /healthz
