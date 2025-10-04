@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Grid, User } from '@/api/entities';
 import { Plus, Trash2 } from 'lucide-react';
+import { AskForLoginModal } from '../login/AskForLoginModal';
 
 export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grids }) {
   const [selectedGridId, setSelectedGridId] = useState('');
@@ -193,17 +194,17 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               {submitting ? '新增中...' : '確認新增'}
             </Button>
           </div>
-          {!user && (
-            <div className="text-xs text-gray-500 text-center space-y-1">
-              <p>請先登入以新增物資需求。</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => User.login()}
-              >立即登入</Button>
-            </div>
-          )}
+          
+          {/* 登入要求 Dialog */}
+          <div>       
+            <AskForLoginModal
+                open={!user}
+                onClose={onClose}
+                title="此功能需要登入。"
+                description="請先登入以新增物資需求。"
+            />
+          </div>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
