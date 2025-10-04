@@ -84,11 +84,21 @@ interface UpdateInput {
 
 export async function updateDisasterArea(app: FastifyInstance, id: string, input: UpdateInput): Promise<DisasterArea | null> {
   if (!app.hasDecorator('db')) return null;
+  // Whitelist allowed column names to prevent SQL injection.
+  // NOTE: Remember to update this list if the schema changes.
+  const ALLOWED_FIELDS = new Set([
+    'name', 'township', 'county', 'center_lat', 'center_lng',
+    'bounds', 'grid_size', 'status', 'description'
+  ]);
   const fields: string[] = [];
   const values: any[] = [];
   let i = 1;
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'undefined') continue;
+    // Validate column name against whitelist
+    if (!ALLOWED_FIELDS.has(k)) {
+      throw new Error('Invalid field name in update input.');
+    }
     fields.push(`${k}=$${i++}`);
     if (k === 'bounds') {
       values.push(v ? JSON.stringify(v) : null);
