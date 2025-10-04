@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
-import type { AuditLog } from "./audit-log.types";
-import { insertAuditLog } from "./audit-log.repo";
+import type { AuditLog } from "./audit-log.types.js";
+import { insertAuditLog } from "./audit-log.repo.js";
 
 export class AuditLogService {
   constructor(private pool: Pool) {}

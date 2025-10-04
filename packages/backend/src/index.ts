@@ -16,7 +16,7 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
-import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
+import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware.js";
 
 const app = Fastify({ logger: true });
 
