@@ -225,5 +225,15 @@ npm run build
 
 ---
 
+## 如何協作
+- 協作流程
+    1. fork專案
+    2. 查看[issue](https://github.com/shovel-heroes-org/shovel-heroes/issues)
+    3. 修改source code
+    4. 發布PR
+    5. 等待reivew
+- 社群與討論空間
+    - [Line社群](https://line.me/ti/g2/X4H7PCoUKV_kx5LN5VtfVj9qA93vNquolxCdmQ)
+
 For more information and support, please contact Base44 support at app@base44.com.
 
