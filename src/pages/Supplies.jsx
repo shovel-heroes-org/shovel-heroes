@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { SupplyDonation, Grid, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,9 @@ export default function SuppliesPage() {
     delivered: 0
   });
   const [unfulfilledRequests, setUnfulfilledRequests] = useState([]);
-  const [selectedGridForDonation, setSelectedGridForDonation] = useState(null); // 新增狀態
+  const [selectedGridForDonation, setSelectedGridForDonation] = useState(null); // 彈窗選取之網格
+  const [gridDetailTab, setGridDetailTab] = useState('supply'); // 控制 GridDetailModal 分頁 (與 URL 同步)
+  const initialQueryApplied = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -74,6 +76,25 @@ export default function SuppliesPage() {
         }
       });
       setUnfulfilledRequests(unfulfilled);
+
+      // 首次載入後解析 URL 以開啟指定 grid/tab
+      if (!initialQueryApplied.current) {
+        const params = new URLSearchParams(window.location.search);
+        const gridParam = params.get('grid');
+        const tabParam = params.get('tab');
+        if (gridParam) {
+          const found = gridsData.find(g => g.id === gridParam || g.code === gridParam);
+          if (found) {
+            setSelectedGridForDonation(found);
+            if (tabParam && ['info','volunteer','supply','discussion'].includes(tabParam)) {
+              setGridDetailTab(tabParam);
+            } else {
+              setGridDetailTab('supply');
+            }
+          }
+        }
+        initialQueryApplied.current = true;
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -164,8 +185,8 @@ export default function SuppliesPage() {
     // 找到對應的網格
     const grid = grids.find(g => g.id === request.gridId);
     if (grid) {
-      // 直接開啟該網格的詳細彈窗，並切換到物資捐贈頁籤
       setSelectedGridForDonation(grid);
+      setGridDetailTab('supply');
     } else {
       alert('找不到對應的救援網格，請稍後再試。');
     }
@@ -173,8 +194,46 @@ export default function SuppliesPage() {
 
   const handleDonationModalClose = () => {
     setSelectedGridForDonation(null);
+    setGridDetailTab('supply');
     loadData(); // 重新載入資料以更新進度
   };
+
+  // URL 同步函式
+  const syncUrl = useCallback(({ gridId, tab }) => {
+    if (!initialQueryApplied.current) return; // 避免初始階段覆寫
+    const params = new URLSearchParams(window.location.search);
+    if (gridId) params.set('grid', gridId); else params.delete('grid');
+    if (tab && tab !== 'info') params.set('tab', tab); else params.delete('tab');
+    const qs = params.toString();
+    const newUrl = `${window.location.pathname}${qs ? '?' + qs : ''}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
+  // 狀態改變時更新 URL
+  useEffect(() => {
+    syncUrl({ gridId: selectedGridForDonation?.id || null, tab: selectedGridForDonation ? gridDetailTab : null });
+  }, [selectedGridForDonation, gridDetailTab, syncUrl]);
+
+  // 監聽返回/前進
+  useEffect(() => {
+    const onPop = () => {
+      const params = new URLSearchParams(window.location.search);
+      const gridParam = params.get('grid');
+      const tabParam = params.get('tab');
+      if (gridParam) {
+        const found = grids.find(g => g.id === gridParam || g.code === gridParam);
+        if (found) {
+          setSelectedGridForDonation(found);
+          setGridDetailTab(tabParam && ['info','volunteer','supply','discussion'].includes(tabParam) ? tabParam : 'supply');
+          return;
+        }
+      }
+      setSelectedGridForDonation(null);
+      setGridDetailTab('supply');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [grids]);
 
   if (loading) {
     return (
@@ -519,7 +578,8 @@ export default function SuppliesPage() {
           grid={selectedGridForDonation}
           onClose={handleDonationModalClose}
           onUpdate={loadData}
-          defaultTab="supply" // 直接開啟物資捐贈頁籤
+          defaultTab={gridDetailTab}
+          onTabChange={setGridDetailTab}
         />
       )}
     </div>
