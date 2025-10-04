@@ -547,7 +547,7 @@ export default function MapPage() {
   };
 
   const getSupplyShortage = (supplies) => {
-    return supplies?.filter(s => s.received < s.quantity) || [];
+    return Array.isArray(supplies) ? supplies.filter(s => s.received < s.quantity) : [];
   };
 
   if (loading) {
