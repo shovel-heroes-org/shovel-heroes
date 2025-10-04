@@ -76,6 +76,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
   const [addressQuery, setAddressQuery] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || window?.__TURNSTILE_SITE_KEY__;
 
   // Load Cloudflare Turnstile script when modal opens
@@ -247,6 +248,10 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
     }
     if (turnstileSiteKey && !turnstileToken) {
       setError('請先完成機器人驗證 (Turnstile)。');
+      return;
+    }
+    if (!agreedToTerms) {
+      setError('請先同意並理解相關條款。');
       return;
     }
     
@@ -421,14 +426,28 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             {!turnstileToken && <p className="text-xs text-gray-500">請完成下方的驗證以啟用建立按鈕。</p>}
           </div>
         )}
+        
+        <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
+          <input
+            type="checkbox"
+            id="grid-terms-checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+          />
+          <label htmlFor="grid-terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
+            我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
+          </label>
+        </div>
+
         {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
         <DialogFooter className="mt-6 flex flex-col items-stretch space-y-2">
           <div className="flex justify-end gap-2 w-full">
             <Button variant="outline" onClick={onClose}>取消</Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !currentUser || (turnstileSiteKey && !turnstileToken)}
-              className={!currentUser || (turnstileSiteKey && !turnstileToken) ? 'bg-gray-400 cursor-not-allowed' : ''}
+              disabled={submitting || !currentUser || (turnstileSiteKey && !turnstileToken) || !agreedToTerms}
+              className={!currentUser || (turnstileSiteKey && !turnstileToken) || !agreedToTerms ? 'bg-gray-400 cursor-not-allowed' : ''}
             >
               {submitting ? '建立中...' : '提交需求'}
             </Button>
