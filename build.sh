@@ -117,14 +117,33 @@ fi
 # Build frontend
 if [ "$BUILD_FRONTEND" = true ]; then
   echo -e "${GREEN}📦 Building frontend image...${NC}"
+
+  # Set API base URL based on environment
+  case $ENV in
+    prod|production)
+      VITE_API_BASE="https://shovel-heroes.cc"
+      ;;
+    staging)
+      VITE_API_BASE="https://shovel-heroes.cc"
+      ;;
+    dev|development)
+      VITE_API_BASE="http://localhost:8787"
+      ;;
+    *)
+      VITE_API_BASE="https://shovel-heroes.cc"
+      ;;
+  esac
+
   docker build \
     -f Dockerfile.frontend \
+    --build-arg VITE_API_BASE=${VITE_API_BASE} \
     -t ${FRONTEND_IMAGE}:${FULL_TAG} \
     -t ${FRONTEND_IMAGE}:${ENV}-latest \
     .
   echo -e "${GREEN}✓ Frontend image built successfully${NC}"
   echo -e "  - ${FRONTEND_IMAGE}:${FULL_TAG}"
-  echo -e "  - ${FRONTEND_IMAGE}:${ENV}-latest"
+  echo -e "  - ${FRONTEND_IMAGE}:${ENV}-latest}"
+  echo -e "  - API Base: ${YELLOW}${VITE_API_BASE}${NC}"
   echo ""
 fi
 

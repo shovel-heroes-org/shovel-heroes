@@ -6,6 +6,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build-time arguments
+ARG VITE_API_BASE=https://shovel-heroes.cc
+ARG VITE_TURNSTILE_SITE_KEY
+ARG VITE_GA_MEASUREMENT_ID
+
+# Set environment variables for Vite build
+ENV VITE_API_BASE=${VITE_API_BASE}
+ENV VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}
+ENV VITE_GA_MEASUREMENT_ID=${VITE_GA_MEASUREMENT_ID}
+
 # Copy package files for dependency installation
 COPY package*.json ./
 

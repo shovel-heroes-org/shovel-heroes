@@ -54,7 +54,7 @@ spec:
             secretKeyRef:
               name: shovel-heroes-secrets
               key: database-url
-        - name: JWT_SECRET
+        - name: AUTH_JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: shovel-heroes-secrets
@@ -64,6 +64,27 @@ spec:
             secretKeyRef:
               name: shovel-heroes-secrets
               key: api-key
+        - name: LINE_CHANNEL_ID
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: line-channel-id
+        - name: LINE_CHANNEL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: line-channel-secret
+        - name: TURNSTILE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: turnstile-secret-key
+        - name: PUBLIC_BASE_URL
+          value: "https://shovel-heroes.cc"
+        - name: PUBLIC_APP_URL
+          value: "https://shovel-heroes.cc"
+        - name: LINE_REDIRECT_URI
+          value: "https://shovel-heroes.cc/auth/line/callback"
         resources:
           requests:
             cpu: 100m

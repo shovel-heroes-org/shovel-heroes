@@ -70,6 +70,7 @@ jobs:
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
         run: |
           docker build -f Dockerfile.frontend \
+            --build-arg VITE_API_BASE=https://shovel-heroes.cc \
             -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest \
             .
@@ -102,15 +103,21 @@ jobs:
             --query SecretString --output text)
 
           # Extract values
-          DATABASE_URL=$(echo $DB_SECRET | jq -r '.url')
-          JWT_SECRET=$(echo $APP_SECRET | jq -r '.jwt_secret')
-          API_KEY=$(echo $APP_SECRET | jq -r '.api_key')
+          DATABASE_URL=$(echo $DB_SECRET | jq -r '.database_url')
+          JWT_SECRET=$(echo $APP_SECRET | jq -r '.secret')
+          API_KEY="null"
+          LINE_CHANNEL_ID=$(echo $APP_SECRET | jq -r '.line_channel_id')
+          LINE_CHANNEL_SECRET=$(echo $APP_SECRET | jq -r '.line_channel_secret')
+          TURNSTILE_SECRET_KEY=$(echo $APP_SECRET | jq -r '.turnstile_secret_key')
 
           # Create Kubernetes secret
           kubectl create secret generic shovel-heroes-secrets \
             --from-literal=database-url="$DATABASE_URL" \
             --from-literal=jwt-secret="$JWT_SECRET" \
             --from-literal=api-key="$API_KEY" \
+            --from-literal=line-channel-id="$LINE_CHANNEL_ID" \
+            --from-literal=line-channel-secret="$LINE_CHANNEL_SECRET" \
+            --from-literal=turnstile-secret-key="$TURNSTILE_SECRET_KEY" \
             -n shovel-heroes \
             --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
