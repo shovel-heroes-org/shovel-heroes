@@ -22,7 +22,12 @@ const app = Fastify({ logger: true });
 
 app.get('/healthz', async () => ({ status: 'ok', db: app.hasDecorator('db') ? 'ready' : 'not-ready' }));
 
-await initDb(app);
+try {
+  await initDb(app);
+} catch (err) {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+}
 
 await app.register(swagger, {
   openapi: {
@@ -97,4 +102,7 @@ async function start() {
   process.exit(1);
 }
 
-start();
+start().catch((err) => {
+  console.error('Fatal error during startup:', err);
+  process.exit(1);
+});
