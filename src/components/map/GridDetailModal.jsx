@@ -281,7 +281,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl content-start">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -290,7 +290,6 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </div>
             <Badge
               variant={grid.status === 'completed' ? 'success' : 'secondary'}
-              className="ml-auto"
             >
               {grid.status === 'completed' ? '已完成' :
                grid.status === 'open' ? '開放中' :
@@ -299,7 +298,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <Tabs value={activeTab} onValueChange={handleTabChange} >
           <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
@@ -320,8 +319,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
               討論區
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="info" className="space-y-4">
+          {/* 132px = 48px (padding) + 84px (header) */}
+          <TabsContent value="info" className="space-y-4 h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             {/* Volunteer Status */}
             <Card>
               <CardHeader>
@@ -407,7 +406,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </TabsContent>
 
           {user && (
-          <TabsContent value="volunteer">
+          <TabsContent value="volunteer" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <Card>
               <CardHeader>
                 <CardTitle>志工報名</CardTitle>
@@ -524,7 +523,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </TabsContent>
           )}
 
-          <TabsContent value="supply">
+          <TabsContent value="supply" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <Card>
               <CardHeader>
                 <CardTitle>物資捐贈</CardTitle>
@@ -535,7 +534,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <h4 className="font-medium text-gray-800">目前物資需求進度</h4>
                   {grid.supplies_needed && grid.supplies_needed.length > 0 ? (
                     grid.supplies_needed.map((supply, index) => {
-                      const progress = supply.quantity > 0 ? ((supply.received || 0) / supply.quantity) * 100 : 0;
+                      const progress = supply.quantity > 0 ? Math.min(((supply.received || 0) / supply.quantity) * 100, 100) : 0;
                       const remaining = supply.quantity - (supply.received || 0);
 
                       return (
@@ -667,7 +666,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Card>
           </TabsContent>
 
-          <TabsContent value="discussion">
+          <TabsContent value="discussion" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <div className="space-y-4">
               {/* Post Form (top) */}
               <Card>
