@@ -37,19 +37,20 @@ RUN npm ci --workspace=packages/backend --omit=dev
 # Stage 3: Production (Distroless)
 FROM gcr.io/distroless/nodejs20-debian12:nonroot
 
-WORKDIR /app
+# Set working directory to backend package
+WORKDIR /app/packages/backend
 
 # Copy package files and dependencies
-COPY --from=deps --chown=nonroot:nonroot /app/node_modules ./node_modules
-COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/node_modules ./packages/backend/node_modules
-COPY --from=deps --chown=nonroot:nonroot /app/package.json ./package.json
-COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/package.json ./packages/backend/package.json
+COPY --from=deps --chown=nonroot:nonroot /app/node_modules /app/node_modules
+COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/node_modules ./node_modules
+COPY --from=deps --chown=nonroot:nonroot /app/package.json /app/package.json
+COPY --from=deps --chown=nonroot:nonroot /app/packages/backend/package.json ./package.json
 
 # Copy compiled backend from builder
-COPY --from=builder --chown=nonroot:nonroot /app/packages/backend/dist ./packages/backend/dist
+COPY --from=builder --chown=nonroot:nonroot /app/packages/backend/dist ./dist
 
 # Copy shared-types (if needed at runtime)
-COPY --from=builder --chown=nonroot:nonroot /app/packages/shared-types ./packages/shared-types
+COPY --from=builder --chown=nonroot:nonroot /app/packages/shared-types /app/packages/shared-types
 
 # Expose backend port
 EXPOSE 8787
@@ -57,6 +58,5 @@ EXPOSE 8787
 # Run as non-root user (already set in base image)
 USER nonroot
 
-# Run the application
-# Note: distroless nodejs image has node as entrypoint, WORKDIR is /app
-CMD ["/app/packages/backend/dist/index.js"]
+# Run the application from the backend directory
+CMD ["dist/index.js"]
