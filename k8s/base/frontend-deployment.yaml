@@ -47,6 +47,11 @@ spec:
             drop:
               - ALL
           readOnlyRootFilesystem: false
+        volumeMounts:
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: run
+          mountPath: /var/run
         livenessProbe:
           httpGet:
             path: /
@@ -63,3 +68,8 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 2
           failureThreshold: 2
+      volumes:
+      - name: cache
+        emptyDir: {}
+      - name: run
+        emptyDir: {}

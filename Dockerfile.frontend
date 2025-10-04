@@ -55,8 +55,6 @@ RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run && \
 # Expose non-privileged port
 EXPOSE 8080
 
-# Run as non-root nginx user (UID 82)
-USER nginx
-
 # Nginx runs in foreground by default
+# Note: User is set via Kubernetes securityContext (runAsUser: 82)
 CMD ["nginx", "-g", "daemon off;"]
