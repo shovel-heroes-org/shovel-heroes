@@ -219,7 +219,6 @@ paths:
       tags: [Grids]
       summary: Update grid
       security: [{ bearerAuth: [] }]
-      parameters: [ { $ref: '#/components/parameters/IdPath' } ]
       requestBody:
         required: true
         content:
@@ -689,7 +688,7 @@ components:
         delivery_address: { type: string }
         delivery_time: { type: string }
         notes: { type: string }
-      description: Only subset persisted: name, quantity, unit, donor_contact.
+      description: "Only subset persisted: name, quantity, unit, donor_contact."
 
     Announcement:
       type: object
