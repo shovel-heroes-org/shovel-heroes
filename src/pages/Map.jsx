@@ -547,7 +547,21 @@ export default function MapPage() {
   };
 
   const getSupplyShortage = (supplies) => {
-    return supplies?.filter(s => s.received < s.quantity) || [];
+    if (!supplies) return [];
+
+    if (Array.isArray(supplies)) {
+      return supplies.filter((s) => s.received < s.quantity);
+    }
+
+    if (typeof supplies === "object") {
+      return Object.entries(supplies).map(([name, quantity]) => ({
+        name,
+        quantity,
+        received: 0, // 預設為 0，因為物件格式沒有 received 資訊
+        unit: "個", // 假設單位為「個」，根據實際情況調整
+      }));
+    }
+    return [];
   };
 
   if (loading) {
