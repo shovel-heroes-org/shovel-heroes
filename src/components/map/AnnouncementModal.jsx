@@ -84,10 +84,34 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
     setSubmitting(true);
 
     try {
+      // Normalize payload to satisfy backend schema
+      const normalized = {
+        ...formData,
+        body: formData.content || "", // backend requires body
+        // order must be an integer number; omit if empty
+        order:
+          formData.order === "" || formData.order === null || typeof formData.order === "undefined"
+            ? undefined
+            : Number(formData.order),
+        external_links: (formData.external_links || [])
+          .filter((l) => l && (l.name?.trim() || l.url?.trim()))
+          .map((l) => ({ name: l.name || "", url: l.url || "" })),
+      };
+
       if (announcement) {
-        await Announcement.update(announcement.id, formData);
+        try {
+          await Announcement.update(announcement.id, normalized);
+        } catch (err) {
+          // Backend may not support PUT /announcements/:id yet; fallback to create
+          const msg = String(err?.message || '');
+          if (msg.includes(' 404') || msg.toLowerCase().includes('not found')) {
+            await Announcement.create(normalized);
+          } else {
+            throw err;
+          }
+        }
       } else {
-        await Announcement.create(formData);
+        await Announcement.create(normalized);
       }
       onClose();
     } catch (error) {
