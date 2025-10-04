@@ -1,3 +1,8 @@
+console.log('Starting backend application...');
+console.log('NODE_VERSION:', process.version);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
