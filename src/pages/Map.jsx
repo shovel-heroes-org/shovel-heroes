@@ -264,6 +264,26 @@ const MapResizer = ({ mapCollapsed }) => {
   return null;
 };
 
+const MapBoundsFitter = ({ grids }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (map && grids && grids.length > 0) {
+      try {
+        const validGrids = grids.filter(g => g.center_lat && g.center_lng);
+        if (validGrids.length > 0) {
+          const bounds = validGrids.map(g => [g.center_lat, g.center_lng]);
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+      } catch (error) {
+        console.warn('Map fitBounds error:', error);
+      }
+    }
+  }, [grids, map]);
+
+  return null;
+};
+
 export default function MapPage() {
   const [disasterAreas, setDisasterAreas] = useState([]);
   const [grids, setGrids] = useState([]);
@@ -748,6 +768,7 @@ export default function MapPage() {
               />
               <MapFlyToController target={mapFlyToTarget} />
               <MapResizer mapCollapsed={mapCollapsed} />
+              <MapBoundsFitter grids={filteredGrids} />
 
               {filteredGrids.map((grid) => (
                 <DraggableRectangle
