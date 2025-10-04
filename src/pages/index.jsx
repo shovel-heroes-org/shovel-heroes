@@ -63,9 +63,7 @@ function PagesContent() {
     return (
         <Layout currentPageName={currentPage}>
             <Routes>            
-                
-                    <Route path="/" element={<Map />} />
-                
+                <Route path="/" element={<Map />} />
                 
                 <Route path="/Map" element={<Map />} />
                 
@@ -78,6 +76,7 @@ function PagesContent() {
                 <Route path="/About" element={<About />} />
 
                 <Route path="/Privacy" element={<Privacy />} />
+
                 <Route path="/auth/line/return" element={<LineReturn />} />
                 
                 <Route path="/GridMonitor" element={<GridMonitor />} />
