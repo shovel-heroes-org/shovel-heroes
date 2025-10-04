@@ -5,9 +5,16 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "generate-schemas": "npx tsx scripts/generate-schemas.ts"
   },
   "devDependencies": {
+    "ts-to-zod": "^4.0.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.6.3"
+  },
+  "peerDependencies": {
+    "zod": "^3.24.2"
   }
 }

@@ -97,7 +97,7 @@ npm run types:openapi     # 產生 TS 型別 → packages/shared-types/src/opena
 
 引用方式：
 ```ts
-import type { components } from 'shovel-shared-types/src/openapi';
+import type { components } from 'shared-types/src/openapi';
 type Grid = components['schemas']['Grid'];
 ```
 
