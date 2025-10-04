@@ -58,4 +58,5 @@ EXPOSE 8787
 USER nonroot
 
 # Run the application
-CMD ["packages/backend/dist/index.js"]
+# Note: distroless nodejs image has node as entrypoint, WORKDIR is /app
+CMD ["/app/packages/backend/dist/index.js"]
