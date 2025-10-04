@@ -281,7 +281,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[72.5vh] content-start">
+      <DialogContent className="max-w-4xl content-start">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -298,7 +298,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="h-[calc(72.5vh-80px)]">
+        <Tabs value={activeTab} onValueChange={handleTabChange} >
           <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
@@ -319,8 +319,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
               討論區
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="info" className="space-y-4 h-[calc(72.5vh-120px)] overflow-y-auto">
+          {/* 132px = 48px (padding) + 84px (header) */}
+          <TabsContent value="info" className="space-y-4 h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             {/* Volunteer Status */}
             <Card>
               <CardHeader>
@@ -406,7 +406,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </TabsContent>
 
           {user && (
-          <TabsContent value="volunteer" className="h-[calc(72.5vh-120px)] overflow-y-auto">
+          <TabsContent value="volunteer" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <Card>
               <CardHeader>
                 <CardTitle>志工報名</CardTitle>
@@ -523,7 +523,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </TabsContent>
           )}
 
-          <TabsContent value="supply" className="h-[calc(72.5vh-120px)] overflow-y-auto">
+          <TabsContent value="supply" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <Card>
               <CardHeader>
                 <CardTitle>物資捐贈</CardTitle>
@@ -666,7 +666,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Card>
           </TabsContent>
 
-          <TabsContent value="discussion" className="h-[calc(72.5vh-120px)] overflow-y-auto">
+          <TabsContent value="discussion" className="h-[calc(100vh-132px)] sm:h-[calc(90vh-132px)] overflow-y-auto">
             <div className="space-y-4">
               {/* Post Form (top) */}
               <Card>
