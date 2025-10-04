@@ -9,6 +9,10 @@ API 規格：OpenAPI 3.1 (`api-spec/openapi.yaml`)
 2. 自建 REST Backend (`packages/backend`)：設定 `VITE_USE_REST=true`
 
 ---
+## 其他文件
+- [貢獻指南（Contributing Guide）](docs/CONTRIBUTING.md)
+- [安全政策（Security Policy）](docs/SECURITY.md)
+- [AGENTS.md](docs/AGENTS.md)
 
 ## 目錄結構概覽
 
