@@ -11,8 +11,11 @@ import {
   Phone, Calendar, Wrench, HardHat, X, Filter
 } from "lucide-react";
 import { getVolunteers } from "@/api/functions"; // New import
+import { useAuth } from '@/context/AuthContext';
+import UnauthorizedAccess from "@/components/common/UnauthorizedAccess";
 
 export default function VolunteersPage() {
+  const { user, actingRole } = useAuth();
   const [registrations, setRegistrations] = useState([]);
   const [grids, setGrids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -199,6 +202,16 @@ export default function VolunteersPage() {
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
+    );
+  }
+
+  // 權限檢查：訪客模式無法訪問志工中心
+  if (!user || actingRole === 'guest') {
+    return (
+      <UnauthorizedAccess
+        title="無權限訪問志工中心"
+        message="志工中心需要登入後才能使用。請先登入以查看和管理志工報名資訊。"
+      />
     );
   }
 

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware';
 
 const CreateSchema = z.object({
   title: z.string(),
@@ -28,18 +29,17 @@ const UpdateSchema = z.object({
 });
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
+  // 檢視公告 - 所有人都可以檢視
   app.get('/announcements', async () => {
     if (!app.hasDecorator('db')) return [];
-    const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY created_at DESC');
+    const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY "order" ASC, created_at DESC');
     return rows;
   });
-  app.post('/announcements', async (req, reply) => {
-    const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isRealAdmin = req.user?.role === 'admin';
-    if (actingRole === 'user' || !isRealAdmin) {
-      return reply.status(403).send({ message: 'Forbidden: admin only' });
-    }
+
+  // 建立公告 - 需要 create 權限
+  app.post('/announcements', {
+    preHandler: [requireAuth, requirePermission('announcements', 'create')]
+  }, async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
@@ -63,14 +63,10 @@ export function registerAnnouncementRoutes(app: FastifyInstance) {
     return reply.status(201).send(rows[0]);
   });
 
-  // Update announcement
-  app.put('/announcements/:id', async (req, reply) => {
-    const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isRealAdmin = req.user?.role === 'admin';
-    if (actingRole === 'user' || !isRealAdmin) {
-      return reply.status(403).send({ message: 'Forbidden: admin only' });
-    }
+  // 更新公告 - 需要 edit 權限
+  app.put('/announcements/:id', {
+    preHandler: [requireAuth, requirePermission('announcements', 'edit')]
+  }, async (req, reply) => {
     const parsed = UpdateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
@@ -106,14 +102,10 @@ export function registerAnnouncementRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  // Delete announcement
-  app.delete('/announcements/:id', async (req, reply) => {
-    const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isRealAdmin = req.user?.role === 'admin';
-    if (actingRole === 'user' || !isRealAdmin) {
-      return reply.status(403).send({ message: 'Forbidden: admin only' });
-    }
+  // 刪除公告 - 需要 delete 權限
+  app.delete('/announcements/:id', {
+    preHandler: [requireAuth, requirePermission('announcements', 'delete')]
+  }, async (req, reply) => {
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     const id = (req.params as any)?.id as string;
     if (!id) return reply.status(400).send({ message: 'Missing id' });

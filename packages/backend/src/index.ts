@@ -16,7 +16,7 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
-import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
+import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware.js";
 
 const app = Fastify({ logger: true });
 
@@ -45,7 +45,17 @@ registerFunctionRoutes(app);
 registerLegacyRoutes(app);
 // Auth routes (LINE)
 import { registerLineAuthRoutes } from './routes/auth-line.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { registerCSVRoutes } from './routes/csv.js';
+import { registerAuditLogRoutes } from './routes/audit-log.js';
+import { registerHttpAuditLogRoutes } from './routes/http-audit-logs.js';
+import permissionsRoutes from './routes/permissions.js';
 registerLineAuthRoutes(app);
+registerAdminRoutes(app);
+registerCSVRoutes(app);
+registerAuditLogRoutes(app);
+registerHttpAuditLogRoutes(app);
+await app.register(permissionsRoutes);
 
 // Global auth enforcement for all POST endpoints except a small allowlist.
 // Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
@@ -66,7 +76,8 @@ app.addHook('preHandler', async (req, reply) => {
   }
 });
 
-
+// HTTP 請求審計日誌中介軟體
+// 自動記錄所有 API 請求到 audit_logs 表，用於技術除錯和效能分析
 const AuditLogMiddleware = createAuditLogMiddleware(app);
 app.addHook("onRequest", AuditLogMiddleware.start);
 app.addHook("onSend", AuditLogMiddleware.onSend);

@@ -47,6 +47,23 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     // Require authentication to view any volunteer aggregated data
     if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
 
+    // 取得作用中的角色
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+
+    // 檢查基礎權限
+    const { rows: permRows } = await app.db.query(
+      `SELECT can_view, can_manage FROM role_permissions WHERE role = $1 AND permission_key = 'volunteers'`,
+      [actingRole]
+    );
+
+    const hasViewPermission = permRows.length > 0 && (permRows[0].can_view === 1 || permRows[0].can_view === true);
+    const hasManagePermission = permRows.length > 0 && (permRows[0].can_manage === 1 || permRows[0].can_manage === true);
+
+    if (!hasViewPermission) {
+      return reply.status(403).send({ message: 'Forbidden - No permission to view volunteers' });
+    }
+
     const { grid_id, status, limit = 200, offset = 0, include_counts = 'true' } = req.query as any;
 
     const conditions: string[] = [];
@@ -61,10 +78,9 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
       params.push(status);
     }
 
-    // Acting role logic: only real admin in admin mode (no X-Acting-Role=user) can see ALL volunteers.
-    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isAdminMode = req.user?.role === 'admin' && actingRole !== 'user';
+    // 資料範圍限制：只有具有 manage 權限的角色才能看到所有志工
+    // 否則只能看到自己的報名或自己管理的網格的志工
+    const isAdminMode = hasManagePermission;
     if (!isAdminMode) {
       // Restrict to: (a) registrations user created (vr.user_id) OR (b) grids created/managed by user
       // Use three bound params for clarity

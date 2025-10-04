@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { filterVolunteerPrivacy, filterVolunteersPrivacy } from '../lib/privacy-filter.js';
 
 const CreateSchema = z.object({
   grid_id: z.string(),
@@ -25,12 +26,39 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
   app.get('/volunteer-registrations', async (req) => {
     if (!app.hasDecorator('db')) return [];
     const gridId = (req.query as any)?.grid_id;
+
     if (gridId) {
-      const { rows } = await app.db.query('SELECT * FROM volunteer_registrations WHERE grid_id=$1 ORDER BY created_at DESC', [gridId]);
-      return rows;
+      // 取得志工報名資料和網格建立者資訊
+      const { rows } = await app.db.query(`
+        SELECT vr.*, g.created_by_id as grid_creator_id
+        FROM volunteer_registrations vr
+        LEFT JOIN grids g ON g.id = vr.grid_id
+        WHERE vr.grid_id = $1
+        ORDER BY vr.created_at DESC
+      `, [gridId]);
+
+      // 取得網格建立者 ID
+      const gridCreatorId = rows.length > 0 ? rows[0].grid_creator_id : undefined;
+
+      // 過濾隱私資訊
+      const filtered = filterVolunteersPrivacy(rows, req.user || null, gridCreatorId);
+      return filtered;
     }
-    const { rows } = await app.db.query('SELECT * FROM volunteer_registrations ORDER BY created_at DESC');
-    return rows;
+
+    // 取得所有志工報名（需要分別處理每個網格的隱私）
+    const { rows } = await app.db.query(`
+      SELECT vr.*, g.created_by_id as grid_creator_id
+      FROM volunteer_registrations vr
+      LEFT JOIN grids g ON g.id = vr.grid_id
+      ORDER BY vr.created_at DESC
+    `);
+
+    // 按網格分組並過濾隱私
+    const filtered = rows.map(row => {
+      return filterVolunteerPrivacy(row, req.user || null, row.grid_creator_id);
+    });
+
+    return filtered;
   });
   app.post('/volunteer-registrations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);

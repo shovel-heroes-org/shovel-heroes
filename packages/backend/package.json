@@ -17,6 +17,8 @@
     "@fastify/cors": "^9.0.1",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^1.10.2",
+    "csv-parse": "^6.1.0",
+    "csv-stringify": "^6.6.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
     "pg": "^8.13.1",

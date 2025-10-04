@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const SupplyNeedSchema = z.object({ name: z.string(), quantity: z.number(), unit: z.string(), received: z.number().optional() });
@@ -22,17 +23,87 @@ const GridCreateSchema = z.object({
   __turnstile_token: z.string().optional()
 });
 
+/**
+ * 檢查資源操作權限（結合權限系統和資源擁有權）
+ */
+async function checkResourcePermission(
+  app: FastifyInstance,
+  request: any,
+  action: 'view' | 'create' | 'edit' | 'delete',
+  gridId?: string
+): Promise<{ allowed: boolean; message?: string }> {
+  // 取得作用中的角色
+  const actingRoleHeader = (request.headers['x-acting-role'] || request.headers['X-Acting-Role']) as string | undefined;
+  const actingRole = actingRoleHeader === 'user' ? 'user' : (request.user?.role || 'user');
+
+  // 超級管理員有所有權限
+  if (actingRole === 'super_admin') {
+    return { allowed: true };
+  }
+
+  // 檢查基礎權限
+  const actionColumn = `can_${action}`;
+  const { rows: permRows } = await app.db.query(
+    `SELECT ${actionColumn} FROM role_permissions WHERE role = $1 AND permission_key = 'grids'`,
+    [actingRole]
+  );
+
+  const hasBasePermission = permRows.length > 0 && (permRows[0][actionColumn] === 1 || permRows[0][actionColumn] === true);
+
+  // 對於 edit 和 delete，需要檢查資源擁有權或 my_resources 權限
+  if ((action === 'edit' || action === 'delete') && gridId && request.user) {
+    // 取得網格資訊
+    const { rows: gridRows } = await app.db.query(
+      'SELECT created_by_id, grid_manager_id FROM grids WHERE id=$1',
+      [gridId]
+    );
+
+    if (gridRows.length === 0) {
+      return { allowed: false, message: 'Grid not found' };
+    }
+
+    const grid = gridRows[0];
+    const isOwner = grid.created_by_id === request.user.id || grid.grid_manager_id === request.user.id;
+
+    // 如果使用者是擁有者，檢查 my_resources 權限
+    if (isOwner) {
+      const { rows: myResRows } = await app.db.query(
+        `SELECT ${actionColumn} FROM role_permissions WHERE role = $1 AND permission_key = 'my_resources'`,
+        [actingRole]
+      );
+      const hasMyResourcesPerm = myResRows.length > 0 && (myResRows[0][actionColumn] === 1 || myResRows[0][actionColumn] === true);
+
+      if (hasMyResourcesPerm) {
+        return { allowed: true };
+      }
+    }
+
+    // 如果不是擁有者，則需要有 grids 的完整權限
+    if (!isOwner && !hasBasePermission) {
+      return { allowed: false, message: 'Forbidden - Not owner and no permission' };
+    }
+
+    // 如果是擁有者但沒有 my_resources 權限，檢查是否有 grids 的完整權限
+    if (isOwner && !hasBasePermission) {
+      return { allowed: false, message: 'Forbidden - No permission to modify own resources' };
+    }
+  }
+
+  return { allowed: hasBasePermission, message: hasBasePermission ? undefined : 'Forbidden - No permission' };
+}
+
 export function registerGridRoutes(app: FastifyInstance) {
   app.get('/grids', async () => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query(`
-      SELECT 
+      SELECT
         id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
         meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status,
         COALESCE(supplies_needed, '[]'::jsonb) AS supplies_needed,
         grid_manager_id, completion_photo, created_by_id, created_by, is_sample,
         created_at, updated_at, created_date, updated_date
       FROM grids
+      WHERE status != 'deleted'
       ORDER BY created_at DESC`);
     return rows;
   });
@@ -67,9 +138,13 @@ export function registerGridRoutes(app: FastifyInstance) {
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
     const id = randomUUID();
     const d = body.data;
+
+    // Get created_by_id from authenticated user
+    const createdById = req.user?.id || null;
+
     const { rows } = await app.db.query(
-      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id, completion_photo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      `INSERT INTO grids (id, code, grid_type, disaster_area_id, volunteer_needed, meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status, supplies_needed, grid_manager_id, completion_photo, created_by_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         id,
@@ -86,7 +161,8 @@ export function registerGridRoutes(app: FastifyInstance) {
         d.status || 'open',
         d.supplies_needed ? JSON.stringify(d.supplies_needed) : null,
         d.grid_manager_id || null,
-        d.completion_photo || null
+        d.completion_photo || null,
+        createdById
       ]
     );
     return reply.status(201).send(rows[0]);
@@ -112,22 +188,16 @@ export function registerGridRoutes(app: FastifyInstance) {
     const body = GridCreateSchema.partial().safeParse(req.body);
     if (!body.success) return reply.status(400).send({ message: 'Invalid payload', issues: body.error.issues });
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+
     // Auth & permission
     if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
-    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const { rows: gridRows } = await app.db.query('SELECT id, created_by_id, grid_manager_id FROM grids WHERE id=$1', [id]);
-    const grid = gridRows[0];
-    if (!grid) return reply.status(404).send({ message: 'Not found' });
-    const userId = req.user.id;
-    const isOwner = grid.created_by_id === userId || grid.grid_manager_id === userId;
-    const isRealAdmin = req.user.role === 'admin';
-    if (actingRole === 'user' && !isOwner) {
-      return reply.status(403).send({ message: 'Forbidden (acting as user)' });
+
+    // 檢查權限
+    const permCheck = await checkResourcePermission(app, req, 'edit', id);
+    if (!permCheck.allowed) {
+      return reply.status(403).send({ message: permCheck.message || 'Forbidden' });
     }
-    if (actingRole !== 'user' && !(isRealAdmin || isOwner)) {
-      return reply.status(403).send({ message: 'Forbidden' });
-    }
+
     const fields = body.data;
     const set: string[] = [];
     const values: any[] = [];
@@ -150,30 +220,21 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.delete('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
-    // Must be authenticated
-    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+
+    // Auth & permission
     if (!req.user) {
       return reply.status(401).send({ message: 'Unauthorized' });
     }
-    // Fetch grid ownership info
-    const { rows: gridRows } = await app.db.query('SELECT id, created_by_id, grid_manager_id FROM grids WHERE id=$1', [id]);
-    const grid = gridRows[0];
-    if (!grid) return reply.status(404).send({ message: 'Not found' });
-    const userId = req.user.id;
-    const isOwner = grid.created_by_id === userId || grid.grid_manager_id === userId;
-    const isRealAdmin = (req.user.role === 'admin');
-    // If acting role is user, forbid even if real admin unless owner.
-    if (actingRole === 'user' && !isOwner) {
-      return reply.status(403).send({ message: 'Forbidden (acting as user)' });
+
+    // 檢查權限
+    const permCheck = await checkResourcePermission(app, req, 'delete', id);
+    if (!permCheck.allowed) {
+      return reply.status(403).send({ message: permCheck.message || 'Forbidden' });
     }
-    // If acting as admin (no actingRole header) allow only admin or owner
-    if (actingRole !== 'user' && !(isRealAdmin || isOwner)) {
-      return reply.status(403).send({ message: 'Forbidden' });
-    }
+
     // Ensure no dependent volunteer_registrations or supply_donations remain (simplistic integrity check)
     const deps = await app.db.query(`
-      SELECT 
+      SELECT
         (SELECT COUNT(*) FROM volunteer_registrations WHERE grid_id=$1) AS vr_count,
         (SELECT COUNT(*) FROM supply_donations WHERE grid_id=$1) AS sd_count,
         (SELECT COUNT(*) FROM grid_discussions WHERE grid_id=$1) AS gd_count

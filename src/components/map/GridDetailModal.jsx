@@ -7,6 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +29,11 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     grid = { ...grid, supplies_needed: [] };
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // 登入檢查
+  const volunteerLogin = useRequireLogin("報名志工");
+  const supplyLogin = useRequireLogin("捐贈物資");
+  const discussionLogin = useRequireLogin("發表留言");
   const [volunteerForm, setVolunteerForm] = useState({
     volunteer_name: "",
     volunteer_phone: "",
@@ -140,7 +147,12 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   const handleVolunteerSubmit = async (e) => {
     e.preventDefault();
-    
+
+    // 檢查登入狀態
+    if (!volunteerLogin.requireLogin()) {
+      return;
+    }
+
     if (!volunteerForm.volunteer_name) {
         alert("請填寫姓名");
         return;
@@ -177,7 +189,12 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   const handleSupplySubmit = async (e) => {
     e.preventDefault();
-    
+
+    // 檢查登入狀態
+    if (!supplyLogin.requireLogin()) {
+      return;
+    }
+
     if (!supplyForm.donor_name || !supplyForm.donor_phone) {
         alert("請填寫姓名與電話");
         return;
@@ -238,7 +255,12 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   const handleDiscussionSubmit = async (e) => {
     e.preventDefault();
-    
+
+    // 檢查登入狀態
+    if (!discussionLogin.requireLogin()) {
+      return;
+    }
+
     if (!discussionForm.author_name || !discussionForm.message) {
       alert("請填寫您的名稱與訊息內容");
       return;
@@ -410,7 +432,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                 <form onSubmit={handleVolunteerSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="volunteer_name">姓名 *</Label>
+                      <Label htmlFor="volunteer_name" className="flex items-center gap-1">
+                        姓名 <span className="text-red-500">*</span>
+                      </Label>
                       <Input
                         id="volunteer_name"
                         value={volunteerForm.volunteer_name}
@@ -549,7 +573,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <form onSubmit={handleSupplySubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="donor_name">姓名 *</Label>
+                        <Label htmlFor="donor_name" className="flex items-center gap-1">
+                          姓名 <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="donor_name"
                           value={supplyForm.donor_name}
@@ -558,7 +584,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         />
                       </div>
                       <div>
-                        <Label htmlFor="donor_phone">電話 *</Label>
+                        <Label htmlFor="donor_phone" className="flex items-center gap-1">
+                          電話 <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="donor_phone"
                           value={supplyForm.donor_phone}
@@ -574,7 +602,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
                     <div className="grid grid-cols-2 gap-4">
                        <div>
-                          <Label htmlFor="supply_name">物資名稱 *</Label>
+                          <Label htmlFor="supply_name" className="flex items-center gap-1">
+                            物資名稱 <span className="text-red-500">*</span>
+                          </Label>
                           <Select
                               value={supplyForm.supply_name}
                               onValueChange={(value) => setSupplyForm({...supplyForm, supply_name: value})}
@@ -593,7 +623,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           </Select>
                       </div>
                       <div>
-                        <Label htmlFor="quantity">捐贈數量 *</Label>
+                        <Label htmlFor="quantity" className="flex items-center gap-1">
+                          捐贈數量 <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="quantity"
                           type="number"
@@ -670,7 +702,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   {user && (
                     <form onSubmit={handleDiscussionSubmit} className="space-y-4">
                       <div>
-                        <Label htmlFor="author_name">您的名稱 *</Label>
+                        <Label htmlFor="author_name" className="flex items-center gap-1">
+                          您的名稱 <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="author_name"
                           value={discussionForm.author_name}
@@ -683,7 +717,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         </p>
                       </div>
                       <div>
-                        <Label htmlFor="message">訊息內容 *</Label>
+                        <Label htmlFor="message" className="flex items-center gap-1">
+                          訊息內容 <span className="text-red-500">*</span>
+                        </Label>
                         <Textarea
                           id="message"
                           placeholder="分享現場狀況、提問或協調事項..."
@@ -714,7 +750,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">{discussion.author_name}</span>
                           <Badge variant="secondary" className="text-xs">
-                            {discussion.author_role === 'admin' ? '管理員' :
+                            {discussion.author_role === 'super_admin' ? '超級管理員' :
+                             discussion.author_role === 'admin' ? '管理員' :
                              discussion.author_role === 'grid_manager' ? '格主' :
                              discussion.author_role === 'volunteer' ? '志工' : '捐贈者'}
                           </Badge>
@@ -738,6 +775,23 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* 登入請求對話框 */}
+      <LoginRequiredDialog
+        open={volunteerLogin.showLoginDialog}
+        onOpenChange={volunteerLogin.setShowLoginDialog}
+        action={volunteerLogin.action}
+      />
+      <LoginRequiredDialog
+        open={supplyLogin.showLoginDialog}
+        onOpenChange={supplyLogin.setShowLoginDialog}
+        action={supplyLogin.action}
+      />
+      <LoginRequiredDialog
+        open={discussionLogin.showLoginDialog}
+        onOpenChange={discussionLogin.setShowLoginDialog}
+        action={discussionLogin.action}
+      />
     </Dialog>
   );
 }

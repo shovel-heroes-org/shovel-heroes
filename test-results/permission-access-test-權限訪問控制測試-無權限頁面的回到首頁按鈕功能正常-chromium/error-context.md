@@ -1,0 +1,94 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - link "鏟子英雄 花蓮颱風救援對接" [ref=e7] [cursor=pointer]:
+        - /url: /map
+        - img [ref=e9] [cursor=pointer]
+        - generic [ref=e12] [cursor=pointer]:
+          - heading "鏟子英雄" [level=1] [ref=e13] [cursor=pointer]
+          - paragraph [ref=e14] [cursor=pointer]: 花蓮颱風救援對接
+      - navigation [ref=e15]:
+        - link "救援地圖" [ref=e16] [cursor=pointer]:
+          - /url: /map
+          - img [ref=e17] [cursor=pointer]
+          - generic [ref=e20] [cursor=pointer]: 救援地圖
+        - link "物資管理" [ref=e21] [cursor=pointer]:
+          - /url: /supplies
+          - img [ref=e22] [cursor=pointer]
+          - generic [ref=e26] [cursor=pointer]: 物資管理
+        - link "關於我們" [ref=e27] [cursor=pointer]:
+          - /url: /about
+          - img [ref=e28] [cursor=pointer]
+          - generic [ref=e30] [cursor=pointer]: 關於我們
+      - generic [ref=e31]:
+        - button "我要人力" [ref=e32] [cursor=pointer]:
+          - img
+          - text: 我要人力
+        - button "登入" [ref=e33] [cursor=pointer]
+  - main [ref=e34]:
+    - generic [ref=e36]:
+      - img [ref=e38]
+      - heading "無權限訪問志工中心" [level=1] [ref=e40]
+      - paragraph [ref=e41]: 志工中心需要登入後才能使用。請先登入以查看和管理志工報名資訊。
+      - generic [ref=e42]:
+        - button "返回上一頁" [ref=e43] [cursor=pointer]:
+          - img
+          - text: 返回上一頁
+        - link "回到首頁" [ref=e44] [cursor=pointer]:
+          - /url: /map
+          - button "回到首頁" [ref=e45] [cursor=pointer]:
+            - img
+            - text: 回到首頁
+      - paragraph [ref=e47]: 💡 提示：如果您擁有相應權限，請檢查右上角的角色視角切換功能，確保您處於正確的視角下。
+  - contentinfo [ref=e48]:
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - img [ref=e53]
+        - generic [ref=e56]: 花蓮颱風救援對接系統 © 2025
+      - generic [ref=e57]:
+        - generic [ref=e58]: 緊急連絡：119 消防局 | 1999 市民熱線
+        - generic [ref=e59]: 免責聲明：本系統僅為資訊整合平台，不負責任何救援行動的直接執行或法律責任。
+        - generic [ref=e60]:
+          - link "隱私與 Cookie 政策" [ref=e61] [cursor=pointer]:
+            - /url: /privacy
+          - button "重新設定 Cookie 偏好" [ref=e62] [cursor=pointer]
+  - generic [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - generic [ref=e68]: "!"
+        - heading "重要聲明與使用須知" [level=2] [ref=e69]
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - heading "📢 資訊公開聲明" [level=3] [ref=e72]
+          - list [ref=e73]:
+            - listitem [ref=e74]: 志工報名的姓名、電話（若提供）、可服務時間可能公開顯示
+            - listitem [ref=e75]: 物資捐贈的聯絡資訊（若提供）可能公開顯示
+            - listitem [ref=e76]: 需求/網格建立者的聯絡資訊可能公開顯示
+            - listitem [ref=e77]: 提供資料旨在促進救災協調，請自行評估風險
+        - generic [ref=e78]:
+          - heading "⚠️ 免責聲明" [level=3] [ref=e79]
+          - list [ref=e80]:
+            - listitem [ref=e81]: 本平台僅提供媒合與資訊曝光，不涉及金錢往來
+            - listitem [ref=e82]: 志工行動請自行評估安全風險並自負責任
+            - listitem [ref=e83]: 現場狀況與需求以官方或現場管理者資訊為準
+            - listitem [ref=e84]: 不對第三方互動產生之任何損害或糾紛負責
+        - generic [ref=e85]:
+          - heading "🔒 個人資料與 Cookie 使用" [level=3] [ref=e86]
+          - paragraph [ref=e87]: 我們僅使用必要 Cookie 維持登入與功能。若您同意，我們也會載入分析 Cookie（Google Analytics）以改善系統。
+          - list [ref=e88]:
+            - listitem [ref=e89]: 必要性：登入狀態、基本功能（不可停用）
+            - listitem [ref=e90]: 分析：匿名使用統計（需您同意）
+            - listitem [ref=e91]: 偏好：記錄您已同意不再顯示此視窗
+          - link "閱讀完整隱私與 Cookie 政策" [ref=e92] [cursor=pointer]:
+            - /url: /privacy
+        - generic [ref=e93] [cursor=pointer]:
+          - checkbox "我同意使用匿名分析 Cookie（可協助改善平台效能）。" [checked] [ref=e94]
+          - generic [ref=e95] [cursor=pointer]: 我同意使用匿名分析 Cookie（可協助改善平台效能）。
+        - generic [ref=e96]: 點擊同意即表示您理解並接受上述條款。
+    - generic [ref=e97]:
+      - button "我已理解並同意" [ref=e98] [cursor=pointer]
+      - button "僅允許必要 Cookie" [ref=e99] [cursor=pointer]
+```

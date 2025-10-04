@@ -42,6 +42,7 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
   const REDIRECT_URI = process.env.LINE_REDIRECT_URI || process.env.PUBLIC_BASE_URL + '/auth/line/callback';
   const FRONTEND_RETURN = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
   const JWT_SECRET = process.env.AUTH_JWT_SECRET || 'dev-jwt-secret-change-me';
+  const INITIAL_ADMIN_LINE_ID = process.env.INITIAL_ADMIN_LINE_ID;
 
   if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI) {
     app.log.warn('[line-auth] Missing LINE env vars, LINE login disabled');
@@ -92,18 +93,38 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
       const name = claims.name || 'LINE 使用者';
       const avatar = claims.picture || null;
       const email = claims.email || null;
-      await app.db.query(`INSERT INTO users (id, line_sub, name, email, avatar_url)
-        VALUES ($1,$2,$3,$4,$5)
-        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, users.email), avatar_url = EXCLUDED.avatar_url`,
-        [userId, claims.sub, name, email, avatar]);
-      // Issue JWT (very basic); payload minimal
-      // Issue JWT with short lived exp (2h). Future: add refresh token rotation.
+
+      // Check if this user should be set as initial admin
+      let role = 'user';
+      if (INITIAL_ADMIN_LINE_ID && userId === INITIAL_ADMIN_LINE_ID) {
+        role = 'admin';
+        app.log.info(`[line-auth] Setting initial admin for user: ${name} (${userId})`);
+      }
+
+      // Insert or update user with role
+      const result = await app.db.query(`INSERT INTO users (id, line_sub, name, email, avatar_url, role)
+        VALUES ($1,$2,$3,$4,$5,$6)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          email = COALESCE(EXCLUDED.email, users.email),
+          avatar_url = EXCLUDED.avatar_url,
+          role = CASE
+            WHEN users.role = 'admin' THEN 'admin'  -- Keep existing admin role
+            WHEN $6 = 'admin' THEN 'admin'          -- Set as admin if initial admin
+            ELSE users.role
+          END
+        RETURNING role`,
+        [userId, claims.sub, name, email, avatar, role]);
+
+      // Get the actual role from database
+      const actualRole = result.rows[0]?.role || 'user';
+      // Issue JWT with actual role from database
       const now = Math.floor(Date.now()/1000);
       const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({ sub: userId, name, avatar, role: 'user', iat: now, exp: now + 2*60*60 })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ sub: userId, name, avatar, role: actualRole, iat: now, exp: now + 2*60*60 })).toString('base64url');
       const h = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
       const jwt = `${header}.${payload}.${h}`;
-      return { token: jwt, user: { id: userId, name, avatar_url: avatar, email } };
+      return { token: jwt, user: { id: userId, name, avatar_url: avatar, email, role: actualRole } };
     } catch (err: any) {
       app.log.error({ err }, '[line-auth] exchange failed');
       return reply.status(500).send({ message: 'exchange_failed' });

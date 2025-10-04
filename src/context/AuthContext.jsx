@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [actingRole, setActingRole] = useState('user');
   const [loading, setLoading] = useState(true);
+  const [guestMode, setGuestMode] = useState(false); // 訪客模式
 
   // Load on mount
   useEffect(() => {
@@ -17,10 +18,40 @@ export function AuthProvider({ children }) {
         if (cancelled) return;
         setUser(u);
         const stored = localStorage.getItem('sh-acting-role');
-        if (u && u.role === 'admin' && stored && ['admin','user'].includes(stored)) {
-          setActingRole(stored);
-        } else if (u && u.role === 'admin') {
-          setActingRole('admin');
+        const storedGuest = localStorage.getItem('sh-guest-mode') === 'true';
+
+        // 檢查訪客模式
+        if (storedGuest && u) {
+          setGuestMode(true);
+          setActingRole('guest');
+        }
+        // super_admin 可以切換到所有視角
+        else if (u && u.role === 'super_admin') {
+          const validRoles = ['user', 'grid_manager', 'admin', 'super_admin', 'guest'];
+          if (stored && validRoles.includes(stored)) {
+            setActingRole(stored);
+            setGuestMode(stored === 'guest');
+          } else {
+            setActingRole('super_admin');
+          }
+        }
+        // admin 只能切換 user 和 admin
+        else if (u && u.role === 'admin') {
+          if (stored && ['admin', 'user', 'guest'].includes(stored)) {
+            setActingRole(stored);
+            setGuestMode(stored === 'guest');
+          } else {
+            setActingRole('admin');
+          }
+        }
+        // grid_manager 可以切換 user 和 grid_manager
+        else if (u && u.role === 'grid_manager') {
+          if (stored && ['grid_manager', 'user', 'guest'].includes(stored)) {
+            setActingRole(stored);
+            setGuestMode(stored === 'guest');
+          } else {
+            setActingRole('grid_manager');
+          }
         } else {
           setActingRole('user');
         }
@@ -35,22 +66,66 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true; window.removeEventListener('sh-auth-changed', handler); };
   }, []);
 
+  // 切換視角函數 - 支援直接設定特定角色
+  const setActingRoleWithStorage = useCallback((role) => {
+    if (!user) return;
+
+    // 處理訪客模式
+    if (role === 'guest') {
+      setGuestMode(true);
+      setActingRole('guest');
+      localStorage.setItem('sh-acting-role', 'guest');
+      localStorage.setItem('sh-guest-mode', 'true');
+      return;
+    } else {
+      setGuestMode(false);
+      localStorage.setItem('sh-guest-mode', 'false');
+    }
+
+    // super_admin 可以切換到所有視角
+    if (user.role === 'super_admin') {
+      const validRoles = ['user', 'grid_manager', 'admin', 'super_admin', 'guest'];
+      if (validRoles.includes(role)) {
+        setActingRole(role);
+        localStorage.setItem('sh-acting-role', role);
+      }
+    }
+    // admin 只能切換 user 和 admin
+    else if (user.role === 'admin') {
+      if (['user', 'admin', 'guest'].includes(role)) {
+        setActingRole(role);
+        localStorage.setItem('sh-acting-role', role);
+      }
+    }
+    // grid_manager 只能切換 user 和 grid_manager
+    else if (user.role === 'grid_manager') {
+      if (['user', 'grid_manager', 'guest'].includes(role)) {
+        setActingRole(role);
+        localStorage.setItem('sh-acting-role', role);
+      }
+    }
+  }, [user]);
+
+  // 舊的 toggleActingRole - 保持向後兼容
   const toggleActingRole = useCallback(() => {
-    if (!user || user.role !== 'admin') return;
-    setActingRole(prev => {
-      const next = prev === 'admin' ? 'user' : 'admin';
-      localStorage.setItem('sh-acting-role', next);
-      return next;
-    });
+    if (!user) return;
+
+    if (user.role === 'admin') {
+      setActingRole(prev => {
+        const next = prev === 'admin' ? 'user' : 'admin';
+        localStorage.setItem('sh-acting-role', next);
+        return next;
+      });
+    }
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, actingRole, toggleActingRole, loading }}>
+    <AuthContext.Provider value={{ user, setUser, actingRole, setActingRole: setActingRoleWithStorage, toggleActingRole, loading, guestMode }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext) || { user: null, actingRole: 'user', loading: true };
+  return useContext(AuthContext) || { user: null, actingRole: 'user', loading: true, guestMode: false };
 }

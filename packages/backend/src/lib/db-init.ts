@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   line_sub TEXT UNIQUE,
   avatar_url TEXT,
   role TEXT DEFAULT 'user',
+  is_blacklisted BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -112,12 +113,29 @@ CREATE TABLE IF NOT EXISTS announcements (
   external_links JSONB,
   contact_phone TEXT,
   "order" INTEGER,
+  status TEXT NOT NULL DEFAULT 'active',
   created_by_id TEXT,
   created_by TEXT,
   is_sample BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  user_role TEXT NOT NULL,
+  line_id TEXT,
+  line_name TEXT,
+  action TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  resource_type TEXT,
+  resource_id TEXT,
+  details JSONB,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -193,12 +211,48 @@ ALTER TABLE announcements
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS line_sub TEXT UNIQUE,
   ADD COLUMN IF NOT EXISTS avatar_url TEXT,
-  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user',
+  ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;
 
 -- New optional columns for discussions metadata
 ALTER TABLE grid_discussions
   ADD COLUMN IF NOT EXISTS author_name TEXT,
   ADD COLUMN IF NOT EXISTS author_role TEXT;
+
+-- Role permissions table for managing access control
+CREATE TABLE IF NOT EXISTS role_permissions (
+  id SERIAL PRIMARY KEY,
+  role TEXT NOT NULL CHECK(role IN ('user', 'grid_manager', 'admin', 'super_admin', 'guest')),
+  permission_key TEXT NOT NULL,
+  permission_name TEXT NOT NULL,
+  permission_category TEXT NOT NULL,
+  can_view INTEGER NOT NULL DEFAULT 0,
+  can_create INTEGER NOT NULL DEFAULT 0,
+  can_edit INTEGER NOT NULL DEFAULT 0,
+  can_delete INTEGER NOT NULL DEFAULT 0,
+  can_manage INTEGER NOT NULL DEFAULT 0,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(role, permission_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_key ON role_permissions(permission_key);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role_key ON role_permissions(role, permission_key);
+
+-- Admin audit logs indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_user_id ON admin_audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_user_role ON admin_audit_logs(user_role);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_action_type ON admin_audit_logs(action_type);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
+
+-- HTTP audit logs indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_path ON audit_logs(path);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_method ON audit_logs(method);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_status_code ON audit_logs(status_code);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 `;
 
 export async function initDb(app: FastifyInstance) {

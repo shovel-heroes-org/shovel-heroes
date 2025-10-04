@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Upload, FileText } from 'lucide-react';
-// Fixed: corrected import path (file is functions.js, not functions/all)
-import { exportGridsCSV, importGridsCSV } from '@/api/functions';
+import { exportGridsToCSV, importGridsFromCSV } from '@/api/admin';
+import { downloadGridTemplate } from '@/api/functions';
 
 export default function GridImportExportButtons({ onImportSuccess }) {
   const [importing, setImporting] = useState(false);
@@ -12,19 +12,8 @@ export default function GridImportExportButtons({ onImportSuccess }) {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const response = await exportGridsCSV();
-      
-      const blob = new Blob([response.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'grids_export.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-      
-      alert('網格資料匯出成功！您可以直接修改此檔案後再匯入。');
+      await exportGridsToCSV();
+      alert('網格資料匯出成功！');
     } catch (error) {
       console.error('Export failed:', error);
       alert('匯出失敗，請稍後再試。');
@@ -43,24 +32,30 @@ export default function GridImportExportButtons({ onImportSuccess }) {
     reader.onload = async (e) => {
         const csvContent = e.target.result;
         try {
-            const response = await importGridsCSV({ csvContent });
-            const result = response.data;
-            
-            if (result.success) {
-                alert(`${result.message}\n${result.errors?.length > 0 ? '\n前幾個錯誤：\n' + result.errors.map(e => `第${e.row}行: ${e.error}`).join('\n') : ''}`);
-                onImportSuccess();
+            const result = await importGridsFromCSV(csvContent, true);
+
+            if (result.imported > 0 || result.skipped > 0) {
+                let message = `匯入完成！\n成功：${result.imported} 筆\n跳過：${result.skipped} 筆`;
+                if (result.errors && result.errors.length > 0) {
+                    message += `\n\n錯誤：\n${result.errors.slice(0, 5).join('\n')}`;
+                    if (result.errors.length > 5) {
+                        message += `\n... 還有 ${result.errors.length - 5} 個錯誤`;
+                    }
+                }
+                alert(message);
+                onImportSuccess && onImportSuccess();
             } else {
-                alert(`匯入失敗：${result.error}`);
+                alert('匯入失敗：沒有成功匯入任何資料');
             }
         } catch (error) {
             console.error('Import failed:', error);
-            alert('匯入失敗，請檢查檔案格式或網路連線。');
+            alert(`匯入失敗：${error.message || '請檢查檔案格式或網路連線'}`);
         } finally {
             setImporting(false);
             event.target.value = '';
         }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, 'UTF-8');
   };
 
   return (
@@ -73,16 +68,16 @@ export default function GridImportExportButtons({ onImportSuccess }) {
         className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
       >
         <Download className="w-4 h-4 mr-2" />
-        {exporting ? '匯出中...' : '匯出CSV (可直接匯入)'}
+        {exporting ? '匯出中...' : '匯出CSV'}
       </Button>
 
-      <div className="relative">
+      <div className="relative inline-block">
         <Input
           type="file"
           accept=".csv"
           onChange={handleFileImport}
           disabled={importing}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           id="csv-importer"
         />
         <Button

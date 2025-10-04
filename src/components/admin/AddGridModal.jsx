@@ -17,7 +17,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Grid } from '@/api/entities';
 import { User } from '@/api/entities';
 import "leaflet/dist/leaflet.css";
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const LocationPicker = ({ position, setPosition }) => {
   const map = useMap();
@@ -76,6 +77,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
   const [addressQuery, setAddressQuery] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || window?.__TURNSTILE_SITE_KEY__;
 
   // Load Cloudflare Turnstile script when modal opens
@@ -245,6 +247,10 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       setError('請填寫完整資訊（包含聯絡資訊）。');
       return;
     }
+    if (!agreedToTerms) {
+      setError('請先閱讀並同意聯絡資訊公開聲明。');
+      return;
+    }
     if (turnstileSiteKey && !turnstileToken) {
       setError('請先完成機器人驗證 (Turnstile)。');
       return;
@@ -316,7 +322,9 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="disaster_area_id">所屬災區 *</Label>
+              <Label htmlFor="disaster_area_id">
+                所屬災區 <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={formData.disaster_area_id}
                 onValueChange={(value) => handleSelectChange('disaster_area_id', value)}
@@ -333,7 +341,9 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
 
             <div>
-              <Label htmlFor="grid_type">資訊類型 *</Label>
+              <Label htmlFor="grid_type">
+                資訊類型 <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={formData.grid_type}
                 onValueChange={(value) => handleSelectChange('grid_type', value)}
@@ -352,12 +362,16 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
 
             <div>
-              <Label htmlFor="code">資訊地點（地標）*</Label>
+              <Label htmlFor="code">
+                資訊地點（地標）<span className="text-red-500">*</span>
+              </Label>
               <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：A-3, B-4"/>
             </div>
 
             <div>
-              <Label htmlFor="volunteer_needed">需求志工人數 *</Label>
+              <Label htmlFor="volunteer_needed">
+                需求志工人數 <span className="text-red-500">*</span>
+              </Label>
               <Input id="volunteer_needed" name="volunteer_needed" type="number" value={formData.volunteer_needed} onChange={handleInputChange} />
             </div>
 
@@ -372,18 +386,47 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
             </div>
 
             <div>
-              <Label htmlFor="contact_info">聯絡資訊</Label>
-              <Input 
-                id="contact_info" 
-                name="contact_info" 
-                value={formData.contact_info} 
-                onChange={handleInputChange} 
+              <Label htmlFor="contact_info" className="flex items-center gap-1">
+                聯絡資訊 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="contact_info"
+                name="contact_info"
+                value={formData.contact_info}
+                onChange={handleInputChange}
                 placeholder="提供手機或 Line ID 以便聯繫"
+                required
               />
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                 <Info className="w-3 h-3"/>
                 您所提供的聯絡資訊將公開顯示於相關頁面，以便彼此聯繫。請自行評估是否提供。
               </p>
+            </div>
+
+            {/* 確認同意條款 */}
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="agree-terms"
+                  checked={agreedToTerms}
+                  onCheckedChange={setAgreedToTerms}
+                  className="mt-1"
+                />
+                <label
+                  htmlFor="agree-terms"
+                  className="text-sm leading-relaxed cursor-pointer flex-1"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-red-600">我已理解並同意：</span>
+                      <span className="text-gray-700">
+                        本站為緊急救災媒合平台，我所提供的聯絡資訊將公開顯示於相關頁面，以便志工與需求方互相聯繫。我了解這些資訊可能被他人查看，並自行評估提供資訊的風險。
+                      </span>
+                    </div>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
           

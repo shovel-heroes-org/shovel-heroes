@@ -97,7 +97,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
         </DialogHeader>
         <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div>
-            <Label htmlFor="grid-select" className="mb-2 block">救援網格 *</Label>
+            <Label htmlFor="grid-select" className="mb-2 block flex items-center gap-1">
+              救援網格 <span className="text-red-500">*</span>
+            </Label>
             <Select value={selectedGridId} onValueChange={setSelectedGridId}>
               <SelectTrigger id="grid-select">
                 <SelectValue placeholder="請選擇網格" />
@@ -115,7 +117,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               <div key={index} className="flex items-end gap-2 p-4 border rounded-lg">
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                    <div>
-                      <Label htmlFor={`supply-name-${index}`}>物資內容 *</Label>
+                      <Label htmlFor={`supply-name-${index}`} className="flex items-center gap-1">
+                        物資內容 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`supply-name-${index}`} 
                         value={supply.name} 
@@ -124,7 +128,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`quantity-${index}`}>需求數量 *</Label>
+                      <Label htmlFor={`quantity-${index}`} className="flex items-center gap-1">
+                        需求數量 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`quantity-${index}`} 
                         type="number" 
@@ -134,7 +140,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`unit-${index}`}>單位 *</Label>
+                      <Label htmlFor={`unit-${index}`} className="flex items-center gap-1">
+                        單位 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`unit-${index}`} 
                         value={supply.unit} 

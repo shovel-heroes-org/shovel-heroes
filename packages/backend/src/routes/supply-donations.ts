@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { filterDonationPrivacy, filterDonationsPrivacy } from '../lib/privacy-filter.js';
 
 // Accept both legacy simplified shape and richer frontend form shape.
 const CreateSchema = z.object({
@@ -23,12 +24,39 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
   app.get('/supply-donations', async (req) => {
     if (!app.hasDecorator('db')) return [];
     const gridId = (req.query as any)?.grid_id;
+
     if (gridId) {
-      const { rows } = await app.db.query('SELECT * FROM supply_donations WHERE grid_id=$1 ORDER BY created_at DESC', [gridId]);
-      return rows;
+      // 取得物資捐贈資料和網格建立者資訊
+      const { rows } = await app.db.query(`
+        SELECT sd.*, g.created_by_id as grid_creator_id
+        FROM supply_donations sd
+        LEFT JOIN grids g ON g.id = sd.grid_id
+        WHERE sd.grid_id = $1
+        ORDER BY sd.created_at DESC
+      `, [gridId]);
+
+      // 取得網格建立者 ID
+      const gridCreatorId = rows.length > 0 ? rows[0].grid_creator_id : undefined;
+
+      // 過濾隱私資訊
+      const filtered = filterDonationsPrivacy(rows, req.user || null, gridCreatorId);
+      return filtered;
     }
-    const { rows } = await app.db.query('SELECT * FROM supply_donations ORDER BY created_at DESC');
-    return rows;
+
+    // 取得所有物資捐贈（需要分別處理每個網格的隱私）
+    const { rows } = await app.db.query(`
+      SELECT sd.*, g.created_by_id as grid_creator_id
+      FROM supply_donations sd
+      LEFT JOIN grids g ON g.id = sd.grid_id
+      ORDER BY sd.created_at DESC
+    `);
+
+    // 按網格過濾隱私
+    const filtered = rows.map(row => {
+      return filterDonationPrivacy(row, req.user || null, row.grid_creator_id);
+    });
+
+    return filtered;
   });
   app.post('/supply-donations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);

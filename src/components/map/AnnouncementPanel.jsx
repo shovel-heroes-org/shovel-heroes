@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { 
-  AlertTriangle, Info, MapPin, Phone, ExternalLink, 
+import {
+  AlertTriangle, Info, MapPin, Phone, ExternalLink,
   Search, ChevronDown, ChevronUp, Settings, Plus
 } from "lucide-react";
 import AnnouncementModal from "./AnnouncementModal";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function AnnouncementPanel() {
   const [announcements, setAnnouncements] = useState([]);
@@ -20,11 +21,8 @@ export default function AnnouncementPanel() {
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Determine acting role from localStorage; default to admin mode when not explicitly set to 'user'
-  const actingRole = (typeof window !== 'undefined' && typeof localStorage !== 'undefined')
-    ? (localStorage.getItem('sh-acting-role') || null)
-    : null;
-  const isAdminMode = currentUser?.role === 'admin' && actingRole !== 'user';
+  // 使用權限 hook
+  const { canCreate, canEdit, canDelete } = usePermission();
 
   useEffect(() => {
     loadData();
@@ -147,7 +145,7 @@ export default function AnnouncementPanel() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isAdminMode && (
+              {canCreate('announcements') && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -203,7 +201,7 @@ export default function AnnouncementPanel() {
                             <span className="ml-1">{getCategoryName(category)}</span>
                           </Badge>
                         </div>
-                        {isAdminMode && (
+                        {canEdit('announcements') && (
                           <Button
                             size="sm"
                             variant="ghost"

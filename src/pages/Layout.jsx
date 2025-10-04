@@ -3,7 +3,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, Eye } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
@@ -12,7 +12,7 @@ import AddGridModal from "@/components/admin/AddGridModal";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const { user, actingRole, toggleActingRole } = useAuth();
+  const { user, actingRole, setActingRole, toggleActingRole, guestMode } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
@@ -82,11 +82,12 @@ export default function Layout({ children, currentPageName }) {
       { name: "救援地圖", url: createPageUrl("Map"), icon: MapPin },
       { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
     ];
-    if (user) {
+
+    // 訪客模式下不顯示需要登入的功能
+    if (user && actingRole !== 'guest') {
       base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
-      if (user.role === 'admin' && actingRole === 'admin') {
-        base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
-      }
+      // 所有登入用戶都可以看到管理後台（但功能受權限限制）
+      base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
     }
     base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
     return base;
@@ -113,7 +114,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px]">
+      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px] z-[60]">
         <div className="px-4 min-w-[436px]">
           <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo */}
@@ -165,14 +166,34 @@ export default function Layout({ children, currentPageName }) {
                   <DropdownMenuTrigger asChild>
                     <button
                       className="relative w-10 h-10 flex items-center justify-center overflow-visible group focus:outline-none flex-shrink-0"
-                      title={(user.role === 'admin' && actingRole === 'admin') ? '管理模式中' : (user.name || user.full_name || '使用者')}
+                      title={
+                        actingRole === 'guest' ? '訪客模式（未登入）' :
+                        actingRole === 'super_admin' ? '超級管理員模式' :
+                        actingRole === 'admin' ? '管理員模式' :
+                        actingRole === 'grid_manager' ? '網格管理者模式' :
+                        (user.name || user.full_name || '使用者')
+                      }
                     >
-                      {user.role === 'admin' && actingRole === 'admin' && (
+                      {(actingRole === 'admin' || actingRole === 'super_admin') && (
                         <>
                           {/* Soft outer ambient glow */}
-                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-pink-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className={`absolute inset-0 rounded-full blur-[3px] animate-pulse ${actingRole === 'super_admin' ? 'bg-purple-300/40' : 'bg-pink-300/30'}`} />
                           {/* Thin soft ring */}
-                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-pink-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                          <span aria-hidden="true" className={`absolute -inset-1 rounded-full ring-2 animate-[pulse_2.8s_ease-in-out_infinite] ${actingRole === 'super_admin' ? 'ring-purple-400/70' : 'ring-pink-400/60'}`} />
+                        </>
+                      )}
+                      {actingRole === 'grid_manager' && (
+                        <>
+                          {/* Grid manager glow - blue */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-blue-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-blue-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                        </>
+                      )}
+                      {actingRole === 'guest' && (
+                        <>
+                          {/* Guest mode glow - gray */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-gray-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-gray-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
                         </>
                       )}
                       {/* Actual avatar circle */}
@@ -183,7 +204,7 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>
                         )}
                       </span>
-                      {user.role === 'admin' && actingRole === 'admin' && (
+                      {(user.role === 'admin' || user.role === 'super_admin') && actingRole === 'admin' && (
                         <span className="sr-only">管理模式啟用</span>
                       )}
                     </button>
@@ -193,10 +214,85 @@ export default function Layout({ children, currentPageName }) {
                       <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2"><UserIcon className="w-4 h-4 text-blue-600" /><span>{user.name || user.full_name || '使用者'}</span></div>
                       <div>{user.email}</div>
                       <div className="mt-1 inline-flex items-center gap-1 flex-wrap">
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role || 'user'}</span>
-                        {user.role === 'admin' && (
-                          <button onClick={toggleActingRole} className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">視角: {actingRole === 'admin' ? '管理' : '一般'}</button>
-                        )}
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role === 'super_admin' ? 'super_admin' : user.role || 'user'}</span>
+                        {user.role === 'super_admin' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'super_admin' ? '超管' : actingRole === 'admin' ? '管理' : actingRole === 'grid_manager' ? '格主' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('admin')}>
+                                <Shield className="w-4 h-4 mr-2" />
+                                管理員視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('super_admin')}>
+                                <Shield className="w-4 h-4 mr-2 text-purple-600" />
+                                超級管理員視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : user.role === 'admin' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'admin' ? '管理' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('admin')}>
+                                <Shield className="w-4 h-4 mr-2" />
+                                管理員視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : user.role === 'grid_manager' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'grid_manager' ? '格主' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </div>
                     </div>
                     <DropdownMenuSeparator />
@@ -338,7 +434,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
             <div className="border-t bg-white p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <button onClick={()=>handleConsentAccept({ analytics: analyticsAllowed })} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm">我已理解並同意</button>
+              <button onClick={()=>handleConsentAccept({ analytics: analyticsAllowed })} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg text-sm">我已理解並同意</button>
               <button onClick={handleConsentReject} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 rounded-lg text-sm">僅允許必要 Cookie</button>
             </div>
           </div>
