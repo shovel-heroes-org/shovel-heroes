@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
-import { makeWeakEtag, ifNoneMatchSatisfied } from '../lib/etag';
+import { makeWeakEtag, ifNoneMatchSatisfied, computeListEtag } from '../lib/etag';
 
 export function registerUserRoutes(app: FastifyInstance) {
   // Simple auth stub: if Authorization provided, set a fake user id (or from header)
@@ -32,10 +32,26 @@ export function registerUserRoutes(app: FastifyInstance) {
     } catch { /* ignore */ }
   });
 
-  app.get('/users', async () => {
+  app.get('/users', async (req, reply) => {
+    // Require authenticated real admin and acting role not 'user'
+    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+    const isRealAdmin = req.user?.role === 'admin';
+    if (actingRole === 'user' || !isRealAdmin) {
+      return reply.status(403).send({ message: 'Forbidden: admin only' });
+    }
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query('SELECT * FROM users ORDER BY created_at DESC');
-    return rows;
+    const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'role']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization, X-Acting-Role').send();
+    }
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'private, no-cache')
+      .header('Vary', 'Authorization, X-Acting-Role')
+      .send(rows);
   });
 
   app.get('/me', async (req, reply) => {
