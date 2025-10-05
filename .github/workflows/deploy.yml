@@ -102,9 +102,15 @@ jobs:
             --region ap-east-2 \
             --query SecretString --output text)
 
+          # Get JWT secret
+          JWT_SECRET_OBJ=$(aws secretsmanager get-secret-value \
+            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-jwt-2025100214083654490000000e-cnB4Sa" \
+            --region ap-east-2 \
+            --query SecretString --output text)
+
           # Extract values
-          DATABASE_URL=$(echo $DB_SECRET | jq -r '.database_url')
-          JWT_SECRET=$(echo $APP_SECRET | jq -r '.secret')
+          DATABASE_URL=$(echo $DB_SECRET | jq -r '.url')
+          JWT_SECRET=$(echo $JWT_SECRET_OBJ | jq -r '.secret')
           API_KEY="null"
           LINE_CHANNEL_ID=$(echo $APP_SECRET | jq -r '.line_channel_id')
           LINE_CHANNEL_SECRET=$(echo $APP_SECRET | jq -r '.line_channel_secret')
