@@ -462,10 +462,7 @@ export default function MapPage() {
 
   const getUrgencyScore = (grid) => {
     if (grid.grid_type !== 'manpower' || grid.status !== 'open') return -1;
-    const volunteerShortage = grid.volunteer_needed > 0
-      ? (grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed
-      : 0;
-    return volunteerShortage;
+    return new Date(grid.created_date).getTime() || 0;
   };
 
   const getGridTypeText = (type) => {
