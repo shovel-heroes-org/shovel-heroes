@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import cookie from '@fastify/cookie';
@@ -18,7 +19,12 @@ import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
 import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware";
 
-const app = Fastify({ logger: true });
+// 🔒 Security: Request size limits and proxy trust for Cloudflare
+const app = Fastify({
+  logger: true,
+  bodyLimit: 1048576,  // 1MB - Prevent memory DoS attacks (OWASP 2025)
+  trustProxy: true      // Trust Cloudflare proxy headers for accurate client IP
+});
 
 app.get('/healthz', async () => ({ status: 'ok', db: app.hasDecorator('db') ? 'ready' : 'not-ready' }));
 
@@ -30,7 +36,45 @@ await app.register(swagger, {
   }
 });
 await app.register(swaggerUI, { routePrefix: '/docs' });
-await app.register(cors, { origin: true, credentials: true });
+
+// 🔒 Security: HTTP headers via Helmet (defense-in-depth)
+// Note: HSTS/CSP managed by Cloudflare for optimal CDN performance
+// Backend Helmet provides additional security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+await app.register(helmet, {
+  hsts: false,              // Cloudflare handles HSTS
+  contentSecurityPolicy: false  // Cloudflare handles CSP
+});
+
+// 🔒 Security: Rate limiting delegated to Cloudflare
+// Cloudflare provides enterprise-grade rate limiting at edge
+// Backend focuses on business logic and maintains high availability for disaster relief
+
+// Dynamic CORS policy based on environment
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+const productionOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : ["https://shovel-heroes.netlify.app"];
+
+const allowedOrigins = isDevelopment
+  ? ["http://localhost:5173", "http://localhost:5174"]
+  : productionOrigins;
+
+await app.register(cors, {
+  origin: (origin, cb) => {
+    // Allow non-browser requests or whitelisted origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      cb(null, true);
+    } else {
+      app.log.warn({ origin }, "Blocked by CORS policy");
+      cb(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
+
 await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-secret' });
 
 registerDisasterAreaRoutes(app);
@@ -58,7 +102,7 @@ const PUBLIC_ALLOWLIST = new Set([
 
 app.addHook('preHandler', async (req, reply) => {
   // Enforce auth for mutating methods; optionally could extend to GET later.
-  if (!['POST','PUT','DELETE'].includes(req.method)) return;
+  if (!['POST','PUT','DELETE','PATCH'].includes(req.method)) return;
   const url = req.url.split('?')[0];
   if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
   if (!req.user) {
@@ -66,14 +110,55 @@ app.addHook('preHandler', async (req, reply) => {
   }
 });
 
-
+// Audit log middleware
 const AuditLogMiddleware = createAuditLogMiddleware(app);
 app.addHook("onRequest", AuditLogMiddleware.start);
 app.addHook("onSend", AuditLogMiddleware.onSend);
 app.addHook("onResponse", AuditLogMiddleware.onResponse);
 app.addHook("onError", AuditLogMiddleware.onError);
 
+// 🔒 Security: Production error handler - Prevent information leakage (OWASP A05:2021)
+app.setErrorHandler((error, request, reply) => {
+  // Always log the full error for debugging
+  request.log.error(error);
+
+  // In production, hide stack traces and internal details
+  if (process.env.NODE_ENV === 'production') {
+    const statusCode = error.statusCode || 500;
+    reply.status(statusCode).send({
+      error: statusCode >= 500 ? 'Internal Server Error' : error.name || 'Error',
+      message: statusCode >= 500
+        ? 'An error occurred processing your request'
+        : error.message || 'Bad Request',
+      statusCode
+    });
+  } else {
+    // Development: Show full error details
+    reply.send(error);
+  }
+});
+
+// 404 處理器：防止快取，避免 CDN 快取錯誤頁面 (404 handler: prevent caching)
+app.setNotFoundHandler((request, reply) => {
+  reply
+    .code(404)
+    .header('Cache-Control', 'no-store, must-revalidate')
+    .send({ message: 'Route not found' });
+});
+
 async function start() {
+  // 🔒 Security: Enforce secrets in production
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.AUTH_JWT_SECRET || process.env.AUTH_JWT_SECRET === 'dev-secret') {
+      app.log.fatal('AUTH_JWT_SECRET required in production');
+      process.exit(1);
+    }
+    if (!process.env.COOKIE_SECRET || process.env.COOKIE_SECRET === 'dev-secret') {
+      app.log.fatal('COOKIE_SECRET required in production');
+      process.exit(1);
+    }
+  }
+
   const basePort = Number(process.env.PORT) || 8787;
   let port = basePort;
   for (let attempt = 0; attempt < 5; attempt++) {
