@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
+import { makeWeakEtag, ifNoneMatchSatisfied } from '../lib/etag';
 
 export function registerUserRoutes(app: FastifyInstance) {
   // Simple auth stub: if Authorization provided, set a fake user id (or from header)
@@ -40,6 +41,16 @@ export function registerUserRoutes(app: FastifyInstance) {
   app.get('/me', async (req, reply) => {
     const user = req.user;
     if (!user) return reply.status(401).send({ message: 'Unauthorized' });
-    return user;
+    // Compute weak ETag from stable user fields (as returned by this endpoint)
+    const payload = { id: user.id, name: user.name, email: user.email, role: user.role, avatar_url: (user as any).avatar_url };
+    const etag = makeWeakEtag(payload);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization').send();
+    }
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'private, no-cache')
+      .header('Vary', 'Authorization')
+      .send(user);
   });
 }

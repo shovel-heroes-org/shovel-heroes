@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -16,10 +17,18 @@ export function registerGridDiscussionRoutes(app: FastifyInstance) {
     const { grid_id } = req.query;
     if (grid_id) {
       const { rows } = await app.db.query('SELECT * FROM grid_discussions WHERE grid_id=$1 ORDER BY created_at DESC', [grid_id]);
-      return rows;
+      const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at']);
+      if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+        return reply.code(304).header('ETag', etag).send();
+      }
+  return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(rows);
     }
     const { rows } = await app.db.query('SELECT * FROM grid_discussions ORDER BY created_at DESC');
-    return rows;
+    const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(rows);
   });
 
   type CreateInput = z.infer<typeof CreateSchema>;

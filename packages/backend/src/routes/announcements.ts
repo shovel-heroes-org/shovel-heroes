@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { z } from 'zod';
 
 const CreateSchema = z.object({
@@ -28,10 +28,32 @@ const UpdateSchema = z.object({
 });
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
-  app.get('/announcements', async () => {
+  app.get('/announcements', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY created_at DESC');
-    return rows;
+    // Compute a weak ETag from a stable, semantic projection (NOT a byte-for-byte hash of body)
+    // Use weak validator since representation may vary without semantic change.
+    const projection = rows
+      .map((r: any) => ({ id: r.id, u: r.updated_at || null, c: r.created_at || null, o: r.order || 0 }))
+      .sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)));
+    const opaque = createHash('sha1').update(JSON.stringify(projection)).digest('hex');
+    const weakEtag = `W/"${opaque}"`;
+
+    const ifNoneMatch = (req.headers['if-none-match'] as string | undefined) || '';
+    const normalize = (tag: string) => tag.replace(/^W\//i, '').trim().replace(/^\"|\"$/g, '').replace(/^"|"$/g, '');
+    if (ifNoneMatch) {
+      const candidates = ifNoneMatch.split(',').map((s) => s.trim());
+      // If-None-Match: * means any current representation exists => 304 for GET
+      const hasStar = candidates.includes('*');
+      const match = hasStar || candidates.some((c) => normalize(c) === normalize(weakEtag));
+      if (match) {
+        return reply.code(304).header('ETag', weakEtag).send();
+      }
+    }
+    return reply
+      .header('ETag', weakEtag)
+      .header('Cache-Control', 'public, no-cache')
+      .send(rows);
   });
   app.post('/announcements', async (req, reply) => {
     const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;
