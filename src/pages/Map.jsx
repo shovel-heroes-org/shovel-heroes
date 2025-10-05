@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus } from "lucide-react";
 import GridDetailModal from "../components/map/GridDetailModal";
 import AnnouncementPanel from "../components/map/AnnouncementPanel";
+import MarkerClusterGroup from "../components/map/MarkerClusterGroup";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
 
@@ -770,14 +771,16 @@ export default function MapPage() {
               <MapResizer mapCollapsed={mapCollapsed} />
               <MapBoundsFitter grids={filteredGrids} />
 
-              {filteredGrids.map((grid) => (
-                <DraggableRectangle
-                  key={grid.id}
-                  grid={grid}
-                  onGridClick={handleGridClick}
-                  onGridMove={handleGridMove}
-                />
-              ))}
+              <MarkerClusterGroup>
+                {filteredGrids.map((grid) => (
+                  <DraggableRectangle
+                    key={grid.id}
+                    grid={grid}
+                    onGridClick={handleGridClick}
+                    onGridMove={handleGridMove}
+                  />
+                ))}
+              </MarkerClusterGroup>
             </MapContainer>
           )}
 
