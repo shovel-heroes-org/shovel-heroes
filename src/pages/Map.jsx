@@ -8,28 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus } from "lucide-react";
+import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus, CalendarClock } from "lucide-react";
 import GridDetailModal from "../components/map/GridDetailModal";
 import AnnouncementPanel from "../components/map/AnnouncementPanel";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
-
-const formatCreatedAt = (createdAt) => {
-  const today = new Date().toLocaleDateString("zh-TW");
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString(
-      "zh-TW"
-  );
-  const qiantian = new Date(Date.now() - 2 * 86400000).toLocaleDateString(
-      "zh-TW"
-  );
-  const createdDate = new Date(createdAt).toLocaleDateString("zh-TW");
-  const createdTime = new Date(createdAt).toLocaleTimeString("zh-TW");
-
-  if (createdDate == today) return "今天 " + createdTime;
-  else if (createdDate == yesterday) return "昨天 " + createdTime;
-  else if (createdDate == qiantian) return "前天 " + createdTime;
-  else return createdDate.split("2025/")[1] + " " + createdTime;
-};
+import { formatCreatedDate } from "@/lib/utils";
 
 const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -352,7 +336,7 @@ export default function MapPage() {
       setGridDetailTab(tab);
     }
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   // After grids load, if URL has grid param, open it
@@ -948,6 +932,15 @@ export default function MapPage() {
                           </div>
                         </div>
 
+                        <div className="flex flex-row gap-2 items-center my-2">
+                          <CalendarClock className="w-4 h-4 text-teal-700" />
+                          <span className="text-sm font-medium">  
+                            {formatCreatedDate(
+                                grid.created_date
+                            )}
+                          </span>
+                        </div>
+
                         {grid.grid_type === 'manpower' && (
                           <div className="space-y-2 mb-3">
                             <div className="flex items-center justify-between">
@@ -1035,12 +1028,6 @@ export default function MapPage() {
                             </Button>
                           )}
                         </div>
-                        <span className="text-sm font-medium my-2">
-                          需求建立時間：{" "}
-                          {formatCreatedAt(
-                              grid.created_date
-                          )}
-                        </span>
                       </CardContent>
                     </Card>
                   );

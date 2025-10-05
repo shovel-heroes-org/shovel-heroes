@@ -18,8 +18,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Users, Package, MessageSquare, AlertTriangle,
   Phone, MapPin, Clock, CheckCircle2, UserPlus,
-  PackagePlus, Send, Info
+  PackagePlus, Send, Info,
+  CalendarClock
 } from "lucide-react";
+import { formatCreatedDate } from "@/lib/utils";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info", onTabChange }) {
   // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
@@ -298,6 +300,16 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Badge>
           </DialogTitle>
         </DialogHeader>
+
+                  {/* Created Date Info */}
+          <div>
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2 shadow-sm w-fit">
+                <CalendarClock className="w-4 h-4 text-teal-700 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">
+                  需求建立於 {formatCreatedDate(grid.created_date)}
+                </span>
+            </div>
+          </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
