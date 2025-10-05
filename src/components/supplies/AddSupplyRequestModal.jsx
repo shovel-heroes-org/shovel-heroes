@@ -20,6 +20,7 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [user, setUser] = useState(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   React.useEffect(() => {
     (async () => {
@@ -51,6 +52,10 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
     e.preventDefault();
     if (!selectedGridId || supplies.some(s => !s.name || !s.quantity || !s.unit)) {
       setError('請選擇救援網格並填寫所有物資欄位。');
+      return;
+    }
+    if (!agreedToTerms) {
+      setError('請先同意並理解相關條款。');
       return;
     }
     setError('');
@@ -162,6 +167,19 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
             新增一項物資
           </Button>
 
+          <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
+            <input
+              type="checkbox"
+              id="terms-checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+            />
+            <label htmlFor="terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
+              我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊將提供需求方參考，以利志工與需求方互相聯繫。
+            </label>
+          </div>
+
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         </div>
         <DialogFooter className="flex flex-col items-stretch space-y-2">
@@ -169,8 +187,8 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
             <Button variant="outline" onClick={onClose}>取消</Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !user}
-              className={!user ? 'bg-gray-400 cursor-not-allowed' : ''}
+              disabled={submitting || !user || !agreedToTerms}
+              className={!user || !agreedToTerms ? 'bg-gray-400 cursor-not-allowed' : ''}
             >
               {submitting ? '新增中...' : '確認新增'}
             </Button>
