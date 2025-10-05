@@ -11,8 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus } from "lucide-react";
 import GridDetailModal from "../components/map/GridDetailModal";
 import AnnouncementPanel from "../components/map/AnnouncementPanel";
-import { useRequireLogin } from "@/hooks/useRequireLogin";
-import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
+import MarkerClusterGroup from "../components/map/MarkerClusterGroup";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
 
@@ -294,10 +293,6 @@ export default function MapPage() {
   const initialQueryApplied = useRef(false); // 防止初始載入時 URL 同步提早移除 grid 參數
   const [loading, setLoading] = useState(true);
   const [selectedGridType, setSelectedGridType] = useState('all');
-
-  // 登入檢查
-  const volunteerLogin = useRequireLogin("報名志工");
-  const supplyLogin = useRequireLogin("捐贈物資");
   const [stats, setStats] = useState({
     totalGrids: 0,
     completedGrids: 0,
@@ -573,7 +568,7 @@ export default function MapPage() {
   };
 
   const getSupplyShortage = (supplies) => {
-    return supplies?.filter(s => s.received < s.quantity) || [];
+    return Array.isArray(supplies) ? supplies.filter(s => s.received < s.quantity) : [];
   };
 
   if (loading) {
@@ -776,14 +771,16 @@ export default function MapPage() {
               <MapResizer mapCollapsed={mapCollapsed} />
               <MapBoundsFitter grids={filteredGrids} />
 
-              {filteredGrids.map((grid) => (
-                <DraggableRectangle
-                  key={grid.id}
-                  grid={grid}
-                  onGridClick={handleGridClick}
-                  onGridMove={handleGridMove}
-                />
-              ))}
+              <MarkerClusterGroup>
+                {filteredGrids.map((grid) => (
+                  <DraggableRectangle
+                    key={grid.id}
+                    grid={grid}
+                    onGridClick={handleGridClick}
+                    onGridMove={handleGridMove}
+                  />
+                ))}
+              </MarkerClusterGroup>
             </MapContainer>
           )}
 
@@ -1017,15 +1014,8 @@ export default function MapPage() {
                               className="flex-1 bg-blue-600 hover:bg-blue-700"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // 檢查登入狀態（包含訪客模式）
-                                if (volunteerLogin.requireLogin(() => {
-                                  setSelectedGrid(grid);
-                                  setGridDetailTab('volunteer');
-                                  setMapCollapsed(true);
-                                })) {
-                                  // 已登入，執行回調
-                                  return;
-                                }
+                                setSelectedGrid(grid);
+                                setMapCollapsed(true); // Ensures map collapses when "報名" is clicked
                               }}
                             >
                               <UserPlus className="w-3 h-3 mr-1" />
@@ -1039,15 +1029,8 @@ export default function MapPage() {
                               className="flex-1"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // 檢查登入狀態（包含訪客模式）
-                                if (supplyLogin.requireLogin(() => {
-                                  setSelectedGrid(grid);
-                                  setGridDetailTab('supply');
-                                  setMapCollapsed(true);
-                                })) {
-                                  // 已登入，執行回調
-                                  return;
-                                }
+                                setSelectedGrid(grid);
+                                setMapCollapsed(true); // Ensures map collapses when "捐贈" is clicked
                               }}
                             >
                               <PackagePlus className="w-3 h-3 mr-1" />
@@ -1087,20 +1070,6 @@ export default function MapPage() {
           onTabChange={setGridDetailTab}
         />
       )}
-
-      {/* 登入請求對話框 - 報名 */}
-      <LoginRequiredDialog
-        open={volunteerLogin.showLoginDialog}
-        onOpenChange={volunteerLogin.setShowLoginDialog}
-        action={volunteerLogin.action}
-      />
-
-      {/* 登入請求對話框 - 捐贈 */}
-      <LoginRequiredDialog
-        open={supplyLogin.showLoginDialog}
-        onOpenChange={supplyLogin.setShowLoginDialog}
-        action={supplyLogin.action}
-      />
     </div>
   );
 }
