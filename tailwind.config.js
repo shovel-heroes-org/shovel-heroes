@@ -4,7 +4,7 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     screens: {
-	  'xxs': '450px',    // 自訂斷點：手機版主標題
+	  'xxs': '375px',    // 自訂斷點：手機版主標題
 	  'xs': '510px',     // 自訂斷點：手機版副標題
       'sm': '640px',
       'md': '768px',
@@ -13,6 +13,9 @@ module.exports = {
       '2xl': '1536px',
     },
   	extend: {
+		minWidth: {
+			'xxs': '375px',
+		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

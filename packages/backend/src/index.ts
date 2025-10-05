@@ -65,6 +65,9 @@ registerLegacyRoutes(app);
 // Auth routes (LINE)
 import { registerLineAuthRoutes } from './routes/auth-line.js';
 registerLineAuthRoutes(app);
+// LINE webhook
+import { registerLineWebhookRoutes } from './routes/line-webhook.js';
+registerLineWebhookRoutes(app);
 
 // Global auth enforcement for all POST endpoints except a small allowlist.
 // Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
@@ -72,7 +75,8 @@ const PUBLIC_ALLOWLIST = new Set([
   '/auth/line/exchange', // need to obtain token (POST)
   '/auth/line/login',    // GET redirect
   '/auth/logout',        // GET logout
-  '/healthz'             // health check
+  '/healthz',            // health check
+  '/line/webhook'        // LINE webhook callback
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
