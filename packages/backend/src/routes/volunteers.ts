@@ -9,6 +9,7 @@ interface RawRow {
   id: string;
   grid_id: string;
   user_id: string | null;
+  created_by_id: string | null;
   created_at: string;
   volunteer_name: string | null;
   volunteer_phone: string | null;
@@ -20,6 +21,8 @@ interface RawRow {
   notes: string | null;
   user_name: string | null;
   user_email: string | null;
+  grid_creator_id: string | null;
+  grid_manager_id: string | null;
 }
 
 /**
@@ -64,6 +67,12 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
       return reply.status(403).send({ message: 'Forbidden - No permission to view volunteers' });
     }
 
+    const { rows: contactPermRows } = await app.db.query(
+      `SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = 'view_volunteer_contact'`,
+      [actingRole]
+    );
+    const hasContactViewPermission = contactPermRows.length > 0 && (contactPermRows[0].can_view === 1 || contactPermRows[0].can_view === true);
+
     const { grid_id, status, limit = 200, offset = 0, include_counts = 'true' } = req.query as any;
 
     const conditions: string[] = [];
@@ -94,13 +103,16 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
 
     const sql = `
       SELECT
-        vr.id, vr.grid_id, vr.user_id, vr.created_at,
+        vr.id, vr.grid_id, vr.user_id, vr.created_at, vr.created_by_id,
         COALESCE(vr.volunteer_name, u.name) AS volunteer_name,
         vr.volunteer_phone, vr.volunteer_email, vr.available_time,
         vr.skills, vr.equipment, vr.status, vr.notes,
-        u.name as user_name, u.email as user_email
+        u.name as user_name, u.email as user_email,
+        g.created_by_id as grid_creator_id,
+        g.grid_manager_id as grid_manager_id
       FROM volunteer_registrations vr
       LEFT JOIN users u ON u.id = vr.user_id
+      LEFT JOIN grids g ON g.id = vr.grid_id
       ${where}
       ORDER BY vr.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
@@ -109,9 +121,8 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
 
   const { rows } = await app.db.query(sql, params) as { rows: RawRow[] };
 
-  // View phone only if admin in admin mode OR user is owner/manager of that grid OR is the volunteer themselves.
-  // For simplicity: admin mode => true, else we compute per row (mask others).
-  const canViewAllPhone = isAdminMode;
+  // 只有具有隱私權限的角色才可能看到電話資訊，管理權限則決定是否取得完整列表
+  const canViewAllPhone = hasContactViewPermission && hasManagePermission;
 
     // Map rows to VolunteerListItem spec shape.
     const currentUserId = req.user.id;
@@ -127,11 +138,22 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
         skills: ensureArray(r.skills),
         equipment: ensureArray(r.equipment),
         notes: r.notes,
-        created_date: r.created_at
+        created_date: r.created_at,
+        created_by_id: r.created_by_id || undefined
       };
-      // Determine phone visibility: self OR admin mode. For non-admin mode owner/manager check would require join; omitted to avoid extra query.
-      const showPhone = canViewAllPhone || (r.user_id && r.user_id === currentUserId);
-      return { ...base, volunteer_phone: showPhone ? r.volunteer_phone : undefined };
+      if (!hasContactViewPermission) {
+        return { ...base, volunteer_phone: undefined, volunteer_email: undefined };
+      }
+
+      const isSelf = (r.user_id && r.user_id === currentUserId) || (r.created_by_id && r.created_by_id === currentUserId);
+      const isGridCreator = r.grid_creator_id && r.grid_creator_id === currentUserId;
+      const isGridManager = r.grid_manager_id && r.grid_manager_id === currentUserId;
+      const showPhone = canViewAllPhone || isSelf || isGridCreator || isGridManager;
+      return {
+        ...base,
+        volunteer_phone: showPhone ? r.volunteer_phone : undefined,
+        volunteer_email: showPhone ? r.volunteer_email : undefined
+      };
     });
 
   let status_counts: any = undefined;

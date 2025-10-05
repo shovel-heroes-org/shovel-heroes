@@ -14,10 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2 } from "lucide-react";
-import { usePermission } from "@/hooks/usePermission";
 
 export default function AnnouncementModal({ isOpen, onClose, announcement }) {
-  const { canDelete } = usePermission();
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -124,17 +122,6 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
     }
   };
 
-  const handleDelete = async () => {
-    if (announcement && window.confirm("確定要刪除這則公告嗎？")) {
-      try {
-        await Announcement.delete(announcement.id);
-        onClose();
-      } catch (error) {
-        console.error("Failed to delete announcement:", error);
-        alert("刪除公告失敗，請稍後再試。");
-      }
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -268,30 +255,17 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
           </div>
         </form>
 
-        <DialogFooter className="flex justify-between">
-          <div>
-            {announcement && canDelete('announcements') && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-              >
-                刪除公告
-              </Button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              type="submit"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? "儲存中..." : "儲存"}
-            </Button>
-          </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "儲存中..." : "儲存"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

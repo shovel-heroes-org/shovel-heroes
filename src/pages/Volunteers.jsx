@@ -44,6 +44,14 @@ export default function VolunteersPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 當視角切換時重新載入資料
+  useEffect(() => {
+    if (actingRole) {
+      loadData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actingRole]);
+
   // Keep URL updated when filters change
   useEffect(() => {
     const params = new URLSearchParams();
@@ -349,7 +357,7 @@ export default function VolunteersPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Phone className="w-4 h-4" />
-                                  {canViewPhone && registration.volunteer_phone ? (
+                                  {registration.volunteer_phone ? (
                                     <span>{registration.volunteer_phone}</span>
                                   ) : (
                                     <span className="text-gray-500 italic text-xs">僅限管理員/相關格主查看電話</span>

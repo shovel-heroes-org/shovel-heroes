@@ -365,7 +365,6 @@ export async function exportTrashAreasToCSV() {
 
     if (!response.ok) {
       await handleCSVExportError(response, '垃圾桶災區');
-      return;
     }
 
     const blob = await response.blob();
@@ -416,6 +415,38 @@ export async function batchDeleteBlacklistedUsers(userIds) {
 export async function getAuditLogs(params = {}) {
   const queryString = new URLSearchParams(params).toString();
   return http.get(`/admin/audit-logs${queryString ? '?' + queryString : ''}`);
+}
+
+// 匯出垃圾桶網格 CSV
+export async function exportTrashGridsToCSV() {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-grids`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      await handleCSVExportError(response, '垃圾桶網格');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trash_grids_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Export trash grids failed:', error);
+    throw error;
+  }
 }
 
 // 匯出審計日誌為 CSV
@@ -469,6 +500,34 @@ export async function exportAnnouncementsCSV() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `announcements_export_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  return true;
+}
+
+// 匯出垃圾桶公告 CSV
+export async function exportTrashAnnouncementsCSV() {
+  const response = await fetch(
+    `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-announcements`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    return await handleCSVExportError(response, '垃圾桶公告');
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trash_announcements_export_${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(a);
   a.click();
   window.URL.revokeObjectURL(url);

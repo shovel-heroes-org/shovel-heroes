@@ -261,7 +261,7 @@ export default function Layout({ children, currentPageName }) {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
-                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'admin' ? '管理' : '一般'}
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'admin' ? '管理' : actingRole === 'grid_manager' ? '格主' : '一般'}
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -273,6 +273,10 @@ export default function Layout({ children, currentPageName }) {
                               <DropdownMenuItem onClick={() => setActingRole('user')}>
                                 <UserIcon className="w-4 h-4 mr-2" />
                                 一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setActingRole('admin')}>
                                 <Shield className="w-4 h-4 mr-2" />

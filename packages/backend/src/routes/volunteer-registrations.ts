@@ -27,13 +27,23 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     if (!app.hasDecorator('db')) return { data: [], can_view_phone: false };
     const gridId = (req.query as any)?.grid_id;
 
-    // 檢查使用者是否為管理員
-    const isUserAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'super_admin');
+    // 取得作用中的角色（配合視角切換）
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader ? String(actingRoleHeader) : (req.user?.role || 'guest');
+
+    const { rows: contactPermRows } = await app.db.query(
+      `SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = 'view_volunteer_contact'`,
+      [actingRole]
+    );
+    const hasContactPermission = contactPermRows.length > 0 && (contactPermRows[0].can_view === 1 || contactPermRows[0].can_view === true);
+
+    // 檢查使用者是否為管理員（基於作用中角色）
+    const isUserAdmin = actingRole === 'admin' || actingRole === 'super_admin';
 
     if (gridId) {
       // 取得志工報名資料和網格建立者資訊
       const { rows } = await app.db.query(`
-        SELECT vr.*, g.created_by_id as grid_creator_id
+        SELECT vr.*, g.created_by_id as grid_creator_id, g.grid_manager_id as grid_manager_id
         FROM volunteer_registrations vr
         LEFT JOIN grids g ON g.id = vr.grid_id
         WHERE vr.grid_id = $1
@@ -42,22 +52,28 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
 
       // 取得網格建立者 ID
       const gridCreatorId = rows.length > 0 ? rows[0].grid_creator_id : undefined;
+      const gridManagerId = rows.length > 0 ? rows[0].grid_manager_id : undefined;
 
       // 檢查使用者是否為該網格的建立者
       const isGridCreator = req.user && gridCreatorId && req.user.id === gridCreatorId;
+      const isGridManager = req.user && gridManagerId && req.user.id === gridManagerId;
 
       // 過濾隱私資訊
-      const filtered = filterVolunteersPrivacy(rows, req.user || null, gridCreatorId);
+      const filtered = filterVolunteersPrivacy(rows, req.user || null, gridCreatorId, {
+        gridManagerId,
+        actingRole,
+        canViewContact: hasContactPermission,
+      });
 
       return {
         data: filtered,
-        can_view_phone: isUserAdmin || isGridCreator
+        can_view_phone: hasContactPermission && (isUserAdmin || isGridCreator || isGridManager)
       };
     }
 
     // 取得所有志工報名（需要分別處理每個網格的隱私）
     const { rows } = await app.db.query(`
-      SELECT vr.*, g.created_by_id as grid_creator_id
+      SELECT vr.*, g.created_by_id as grid_creator_id, g.grid_manager_id as grid_manager_id
       FROM volunteer_registrations vr
       LEFT JOIN grids g ON g.id = vr.grid_id
       ORDER BY vr.created_at DESC
@@ -65,13 +81,17 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
 
     // 按網格分組並過濾隱私
     const filtered = rows.map(row => {
-      return filterVolunteerPrivacy(row, req.user || null, row.grid_creator_id);
+      return filterVolunteerPrivacy(row, req.user || null, row.grid_creator_id, {
+        gridManagerId: row.grid_manager_id,
+        actingRole,
+        canViewContact: hasContactPermission,
+      });
     });
 
     // 對於列表查詢，只有管理員才能看到所有電話
     return {
       data: filtered,
-      can_view_phone: isUserAdmin
+      can_view_phone: hasContactPermission && isUserAdmin
     };
   });
   app.post('/volunteer-registrations', async (req, reply) => {

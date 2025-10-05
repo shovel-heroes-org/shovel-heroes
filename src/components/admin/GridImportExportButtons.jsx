@@ -2,19 +2,24 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Upload, FileText } from 'lucide-react';
-import { exportGridsToCSV, importGridsFromCSV } from '@/api/admin';
+import { exportGridsToCSV, exportTrashGridsToCSV, importGridsFromCSV } from '@/api/admin';
 import { downloadGridTemplate } from '@/api/functions';
 import { parseImportError } from '@/utils/importErrorHandler';
 
-export default function GridImportExportButtons({ onImportSuccess, showMessage }) {
+export default function GridImportExportButtons({ onImportSuccess, showMessage, isTrashView = false }) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportGridsToCSV();
-      showMessage ? showMessage('網格資料匯出成功！', 'success') : alert('網格資料匯出成功！');
+      if (isTrashView) {
+        await exportTrashGridsToCSV();
+        showMessage ? showMessage('垃圾桶網格資料匯出成功！', 'success') : alert('垃圾桶網格資料匯出成功！');
+      } else {
+        await exportGridsToCSV();
+        showMessage ? showMessage('網格資料匯出成功！', 'success') : alert('網格資料匯出成功！');
+      }
     } catch (error) {
       console.error('Export failed:', error);
       showMessage ? showMessage('匯出失敗，請稍後再試。', 'error') : alert('匯出失敗，請稍後再試。');

@@ -2,18 +2,24 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
-import { exportAnnouncementsCSV, importAnnouncementsCSV } from '@/api/admin';
+import { exportAnnouncementsCSV, exportTrashAnnouncementsCSV, importAnnouncementsCSV } from '@/api/admin';
 
-export default function AnnouncementImportExportButtons({ onImportSuccess, showMessage }) {
+export default function AnnouncementImportExportButtons({ onImportSuccess, showMessage, isTrashView = false }) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportAnnouncementsCSV();
-      const message = '公告資料匯出成功！';
-      showMessage ? showMessage(message, 'success') : alert(message);
+      if (isTrashView) {
+        await exportTrashAnnouncementsCSV();
+        const message = '垃圾桶公告資料匯出成功！';
+        showMessage ? showMessage(message, 'success') : alert(message);
+      } else {
+        await exportAnnouncementsCSV();
+        const message = '公告資料匯出成功！';
+        showMessage ? showMessage(message, 'success') : alert(message);
+      }
     } catch (error) {
       console.error('Export failed:', error);
       const message = '匯出失敗，請稍後再試。';
@@ -33,8 +39,7 @@ export default function AnnouncementImportExportButtons({ onImportSuccess, showM
     reader.onload = async (e) => {
       const csvContent = e.target.result;
       try {
-        const response = await importAnnouncementsCSV({ csvContent });
-        const result = response.data;
+        const result = await importAnnouncementsCSV({ csvContent });
 
         if (result.success) {
           const message = `${result.message}`;
@@ -57,7 +62,7 @@ export default function AnnouncementImportExportButtons({ onImportSuccess, showM
         event.target.value = '';
       }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, 'UTF-8');
   };
 
   return (

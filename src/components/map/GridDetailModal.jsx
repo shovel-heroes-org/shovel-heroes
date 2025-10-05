@@ -31,8 +31,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // 取得訪客模式狀態
-  const { guestMode } = useAuth();
+  // 取得登入狀態
+  const { user: authUser, guestMode } = useAuth();
 
   // 登入檢查
   const volunteerLogin = useRequireLogin("報名志工");
@@ -184,9 +184,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const handleVolunteerSubmit = async (e) => {
     e.preventDefault();
 
-    // 檢查登入狀態
-    if (!volunteerLogin.requireLogin()) {
-      return;
+    // 直接檢查登入狀態，不觸發對話框
+    if (!authUser || guestMode) {
+        return;
     }
 
     if (!volunteerForm.volunteer_name) {
@@ -231,9 +231,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const handleSupplySubmit = async (e) => {
     e.preventDefault();
 
-    // 檢查登入狀態
-    if (!supplyLogin.requireLogin()) {
-      return;
+    // 直接檢查登入狀態，不觸發對話框
+    if (!authUser || guestMode) {
+        return;
     }
 
     if (!supplyForm.donor_name || !supplyForm.donor_phone) {
@@ -297,9 +297,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const handleDiscussionSubmit = async (e) => {
     e.preventDefault();
 
-    // 檢查登入狀態
-    if (!discussionLogin.requireLogin()) {
-      return;
+    // 直接檢查登入狀態，不觸發對話框
+    if (!authUser || guestMode) {
+        return;
     }
 
     if (!discussionForm.author_name || !discussionForm.message) {
@@ -467,7 +467,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                 <CardTitle>志工報名</CardTitle>
               </CardHeader>
               <CardContent>
-                {!user || guestMode ? (
+                {!authUser || guestMode ? (
                   // 未登入或訪客模式：顯示登入提示卡片
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8">
                     <div className="flex flex-col items-center text-center space-y-6">
@@ -609,8 +609,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
                   <Button
                     type="submit"
-                    className={`w-full ${(!user || !volunteerAgreedToTerms ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
-                    disabled={submitting || !user || !volunteerAgreedToTerms}
+                    className={`w-full ${(!authUser || !volunteerAgreedToTerms ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
+                    disabled={submitting || !authUser || !volunteerAgreedToTerms}
                   >
                     {submitting ? "提交中..." : "確認報名"}
                   </Button>
@@ -775,7 +775,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       />
                     </div>
 
-                    {!user || guestMode ? (
+                    {!authUser || guestMode ? (
                       // 未登入或訪客模式：顯示登入提示
                       <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 mt-4">
                         <div className="flex flex-col items-center text-center space-y-4">
@@ -827,7 +827,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <CardTitle className="text-lg">發表訊息</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!user || guestMode ? (
+                  {!authUser || guestMode ? (
                     // 未登入或訪客模式：顯示登入提示
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
                       <div className="flex flex-col items-center text-center space-y-4">

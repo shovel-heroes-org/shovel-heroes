@@ -29,10 +29,12 @@ const UpdateSchema = z.object({
 });
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
-  // 檢視公告 - 所有人都可以檢視
+  // 檢視公告 - 所有人都可以檢視(但不包括已刪除的)
   app.get('/announcements', async () => {
     if (!app.hasDecorator('db')) return [];
-    const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY "order" ASC, created_at DESC');
+    const { rows } = await app.db.query(
+      `SELECT * FROM announcements WHERE status != 'deleted' ORDER BY "order" ASC, created_at DESC`
+    );
     return rows;
   });
 

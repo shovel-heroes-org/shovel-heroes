@@ -83,9 +83,39 @@ export function isDonorSelf(user: User | null, donation: SupplyDonation): boolea
 /**
  * 檢查使用者是否為管理員或超級管理員
  */
-export function isAdmin(user: User | null): boolean {
+export function isAdmin(user: User | null, actingRole?: string): boolean {
   if (!user) return false;
-  return user.role === 'admin' || user.role === 'super_admin';
+  const role = actingRole || user.role;
+  return role === 'admin' || role === 'super_admin';
+}
+
+function isGridManagerRole(user: User | null, actingRole?: string): boolean {
+  const role = actingRole || user?.role || undefined;
+  return role === 'grid_manager';
+}
+
+function normalizeManagerIds(gridManagerId?: string | string[]): string[] {
+  if (!gridManagerId) return [];
+  if (Array.isArray(gridManagerId)) {
+    return gridManagerId.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+  }
+  return typeof gridManagerId === 'string' && gridManagerId.trim() !== '' ? [gridManagerId] : [];
+}
+
+function collectManagerIds(
+  gridManagerId?: string | string[],
+  extras: Array<string | null | undefined> = []
+): string[] {
+  const base = normalizeManagerIds(gridManagerId);
+  const extraIds = extras.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+  return [...new Set([...base, ...extraIds])];
+}
+
+interface ContactPrivacyOptions {
+  actingRole?: string;
+  gridManagerId?: string | string[];
+  extraManagerIds?: Array<string | null | undefined>;
+  canViewContact?: boolean;
 }
 
 /**
@@ -102,10 +132,35 @@ export function isAdmin(user: User | null): boolean {
 export function filterVolunteerPrivacy(
   registration: VolunteerRegistration,
   user: User | null,
-  gridCreatorId: string | undefined
+  gridCreatorId: string | undefined,
+  options: ContactPrivacyOptions = {}
 ): VolunteerRegistration {
-  // 管理員可以看到所有資訊
-  if (isAdmin(user)) {
+  const {
+    actingRole,
+    gridManagerId,
+    extraManagerIds = [],
+    canViewContact = false,
+  } = options;
+
+  const managerIds = collectManagerIds(gridManagerId, extraManagerIds);
+  const effectiveRole = actingRole || user?.role || 'guest';
+  const hasManagerAssociation = !!(user && managerIds.includes(user.id));
+  const hasManagerRole = isGridManagerRole(user, actingRole);
+
+  // 若角色沒有檢視權限，僅允許本人看到自己的聯絡資訊
+  if (!canViewContact) {
+    if (isVolunteerSelf(user, registration)) {
+      return registration;
+    }
+    return {
+      ...registration,
+      volunteer_phone: undefined,
+      volunteer_email: undefined,
+    };
+  }
+
+  // 管理員或具有網格管理權限者可以看到所有資訊
+  if (isAdmin(user, actingRole) || hasManagerRole || hasManagerAssociation) {
     return registration;
   }
 
@@ -114,7 +169,7 @@ export function filterVolunteerPrivacy(
     return registration;
   }
 
-  // 志工本人可以看到自己的聯絡資訊
+  // 志工本人可以看到自己的聯絡資訊（包含 created_by_id 與 user_id）
   if (isVolunteerSelf(user, registration)) {
     return registration;
   }
@@ -133,9 +188,10 @@ export function filterVolunteerPrivacy(
 export function filterVolunteersPrivacy(
   registrations: VolunteerRegistration[],
   user: User | null,
-  gridCreatorId: string | undefined
+  gridCreatorId: string | undefined,
+  options: ContactPrivacyOptions = {}
 ): VolunteerRegistration[] {
-  return registrations.map(reg => filterVolunteerPrivacy(reg, user, gridCreatorId));
+  return registrations.map(reg => filterVolunteerPrivacy(reg, user, gridCreatorId, options));
 }
 
 /**
@@ -152,10 +208,36 @@ export function filterVolunteersPrivacy(
 export function filterDonationPrivacy(
   donation: SupplyDonation,
   user: User | null,
-  gridCreatorId: string | undefined
+  gridCreatorId: string | undefined,
+  options: ContactPrivacyOptions = {}
 ): SupplyDonation {
-  // 管理員可以看到所有資訊
-  if (isAdmin(user)) {
+  const {
+    actingRole,
+    gridManagerId,
+    extraManagerIds = [],
+    canViewContact = false,
+  } = options;
+
+  const managerIds = collectManagerIds(gridManagerId, extraManagerIds);
+  const hasManagerAssociation = !!(user && managerIds.includes(user.id));
+  const hasManagerRole = isGridManagerRole(user, actingRole);
+
+  // 若角色沒有檢視權限，僅允許捐贈者本人查看
+  if (!canViewContact) {
+    if (isDonorSelf(user, donation)) {
+      return donation;
+    }
+    return {
+      ...donation,
+      donor_name: undefined,
+      donor_phone: undefined,
+      donor_email: undefined,
+      donor_contact: undefined,
+    };
+  }
+
+  // 管理員或具有網格管理權限者可以看到所有資訊
+  if (isAdmin(user, actingRole) || hasManagerRole || hasManagerAssociation) {
     return donation;
   }
 
@@ -165,7 +247,6 @@ export function filterDonationPrivacy(
   }
 
   // 捐贈者本人可以看到自己的聯絡資訊
-  // 注意：舊資料可能沒有 created_by_id，這些資料只有管理員和網格建立者能看到聯絡資訊
   if (isDonorSelf(user, donation)) {
     return donation;
   }
@@ -186,9 +267,10 @@ export function filterDonationPrivacy(
 export function filterDonationsPrivacy(
   donations: SupplyDonation[],
   user: User | null,
-  gridCreatorId: string | undefined
+  gridCreatorId: string | undefined,
+  options: ContactPrivacyOptions = {}
 ): SupplyDonation[] {
-  return donations.map(donation => filterDonationPrivacy(donation, user, gridCreatorId));
+  return donations.map(donation => filterDonationPrivacy(donation, user, gridCreatorId, options));
 }
 
 /**

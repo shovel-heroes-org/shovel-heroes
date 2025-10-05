@@ -65,6 +65,7 @@ export default function AnnouncementManagement() {
 
   useEffect(() => {
     loadAnnouncements();
+    loadTrashAnnouncements();
   }, []);
 
   useEffect(() => {
@@ -312,7 +313,11 @@ export default function AnnouncementManagement() {
               </p>
             </div>
             <div className="flex gap-2">
-              <AnnouncementImportExportButtons onImportSuccess={loadAnnouncements} showMessage={showMessage} />
+              <AnnouncementImportExportButtons
+                onImportSuccess={loadAnnouncements}
+                showMessage={showMessage}
+                isTrashView={isTrashView}
+              />
               {canCreate('announcements') && (
                 <Button onClick={handleAdd}>
                   <Plus className="w-4 h-4 mr-2" />

@@ -51,9 +51,11 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          g.id, g.code, g.grid_type, g.volunteer_needed, g.volunteer_registered,
-          g.meeting_point, g.risks_notes, g.contact_info, g.status,
-          g.center_lat, g.center_lng, g.created_at,
+          g.id, g.code, g.grid_type, g.disaster_area_id, g.volunteer_needed, g.volunteer_registered,
+          g.meeting_point, g.risks_notes, g.contact_info, g.center_lat, g.center_lng,
+          g.bounds, g.status, g.supplies_needed, g.grid_manager_id, g.completion_photo,
+          g.created_by_id, g.created_by, g.is_sample, g.created_at, g.updated_at,
+          g.created_date, g.updated_date,
           da.name as area_name
         FROM grids g
         LEFT JOIN disaster_areas da ON g.disaster_area_id = da.id
@@ -61,10 +63,22 @@ export function registerCSVRoutes(app: FastifyInstance) {
         ORDER BY g.created_at DESC`
       );
 
-      // 格式化時間欄位
+      // 格式化時間欄位和 JSONB 欄位
       const formattedRows = rows.map(row => ({
         ...row,
-        created_at: formatDateTime(row.created_at)
+        created_at: formatDateTime(row.created_at),
+        updated_at: formatDateTime(row.updated_at),
+        created_date: formatDateTime(row.created_date),
+        updated_date: formatDateTime(row.updated_date),
+        is_sample: row.is_sample ? '是' : '否',
+        // 將 bounds JSONB 轉換為 JSON 字串
+        bounds: row.bounds ? JSON.stringify(row.bounds) : '',
+        // 將 supplies_needed JSONB 轉換為可讀格式
+        supplies_needed: row.supplies_needed
+          ? (Array.isArray(row.supplies_needed)
+              ? row.supplies_needed.join('; ')
+              : JSON.stringify(row.supplies_needed))
+          : ''
       }));
 
       const csv = stringify(formattedRows, {
@@ -73,16 +87,27 @@ export function registerCSVRoutes(app: FastifyInstance) {
           id: 'ID',
           code: '網格代碼',
           grid_type: '類型',
+          disaster_area_id: '災區ID',
           area_name: '災區名稱',
           volunteer_needed: '需求人數',
           volunteer_registered: '已登記人數',
           meeting_point: '集合點',
           risks_notes: '風險備註',
           contact_info: '聯絡資訊',
-          status: '狀態',
           center_lat: '緯度',
           center_lng: '經度',
-          created_at: '建立時間'
+          bounds: '邊界座標(JSON)',
+          status: '狀態',
+          supplies_needed: '所需物資',
+          grid_manager_id: '網格管理員ID',
+          completion_photo: '完成照片',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          is_sample: '是否為範例',
+          created_at: '建立時間',
+          updated_at: '更新時間',
+          created_date: '建立日期',
+          updated_date: '更新日期'
         }
       });
 
@@ -276,17 +301,24 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          id, name, county, township, description, status,
-          center_lat, center_lng, created_at
+          id, name, township, county, center_lat, center_lng, bounds,
+          grid_size, status, description, created_by_id, created_by, is_sample,
+          created_at, updated_at, created_date, updated_date
         FROM disaster_areas
         WHERE status != 'deleted'
         ORDER BY created_at DESC`
       );
 
-      // 格式化時間欄位
+      // 格式化時間欄位和 JSONB 欄位
       const formattedRows = rows.map(row => ({
         ...row,
-        created_at: formatDateTime(row.created_at)
+        created_at: formatDateTime(row.created_at),
+        updated_at: formatDateTime(row.updated_at),
+        created_date: formatDateTime(row.created_date),
+        updated_date: formatDateTime(row.updated_date),
+        is_sample: row.is_sample ? '是' : '否',
+        // 將 bounds JSONB 轉換為 JSON 字串
+        bounds: row.bounds ? JSON.stringify(row.bounds) : ''
       }));
 
       const csv = stringify(formattedRows, {
@@ -294,13 +326,21 @@ export function registerCSVRoutes(app: FastifyInstance) {
         columns: {
           id: 'ID',
           name: '災區名稱',
-          county: '縣市',
           township: '鄉鎮區',
-          description: '描述',
-          status: '狀態',
+          county: '縣市',
           center_lat: '緯度',
           center_lng: '經度',
-          created_at: '建立時間'
+          bounds: '邊界座標(JSON)',
+          grid_size: '網格大小',
+          status: '狀態',
+          description: '描述',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          is_sample: '是否為範例',
+          created_at: '建立時間',
+          updated_at: '更新時間',
+          created_date: '建立日期',
+          updated_date: '更新日期'
         }
       });
 
@@ -429,8 +469,10 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          vr.id, vr.volunteer_name, vr.volunteer_phone, vr.volunteer_email,
-          vr.available_time, vr.status, vr.created_at,
+          vr.id, vr.grid_id, vr.user_id, vr.volunteer_name, vr.volunteer_phone,
+          vr.volunteer_email, vr.available_time, vr.skills, vr.equipment,
+          vr.status, vr.check_in_time, vr.notes, vr.created_by_id, vr.created_by,
+          vr.is_sample, vr.created_at, vr.updated_at, vr.created_date, vr.updated_date,
           g.code as grid_code,
           da.name as area_name
         FROM volunteer_registrations vr
@@ -439,24 +481,53 @@ export function registerCSVRoutes(app: FastifyInstance) {
         ORDER BY vr.created_at DESC`
       );
 
-      // 格式化時間欄位
+      // 格式化時間欄位和 JSONB 欄位
       const formattedRows = rows.map(row => ({
         ...row,
-        created_at: formatDateTime(row.created_at)
+        created_at: formatDateTime(row.created_at),
+        updated_at: formatDateTime(row.updated_at),
+        created_date: formatDateTime(row.created_date),
+        updated_date: formatDateTime(row.updated_date),
+        check_in_time: row.check_in_time ? formatDateTime(row.check_in_time) : '',
+        is_sample: row.is_sample ? '是' : '否',
+        // 將 skills JSONB 轉換為可讀格式
+        skills: row.skills
+          ? (Array.isArray(row.skills)
+              ? row.skills.join('; ')
+              : JSON.stringify(row.skills))
+          : '',
+        // 將 equipment JSONB 轉換為可讀格式
+        equipment: row.equipment
+          ? (Array.isArray(row.equipment)
+              ? row.equipment.join('; ')
+              : JSON.stringify(row.equipment))
+          : ''
       }));
 
       const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
+          grid_id: '網格ID',
+          grid_code: '網格代碼',
+          area_name: '災區',
+          user_id: '使用者ID',
           volunteer_name: '志工姓名',
           volunteer_phone: '電話',
           volunteer_email: 'Email',
           available_time: '可服務時間',
+          skills: '技能',
+          equipment: '攜帶設備',
           status: '狀態',
-          grid_code: '網格代碼',
-          area_name: '災區',
-          created_at: '報名時間'
+          check_in_time: '報到時間',
+          notes: '備註',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          is_sample: '是否為範例',
+          created_at: '報名時間',
+          updated_at: '更新時間',
+          created_date: '建立日期',
+          updated_date: '更新日期'
         }
       });
 
@@ -585,10 +656,10 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          sd.id, sd.donor_name, sd.donor_phone, sd.donor_email,
-          sd.supply_name, sd.quantity, sd.unit,
-          sd.delivery_method, sd.delivery_address, sd.delivery_time,
-          sd.notes, sd.status, sd.created_at,
+          sd.id, sd.grid_id, sd.name, sd.quantity, sd.unit, sd.donor_contact,
+          sd.created_at, sd.delivery_method, sd.delivery_address, sd.delivery_time,
+          sd.notes, sd.status, sd.supply_name, sd.donor_name, sd.donor_phone,
+          sd.donor_email, sd.created_by_id, sd.created_by, sd.updated_at,
           g.code as grid_code,
           da.name as area_name
         FROM supply_donations sd
@@ -600,18 +671,22 @@ export function registerCSVRoutes(app: FastifyInstance) {
       // 格式化時間欄位
       const formattedRows = rows.map(row => ({
         ...row,
-        created_at: formatDateTime(row.created_at)
+        created_at: formatDateTime(row.created_at),
+        updated_at: formatDateTime(row.updated_at)
       }));
 
       const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
+          grid_id: '網格ID',
           grid_code: '網格代碼',
           area_name: '災區',
+          name: '物資名稱(舊)',
           supply_name: '物資名稱',
           quantity: '數量',
           unit: '單位',
+          donor_contact: '捐贈者聯絡(舊)',
           donor_name: '捐贈者姓名',
           donor_phone: '聯絡電話',
           donor_email: 'Email',
@@ -620,7 +695,10 @@ export function registerCSVRoutes(app: FastifyInstance) {
           delivery_time: '預計送達時間',
           notes: '備註',
           status: '狀態',
-          created_at: '捐贈時間'
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          created_at: '捐贈時間',
+          updated_at: '更新時間'
         }
       });
 
@@ -738,15 +816,15 @@ export function registerCSVRoutes(app: FastifyInstance) {
           );
 
           if (existing.length > 0) {
-            // 更新現有記錄
+            // 更新現有記錄（包含 name 欄位，用於向後兼容）
             await app.db.query(
               `UPDATE supply_donations SET
-                grid_id = $1, supply_name = $2, quantity = $3, unit = $4,
-                donor_name = $5, donor_phone = $6, donor_email = $7,
-                delivery_method = $8, delivery_address = $9, delivery_time = $10,
-                notes = $11, status = $12
-              WHERE id = $13`,
-              [grids[0].id, supplyName, quantity, unit,
+                grid_id = $1, name = $2, supply_name = $3, quantity = $4, unit = $5,
+                donor_name = $6, donor_phone = $7, donor_email = $8,
+                delivery_method = $9, delivery_address = $10, delivery_time = $11,
+                notes = $12, status = $13
+              WHERE id = $14`,
+              [grids[0].id, supplyName || '未指定物資', supplyName, quantity, unit,
                donorName, donorPhone, donorEmail,
                deliveryMethod, deliveryAddress, deliveryTime,
                notes, status, recordId]
@@ -769,16 +847,16 @@ export function registerCSVRoutes(app: FastifyInstance) {
           }
         }
 
-        // 創建新記錄（使用 CSV 中的 ID 或生成新的）
+        // 創建新記錄（使用 CSV 中的 ID 或生成新的，包含 name 欄位用於向後兼容）
         const donationId = recordId || `donation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await app.db.query(
           `INSERT INTO supply_donations (
-            id, grid_id, supply_name, quantity, unit,
+            id, grid_id, name, supply_name, quantity, unit,
             donor_name, donor_phone, donor_email,
             delivery_method, delivery_address, delivery_time,
             notes, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [donationId, grids[0].id, supplyName, quantity, unit,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [donationId, grids[0].id, supplyName || '未指定物資', supplyName, quantity, unit,
            donorName, donorPhone, donorEmail,
            deliveryMethod, deliveryAddress, deliveryTime,
            notes, status]
@@ -825,26 +903,29 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          id, name, email, role, is_blacklisted, created_at
+          id, name, email, created_at, line_sub, avatar_url, role, is_blacklisted
         FROM users
         ORDER BY created_at DESC`
       );
 
-      // 格式化時間欄位
+      // 格式化時間欄位和布林值
       const formattedRows = rows.map(row => ({
         ...row,
-        created_at: formatDateTime(row.created_at)
+        created_at: formatDateTime(row.created_at),
+        is_blacklisted: row.is_blacklisted ? '是' : '否'
       }));
 
       const csv = stringify(formattedRows, {
         header: true,
         columns: {
           id: 'ID',
-          name: '姓名（必填）',
+          name: '姓名',
           email: 'Email',
-          role: '角色（user/admin/moderator）',
-          is_blacklisted: '黑名單',
-          created_at: '註冊時間'
+          created_at: '註冊時間',
+          line_sub: 'LINE使用者ID',
+          avatar_url: '頭像網址',
+          role: '角色',
+          is_blacklisted: '黑名單'
         }
       });
 
@@ -928,11 +1009,13 @@ export function registerCSVRoutes(app: FastifyInstance) {
   // Export CSV template for blacklist
   app.get('/csv/template/blacklist', { preHandler: requirePermission('blacklist', 'manage') }, async (req, reply) => {
     const template = stringify([{
-      email: 'blacklisted@example.com'
+      id: 'user_1234567890_abc123def',
+      email: 'user@example.com'
     }], {
       header: true,
       columns: {
-        email: 'Email（必填）'
+        id: 'ID（優先使用）',
+        email: 'Email（選填）'
       }
     });
 
@@ -1011,21 +1094,31 @@ export function registerCSVRoutes(app: FastifyInstance) {
       const errors: string[] = [];
 
       for (const record of records as any[]) {
+        const id = record['ID'];
         const email = record['Email（必填）'] || record['Email'];
 
-        if (!email) {
-          errors.push(`Missing email in row: ${JSON.stringify(record)}`);
+        // 必須至少有 ID 或 Email 其中之一
+        if (!id && !email) {
+          errors.push(`Missing both ID and email in row: ${JSON.stringify(record)}`);
           continue;
         }
 
-        // Find user by email
-        const { rows: users } = await app.db.query(
-          'SELECT id, is_blacklisted FROM users WHERE email = $1',
-          [email]
-        );
+        // 優先使用 ID 查詢，其次使用 Email
+        let query: string;
+        let params: any[];
+
+        if (id) {
+          query = 'SELECT id, is_blacklisted FROM users WHERE id = $1';
+          params = [id];
+        } else {
+          query = 'SELECT id, is_blacklisted FROM users WHERE email = $1';
+          params = [email];
+        }
+
+        const { rows: users } = await app.db.query(query, params);
 
         if (users.length === 0) {
-          errors.push(`User not found: ${email}`);
+          errors.push(`User not found: ${id || email}`);
           continue;
         }
 
@@ -1083,17 +1176,28 @@ export function registerCSVRoutes(app: FastifyInstance) {
     try {
       const { rows } = await app.db.query(
         `SELECT
-          id, title, body, priority, status, created_at, updated_date
+          id, title, body, content, category, is_pinned, external_links,
+          contact_phone, "order", created_by_id, created_by, is_sample,
+          priority, status, created_at, created_date, updated_date
         FROM announcements
         WHERE status != 'deleted'
         ORDER BY created_at DESC`
       );
 
-      // 格式化時間欄位
+      // 格式化時間欄位和 external_links
       const formattedRows = rows.map(row => ({
         ...row,
         created_at: formatDateTime(row.created_at),
-        updated_at: formatDateTime(row.updated_date)
+        created_date: formatDateTime(row.created_date),
+        updated_date: formatDateTime(row.updated_date),
+        is_pinned: row.is_pinned ? '是' : '否',
+        is_sample: row.is_sample ? '是' : '否',
+        // 將 external_links JSON 轉換為可讀格式
+        external_links: row.external_links
+          ? (Array.isArray(row.external_links)
+              ? row.external_links.map((link: any) => `${link.name || ''}:${link.url || ''}`).join('; ')
+              : JSON.stringify(row.external_links))
+          : ''
       }));
 
       const csv = stringify(formattedRows, {
@@ -1102,10 +1206,20 @@ export function registerCSVRoutes(app: FastifyInstance) {
           id: 'ID',
           title: '標題',
           body: '內容',
+          content: '詳細內容',
+          category: '分類',
+          is_pinned: '是否置頂',
+          external_links: '外部連結',
+          contact_phone: '聯絡電話',
+          order: '排序',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          is_sample: '是否為範例',
           priority: '優先級',
           status: '狀態',
           created_at: '建立時間',
-          updated_at: '更新時間'
+          created_date: '建立日期',
+          updated_date: '更新日期'
         }
       });
 
@@ -1119,21 +1233,89 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Export trash announcements to CSV
+  app.get('/csv/export/trash-announcements', { preHandler: requirePermission('trash_announcements', 'view') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    try {
+      const { rows } = await app.db.query(
+        `SELECT
+          id, title, body, content, category, is_pinned, external_links,
+          contact_phone, "order", created_by_id, created_by, is_sample,
+          priority, status, created_at, created_date, updated_date, deleted_at
+        FROM announcements
+        WHERE status = 'deleted' AND deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC`
+      );
+
+      // 格式化時間欄位和 external_links
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at),
+        created_date: formatDateTime(row.created_date),
+        updated_date: formatDateTime(row.updated_date),
+        deleted_at: formatDateTime(row.deleted_at),
+        is_pinned: row.is_pinned ? '是' : '否',
+        is_sample: row.is_sample ? '是' : '否',
+        // 將 external_links JSON 轉換為可讀格式
+        external_links: row.external_links
+          ? (Array.isArray(row.external_links)
+              ? row.external_links.map((link: any) => `${link.name || ''}:${link.url || ''}`).join('; ')
+              : JSON.stringify(row.external_links))
+          : ''
+      }));
+
+      const csv = stringify(formattedRows, {
+        header: true,
+        columns: {
+          id: 'ID',
+          title: '標題',
+          body: '內容',
+          content: '詳細內容',
+          category: '分類',
+          is_pinned: '是否置頂',
+          external_links: '外部連結',
+          contact_phone: '聯絡電話',
+          order: '排序',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          is_sample: '是否為範例',
+          priority: '優先級',
+          status: '狀態',
+          created_at: '建立時間',
+          created_date: '建立日期',
+          updated_date: '更新日期',
+          deleted_at: '刪除時間'
+        }
+      });
+
+      const csvWithBOM = '\uFEFF' + csv;
+      reply.type('text/csv; charset=utf-8');
+      reply.header('Content-Disposition', 'attachment; filename="trash_announcements_export.csv"');
+      return csvWithBOM;
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to export trash announcements');
+      return reply.status(500).send({ message: 'Failed to export trash announcements' });
+    }
+  });
+
   // Import announcements from CSV
   app.post('/csv/import/announcements', { preHandler: requirePermission('announcements', 'manage') }, async (req: FastifyRequest, reply) => {
     if (!app.hasDecorator('db')) {
       return reply.status(503).send({ message: 'Database not available' });
     }
 
-    const body = req.body as { csv: string; skipDuplicates?: boolean };
+    const requestBody = req.body as { csv: string; skipDuplicates?: boolean };
 
-    if (!body.csv) {
+    if (!requestBody.csv) {
       return reply.status(400).send({ message: 'CSV data is required' });
     }
 
     try {
       // 移除 BOM 字元
-      const csvData = removeBOM(body.csv);
+      const csvData = removeBOM(requestBody.csv);
       const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
@@ -1148,7 +1330,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
       for (let i = 0; i < records.length; i++) {
         const record = (records as any[])[i];
         const title = record['標題（必填）'] || record['標題'];
-        const body = record['內容'] || '';
+        const announcementBody = record['內容'] || '';
         const priority = record['優先級（low/normal/high）'] || record['優先級'] || 'normal';
         const status = record['狀態（active/inactive）'] || record['狀態'] || 'active';
 
@@ -1170,7 +1352,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // Check for duplicates by title
-        if (body.skipDuplicates) {
+        if (requestBody.skipDuplicates) {
           const { rows: existing } = await app.db.query(
             'SELECT id FROM announcements WHERE title = $1',
             [title]
@@ -1183,9 +1365,9 @@ export function registerCSVRoutes(app: FastifyInstance) {
 
         const announcementId = `announcement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await app.db.query(
-          `INSERT INTO announcements (id, title, body, priority, status, created_at, updated_at)
+          `INSERT INTO announcements (id, title, body, priority, status, created_at, updated_date)
            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-          [announcementId, title, body, priority, status]
+          [announcementId, title, announcementBody, priority, status]
         );
 
         imported++;
@@ -1208,7 +1390,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
   // ==================== 垃圾桶災區 CSV 匯出/匯入 ====================
 
   // Export trash disaster areas to CSV
-  app.get('/csv/export/trash-areas', { preHandler: requirePermission('disaster_areas', 'manage') }, async (req, reply) => {
+  app.get('/csv/export/trash-areas', { preHandler: requirePermission('trash_areas', 'view') }, async (req, reply) => {
     if (!app.hasDecorator('db')) {
       return reply.status(503).send({ message: 'Database not available' });
     }
@@ -1343,6 +1525,80 @@ export function registerCSVRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error({ err }, '[csv] Failed to import trash disaster areas');
       return reply.status(500).send({ message: 'Failed to import trash disaster areas', error: err.message });
+    }
+  });
+
+  // ==================== 垃圾桶網格 CSV 匯出 ====================
+
+  // Export trash grids to CSV
+  app.get('/csv/export/trash-grids', { preHandler: requirePermission('trash_grids', 'view') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    try {
+      const { rows } = await app.db.query(
+        `SELECT
+          g.id, g.code, g.grid_type, g.volunteer_needed, g.volunteer_registered,
+          g.meeting_point, g.risks_notes, g.contact_info, g.status,
+          g.center_lat, g.center_lng, g.created_at, g.deleted_at,
+          da.name as area_name
+        FROM grids g
+        LEFT JOIN disaster_areas da ON g.disaster_area_id = da.id
+        WHERE g.status = 'deleted'
+        ORDER BY g.deleted_at DESC`
+      );
+
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at),
+        deleted_at: formatDateTime(row.deleted_at)
+      }));
+
+      const csv = stringify(formattedRows, {
+        header: true,
+        columns: {
+          id: 'ID',
+          code: '網格代碼',
+          grid_type: '類型',
+          area_name: '災區名稱',
+          volunteer_needed: '需求人數',
+          volunteer_registered: '已登記人數',
+          meeting_point: '集合點',
+          risks_notes: '風險備註',
+          contact_info: '聯絡資訊',
+          status: '狀態',
+          center_lat: '緯度',
+          center_lng: '經度',
+          created_at: '建立時間',
+          deleted_at: '刪除時間'
+        }
+      });
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `匯出 ${rows.length} 筆垃圾桶網格資料為 CSV`,
+        action_type: 'export',
+        resource_type: 'grid',
+        details: { count: rows.length, trash: true },
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      // 添加 UTF-8 BOM 以確保 Excel 正確識別編碼
+      const csvWithBOM = '\uFEFF' + csv;
+
+      reply.type('text/csv; charset=utf-8');
+      reply.header('Content-Disposition', `attachment; filename="trash_grids_export_${new Date().toISOString().split('T')[0]}.csv"`);
+      return reply.send(csvWithBOM);
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to export trash grids');
+      return reply.status(500).send({ message: 'Failed to export trash grids' });
     }
   });
 }

@@ -149,6 +149,7 @@ export default function AdminPage() {
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [isAreaTrashView, setIsAreaTrashView] = useState(false);
   const [areaSearchTerm, setAreaSearchTerm] = useState('');
+  const [gridSearchTerm, setGridSearchTerm] = useState('');
 
   // 公告垃圾桶相關狀態
   const [trashAnnouncements, setTrashAnnouncements] = useState([]);
@@ -793,10 +794,32 @@ export default function AdminPage() {
     filteredGrids = filteredGrids.filter(g => g.created_by_id == user?.id);
   }
 
+  // 搜尋過濾
+  if (gridSearchTerm) {
+    const searchLower = gridSearchTerm.toLowerCase();
+    filteredGrids = filteredGrids.filter(g =>
+      g.code?.toLowerCase().includes(searchLower) ||
+      g.address?.toLowerCase().includes(searchLower) ||
+      g.notes?.toLowerCase().includes(searchLower) ||
+      g.description?.toLowerCase().includes(searchLower)
+    );
+  }
+
   // 過濾垃圾桶中的網格（一般用戶只能看到自己的）
   let filteredTrashGrids = trashGrids;
   if (isRegularUser) {
     filteredTrashGrids = trashGrids.filter(g => g.created_by_id == user?.id);
+  }
+
+  // 垃圾桶搜尋過濾
+  if (gridSearchTerm) {
+    const searchLower = gridSearchTerm.toLowerCase();
+    filteredTrashGrids = filteredTrashGrids.filter(g =>
+      g.code?.toLowerCase().includes(searchLower) ||
+      g.address?.toLowerCase().includes(searchLower) ||
+      g.notes?.toLowerCase().includes(searchLower) ||
+      g.description?.toLowerCase().includes(searchLower)
+    );
   }
 
   const handleRoleChange = async (targetUserId, newRole) => {
@@ -1442,7 +1465,7 @@ export default function AdminPage() {
               <CardTitle>地區需求調整</CardTitle>
               <div className="flex items-center gap-3">
                 {canManage('grids') && (
-                  <GridImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
+                  <GridImportExportButtons onImportSuccess={loadData} showMessage={showMessage} isTrashView={isTrashView} />
                 )}
                 {/* 保留原有的新增網格按鈕，改為與公告管理相同的樣式 */}
                 <Button
@@ -1534,6 +1557,17 @@ export default function AdminPage() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* 搜尋欄 */}
+              <div className="flex items-center gap-3 mb-6">
+                <Search className="w-5 h-5 text-gray-400" />
+                <Input
+                  placeholder="搜尋網格代碼、地址或備註..."
+                  value={gridSearchTerm}
+                  onChange={(e) => setGridSearchTerm(e.target.value)}
+                  className="max-w-md"
+                />
               </div>
 
               {/* 網格類型篩選（僅在非垃圾桶視圖顯示） */}
@@ -1988,7 +2022,12 @@ export default function AdminPage() {
                                 disabled={user.id === u.id || isBlacklisted}
                               >
                                 <SelectTrigger className="w-36">
-                                  <SelectValue />
+                                  <SelectValue placeholder={
+                                    u.role === 'super_admin' ? '超級管理員' :
+                                    u.role === 'admin' ? '管理員' :
+                                    u.role === 'grid_manager' ? '網格管理者' :
+                                    '一般用戶'
+                                  } />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="user">
