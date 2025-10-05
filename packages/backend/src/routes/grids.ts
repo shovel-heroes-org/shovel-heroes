@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -23,7 +24,7 @@ const GridCreateSchema = z.object({
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
-  app.get('/grids', async () => {
+  app.get('/grids', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query(`
       SELECT 
@@ -34,7 +35,12 @@ export function registerGridRoutes(app: FastifyInstance) {
         created_at, updated_at, created_date, updated_date
       FROM grids
       ORDER BY created_at DESC`);
-    return rows;
+    // Weak ETag across stable keys: id + updated_at + created_at + volunteer_registered + order-insensitive projections
+    const etag = computeListEtag(rows, ['id', 'updated_at', 'created_at', 'volunteer_registered']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(rows);
   });
 
   app.post('/grids', async (req, reply) => {
