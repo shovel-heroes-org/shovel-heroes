@@ -70,7 +70,7 @@ jobs:
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
         run: |
           docker build -f Dockerfile.frontend \
-            --build-arg VITE_API_BASE=https://shovel-heroes.cc \
+            --build-arg VITE_API_BASE=https://api.shovel-heroes.cc \
             -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest \
             .

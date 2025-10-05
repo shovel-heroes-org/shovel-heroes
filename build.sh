@@ -121,16 +121,16 @@ if [ "$BUILD_FRONTEND" = true ]; then
   # Set API base URL based on environment
   case $ENV in
     prod|production)
-      VITE_API_BASE="https://shovel-heroes.cc"
+      VITE_API_BASE="https://api.shovel-heroes.cc"
       ;;
     staging)
-      VITE_API_BASE="https://shovel-heroes.cc"
+      VITE_API_BASE="https://api.shovel-heroes.cc"
       ;;
     dev|development)
       VITE_API_BASE="http://localhost:8787"
       ;;
     *)
-      VITE_API_BASE="https://shovel-heroes.cc"
+      VITE_API_BASE="https://api.shovel-heroes.cc"
       ;;
   esac
 
