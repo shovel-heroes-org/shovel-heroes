@@ -500,7 +500,6 @@ export default function MapPage() {
   const handleModalClose = () => {
     setSelectedGrid(null);
     setGridDetailTab('info');
-    loadData();
   };
 
   const handleFlyToArea = (area) => {

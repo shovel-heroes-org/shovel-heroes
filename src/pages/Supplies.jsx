@@ -195,7 +195,6 @@ export default function SuppliesPage() {
   const handleDonationModalClose = () => {
     setSelectedGridForDonation(null);
     setGridDetailTab('supply');
-    loadData(); // 重新載入資料以更新進度
   };
 
   // URL 同步函式
