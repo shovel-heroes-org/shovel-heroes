@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { listDisasterAreas, createDisasterArea, getDisasterArea, updateDisasterArea, deleteDisasterArea } from '../modules/disaster-areas/repo.js';
 import { z } from 'zod';
-import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag';
+import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const CreateSchema = z.object({

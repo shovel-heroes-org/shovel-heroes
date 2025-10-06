@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag';
+import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag.js';
 
 // NOTE: This endpoint is an aggregate view combining volunteer_registrations + users.
 // DB schema currently only stores minimal fields for volunteer_registrations.
