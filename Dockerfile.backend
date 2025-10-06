@@ -1,0 +1,65 @@
+# Multi-stage Dockerfile for Shovel Heroes Backend (Fastify + TypeScript)
+# Uses distroless base image and runs as non-root user
+
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+COPY packages/shared-types/package*.json ./packages/shared-types/
+
+# Install dependencies for backend and shared-types workspaces
+RUN npm ci --workspace=packages/backend --workspace=packages/shared-types
+
+# Copy source code
+COPY packages/backend ./packages/backend
+COPY packages/shared-types ./packages/shared-types
+COPY api-spec ./api-spec
+
+# Build TypeScript to JavaScript
+RUN npm run build:api
+
+# Stage 2: Production dependencies
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+
+# Install only production dependencies
+RUN npm ci --workspace=packages/backend --omit=dev
+
+# Stage 3: Production (Alpine for debugging, will switch to distroless once working)
+FROM node:20-alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
+# Set working directory to backend package
+WORKDIR /app/packages/backend
+
+# Copy package files and dependencies
+COPY --from=deps --chown=nodejs:nodejs /app/node_modules /app/node_modules
+COPY --from=deps --chown=nodejs:nodejs /app/packages/backend/node_modules ./node_modules
+COPY --from=deps --chown=nodejs:nodejs /app/package.json /app/package.json
+COPY --from=deps --chown=nodejs:nodejs /app/packages/backend/package.json ./package.json
+
+# Copy compiled backend from builder
+COPY --from=builder --chown=nodejs:nodejs /app/packages/backend/dist ./dist
+
+# Copy shared-types (if needed at runtime)
+COPY --from=builder --chown=nodejs:nodejs /app/packages/shared-types /app/packages/shared-types
+
+# Expose backend port
+EXPOSE 8787
+
+# Switch to non-root user
+USER nodejs
+
+# Run the application from the backend directory
+CMD ["node", "dist/index.js"]
