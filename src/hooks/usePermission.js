@@ -13,6 +13,7 @@ export function usePermission() {
   const { user, actingRole } = useAuth();
   const [permissionCache, setPermissionCache] = useState({});
   const [permissionLoading, setPermissionLoading] = useState({});
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false); // 追蹤權限是否已載入完成
   const isLoadingAllRef = useRef(false); // 使用 ref 防止重複載入（立即生效）
   const loadedRoleRef = useRef(null); // 記錄已載入的角色
 
@@ -93,10 +94,12 @@ export function usePermission() {
       // 更新快取
       setPermissionCache(newCache);
       loadedRoleRef.current = actingRole; // 記錄已載入的角色
+      setPermissionsLoaded(true); // 標記權限已載入完成
       // console.log(`✅ 批量載入權限完成 - 角色: ${actingRole}, 權限數: ${Object.keys(permissions).length}`);
     } catch (error) {
       // console.error('批量載入權限失敗:', error);
       // 載入失敗時保持空快取，hasPermission 會返回 false
+      setPermissionsLoaded(true); // 即使失敗也標記為已載入（避免無限等待）
     } finally {
       isLoadingAllRef.current = false; // 完成載入
     }
@@ -175,10 +178,12 @@ export function usePermission() {
   useEffect(() => {
     // 清除舊的快取（因為角色改變了）
     setPermissionCache({});
+    setPermissionsLoaded(false); // 重置載入狀態
     isLoadingAllRef.current = false; // 重置載入狀態
     loadedRoleRef.current = null; // 清除已載入角色記錄
 
     if (!user || !actingRole || actingRole === 'guest') {
+      setPermissionsLoaded(true); // 訪客模式不需要載入，直接標記為已載入
       return;
     }
 
@@ -193,6 +198,7 @@ export function usePermission() {
     const handlePermissionUpdate = () => {
       // console.log('🔄 檢測到權限更新，清除快取並批量重新載入權限');
       setPermissionCache({});
+      setPermissionsLoaded(false); // 重置載入狀態
       isLoadingAllRef.current = false; // 重置載入狀態
       loadedRoleRef.current = null; // 清除已載入角色記錄
 
@@ -217,6 +223,7 @@ export function usePermission() {
     canDelete,
     canManage,
     clearPermissionCache, // 新增：清除快取函數
+    permissionsLoaded, // 新增：權限是否已載入完成
     authUser: user, // 新增：返回當前使用者
     currentRole: actingRole,
     isGuest: actingRole === 'guest',

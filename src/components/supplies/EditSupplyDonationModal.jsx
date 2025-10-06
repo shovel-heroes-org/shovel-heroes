@@ -20,9 +20,11 @@ export default function EditSupplyDonationModal({
   donation,
   onSave
 }) {
-  // 檢查物資狀態管理權限
+  // 檢查物資狀態管理權限：需要同時具備隱私權限和管理權限
   const { hasPermission } = usePermission();
+  const hasPrivacyPermission = hasPermission('supply_donations', 'privacy');
   const hasStatusManagementPermission = hasPermission('supplies_status_management', 'view');
+  const canEditStatus = hasPrivacyPermission && hasStatusManagementPermission;
   const [formData, setFormData] = useState({
     supply_name: '',
     quantity: '',
@@ -157,8 +159,8 @@ export default function EditSupplyDonationModal({
                 </div>
               </div>
 
-              {/* 狀態選擇 - 需要物資狀態管理權限 */}
-              {hasStatusManagementPermission ? (
+              {/* 狀態選擇 - 需要隱私權限和物資狀態管理權限 */}
+              {canEditStatus ? (
                 <div>
                   <Label htmlFor="status" className="flex items-center gap-2 mb-2">
                     <Info className="w-4 h-4" />
@@ -197,7 +199,7 @@ export default function EditSupplyDonationModal({
                   </div>
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                     <Info className="w-3 h-3"/>
-                    需要物資狀態管理權限才能修改狀態
+                    需要隱私權限和物資狀態管理權限才能修改狀態
                   </p>
                 </div>
               )}

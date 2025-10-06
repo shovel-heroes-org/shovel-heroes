@@ -37,6 +37,8 @@ export default function BlacklistImportExportButtons({ onImportSuccess, showMess
       try {
         const result = await importBlacklistFromCSV(csvContent);
 
+        console.log('Import result:', result); // 除錯用
+
         if (result.imported > 0 || result.skipped > 0) {
           const message = `匯入完成！成功：${result.imported} 筆，跳過：${result.skipped} 筆，錯誤：${result.errors?.length || 0} 筆`;
           if (result.errors && result.errors.length > 0) {
@@ -46,7 +48,11 @@ export default function BlacklistImportExportButtons({ onImportSuccess, showMess
           }
           onImportSuccess && onImportSuccess();
         } else {
-          const message = '匯入失敗：沒有成功匯入任何資料';
+          // 顯示詳細錯誤訊息
+          const errorDetails = result.errors && result.errors.length > 0
+            ? `\n錯誤詳情：\n${result.errors.join('\n')}`
+            : '';
+          const message = `匯入失敗：沒有成功匯入任何資料${errorDetails}`;
           showMessage ? showMessage(message, 'error') : alert(message);
         }
       } catch (error) {

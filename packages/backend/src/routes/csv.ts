@@ -10,9 +10,12 @@ import { createAdminAuditLog } from '../lib/audit-logger.js';
  * @returns 移除 BOM 後的文字
  */
 function removeBOM(text: string): string {
+  // 移除 UTF-8 BOM (0xEF,0xBB,0xBF)
   if (text.charCodeAt(0) === 0xFEFF) {
-    return text.substring(1);
+    text = text.substring(1);
   }
+  // 移除可能在文字開頭的其他 BOM 變體
+  text = text.replace(/^\uFEFF/, '');
   return text;
 }
 
@@ -1383,7 +1386,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
         columns: true,
         skip_empty_lines: true,
         trim: true,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
+        bom: true // 啟用 BOM 處理
       });
 
       let imported = 0;
@@ -1391,12 +1395,27 @@ export function registerCSVRoutes(app: FastifyInstance) {
       const errors: string[] = [];
 
       for (const record of records as any[]) {
-        const id = record['ID'];
-        const email = record['Email（必填）'] || record['Email'];
+        // 嘗試多種可能的欄位名稱，並清理空字串
+        let id = record['ID'] || record['﻿ID'] || record['\uFEFFID'] || '';
+        let email = record['Email（必填）'] || record['Email'] || record['﻿Email（必填）'] || record['\uFEFFEmail（必填）'] || '';
+        let username = record['姓名'] || record['﻿姓名'] || '';
+        let role = record['角色'] || record['﻿角色'] || '';
+
+        // 清理空字串和空白字元
+        id = id.trim();
+        email = email.trim();
+        username = username.trim();
+        role = role.trim();
+
+        // 將空字串轉換為 undefined
+        if (!id) id = undefined;
+        if (!email) email = undefined;
+        if (!username) username = undefined;
+        if (!role) role = undefined;
 
         // 必須至少有 ID 或 Email 其中之一
         if (!id && !email) {
-          errors.push(`Missing both ID and email in row: ${JSON.stringify(record)}`);
+          errors.push(`缺少 ID 和 Email`);
           continue;
         }
 
@@ -1405,32 +1424,57 @@ export function registerCSVRoutes(app: FastifyInstance) {
         let params: any[];
 
         if (id) {
-          query = 'SELECT id, is_blacklisted FROM users WHERE id = $1';
+          query = 'SELECT id, is_blacklisted, name, role FROM users WHERE id = $1';
           params = [id];
-        } else {
-          query = 'SELECT id, is_blacklisted FROM users WHERE email = $1';
+        } else if (email) {
+          query = 'SELECT id, is_blacklisted, name, role FROM users WHERE email = $1';
           params = [email];
+        } else {
+          continue;
         }
 
         const { rows: users } = await app.db.query(query, params);
 
+        let userId: string;
+
         if (users.length === 0) {
-          errors.push(`User not found: ${id || email}`);
-          continue;
+          // 用戶不存在，創建新用戶並加入黑名單
+          if (!id) {
+            errors.push(`無法創建使用者：缺少 ID`);
+            continue;
+          }
+
+          // 創建用戶
+          const insertQuery = `
+            INSERT INTO users (id, name, email, role, is_blacklisted, created_at)
+            VALUES ($1, $2, $3, $4, true, NOW())
+          `;
+          const insertParams = [
+            id,
+            username || id, // 如果沒有姓名，使用 ID
+            email || null,  // Email 可以為 null
+            role || 'user'  // 預設角色為 user
+          ];
+
+          await app.db.query(insertQuery, insertParams);
+          userId = id;
+          imported++;
+        } else {
+          // 用戶存在
+          userId = users[0].id;
+
+          if (users[0].is_blacklisted) {
+            skipped++;
+            continue;
+          }
+
+          // 加入黑名單
+          await app.db.query(
+            'UPDATE users SET is_blacklisted = true WHERE id = $1',
+            [userId]
+          );
+          imported++;
         }
-
-        if (users[0].is_blacklisted) {
-          skipped++;
-          continue;
-        }
-
-        // Add to blacklist
-        await app.db.query(
-          'UPDATE users SET is_blacklisted = true WHERE id = $1',
-          [users[0].id]
-        );
-
-        imported++;
       }
 
       app.log.info(`[csv] Blacklist import completed: ${imported} imported, ${skipped} skipped`);

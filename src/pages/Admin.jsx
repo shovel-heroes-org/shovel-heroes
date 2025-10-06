@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Shield, MapPin, Users, Package, AlertTriangle,
-  Plus, Settings, BarChart3, Clock, CheckCircle2, Trash2, UserCog,
+  Plus, Settings, BarChart3, Clock, CheckCircle2, Trash2, UserCog, UserPlus,
   RotateCcw, XCircle, Download, Upload, Eye, EyeOff, RefreshCw, Search, User as UserIcon
 } from "lucide-react";
 import {
@@ -95,6 +95,7 @@ export default function AdminPage() {
     canDelete,
     canManage,
     hasPermission,
+    permissionsLoaded, // 追蹤權限是否已載入完成
     isAdmin,
     isSuperAdmin,
     isGridManager,
@@ -164,6 +165,8 @@ export default function AdminPage() {
   const [trashAreasLoading, setTrashAreasLoading] = useState(true);
   const [areaSearchTerm, setAreaSearchTerm] = useState('');
   const [gridSearchTerm, setGridSearchTerm] = useState('');
+  const [userSearchTerm, setUserSearchTerm] = useState(''); // 用戶搜尋關鍵字
+  const [blacklistSearchTerm, setBlacklistSearchTerm] = useState(''); // 黑名單搜尋關鍵字
 
   // 公告垃圾桶相關狀態
   const [trashAnnouncements, setTrashAnnouncements] = useState([]);
@@ -182,6 +185,7 @@ export default function AdminPage() {
   // 黑名單用戶相關狀態
   const [blacklistedUsers, setBlacklistedUsers] = useState([]);
   const [selectedBlacklistUsers, setSelectedBlacklistUsers] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState([]); // 用戶管理頁面的批量選擇
 
   // 審計日誌相關狀態
   const [auditLogs, setAuditLogs] = useState([]);
@@ -285,13 +289,13 @@ export default function AdminPage() {
       const donationsData = Array.isArray(donationsResponse) ? donationsResponse : (donationsResponse?.data || []);
       setDonations(donationsData);
 
-      // Normalize /users response: backend currently returns a plain array (no wrapper)
+      // Normalize /users response: getUsers() returns { data: [], total: number, view: {...} }
       const normalizedUsers = Array.isArray(usersResponse)
         ? usersResponse
         : Array.isArray(usersResponse?.data)
           ? usersResponse.data
-          : Array.isArray(usersResponse?.data?.data)
-            ? usersResponse.data.data
+          : Array.isArray(usersResponse?.member)
+            ? usersResponse.member
             : [];
       // Ensure consistent shape (full_name fallback)
       const safeUsers = normalizedUsers.map(u => ({
@@ -306,9 +310,11 @@ export default function AdminPage() {
           const adminUsersResponse = await getAdminUsers();
           const adminUsersList = Array.isArray(adminUsersResponse?.data)
             ? adminUsersResponse.data
-            : Array.isArray(adminUsersResponse)
-            ? adminUsersResponse
-            : [];
+            : Array.isArray(adminUsersResponse?.member)
+              ? adminUsersResponse.member
+              : Array.isArray(adminUsersResponse)
+                ? adminUsersResponse
+                : [];
           setAdminUsers(adminUsersList.map(u => ({
             ...u,
             full_name: u.full_name || u.name || u.email || '未命名用戶'
@@ -417,12 +423,12 @@ export default function AdminPage() {
   // 當用戶、角色或權限變更時重新載入資料
   // 這確保了 actingRole 切換時能正確反映權限狀態
   useEffect(() => {
-    // 確保使用者已登入且權限已載入
-    if (user && actingRole) {
+    // 確保使用者已登入且權限已載入完成
+    if (user && actingRole && permissionsLoaded) {
       loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, actingRole]); // 依賴 user 和 actingRole，當角色切換時重新載入
+  }, [user, actingRole, permissionsLoaded]); // 依賴 user、actingRole 和 permissionsLoaded
 
   const handleAreaSettings = (area) => {
     setEditingArea(area);
@@ -680,8 +686,13 @@ export default function AdminPage() {
     try {
       await removeUserFromBlacklist(userId);
       alert('用戶已移出黑名單');
-      // 重新載入所有用戶數據以更新黑名單狀態
-      loadData();
+      // 從選取列表中移除該用戶
+      setSelectedBlacklistUsers(prev => prev.filter(id => id !== userId));
+      // 重新載入黑名單列表和用戶管理列表
+      await Promise.all([
+        loadBlacklistedUsers(), // 同步更新黑名單頁面
+        loadData() // 更新用戶管理頁面
+      ]);
     } catch (error) {
       console.error('Failed to remove user from blacklist:', error);
       alert('移出黑名單失敗');
@@ -772,7 +783,11 @@ export default function AdminPage() {
       await batchDeleteBlacklistedUsers(selectedBlacklistUsers);
       alert(`已永久刪除 ${selectedBlacklistUsers.length} 個黑名單用戶`);
       setSelectedBlacklistUsers([]);
-      loadBlacklistedUsers();
+      // 重新載入黑名單列表和用戶管理列表
+      await Promise.all([
+        loadBlacklistedUsers(),
+        loadData() // 同步更新用戶管理頁面
+      ]);
     } catch (error) {
       console.error('Failed to batch delete blacklisted users:', error);
       alert('批量刪除失敗：' + (error.message || '請稍後再試'));
@@ -784,10 +799,48 @@ export default function AdminPage() {
     try {
       await addUserToBlacklist(userId);
       alert('用戶已加入黑名單');
-      loadData(); // 重新載入用戶列表
+      // 重新載入黑名單列表和用戶管理列表
+      await Promise.all([
+        loadBlacklistedUsers(), // 同步更新黑名單頁面
+        loadData() // 更新用戶管理頁面
+      ]);
     } catch (error) {
       console.error('Failed to add user to blacklist:', error);
       alert('加入黑名單失敗：' + (error.message || '請稍後再試'));
+    }
+  };
+
+  // 用戶勾選功能
+  const handleUserSelect = (userId) => {
+    setSelectedUsers(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  // 批量加入黑名單
+  const handleBatchAddToBlacklist = async () => {
+    if (selectedUsers.length === 0) {
+      alert('請先選擇要加入黑名單的用戶');
+      return;
+    }
+
+    if (!window.confirm(`確定要將 ${selectedUsers.length} 個用戶加入黑名單嗎？\n\n被加入黑名單的用戶將無法使用系統功能。`)) return;
+
+    try {
+      // 逐一加入黑名單
+      for (const userId of selectedUsers) {
+        await addUserToBlacklist(userId);
+      }
+      alert(`已將 ${selectedUsers.length} 個用戶加入黑名單`);
+      setSelectedUsers([]);
+      // 重新載入黑名單列表和用戶管理列表
+      await Promise.all([
+        loadBlacklistedUsers(), // 同步更新黑名單頁面
+        loadData() // 更新用戶管理頁面
+      ]);
+    } catch (error) {
+      console.error('Failed to batch add users to blacklist:', error);
+      alert('批量加入黑名單失敗：' + (error.message || '請稍後再試'));
     }
   };
 
@@ -951,9 +1004,22 @@ export default function AdminPage() {
     );
   }
 
+  // 定義角色層級（用於檢查是否可以設定更高權限）
+  const getRoleLevel = (role) => {
+    const roleLevels = {
+      'guest': 0,
+      'user': 1,
+      'grid_manager': 2,
+      'admin': 3,
+      'super_admin': 4
+    };
+    return roleLevels[role] || 0;
+  };
+
   const handleRoleChange = async (targetUserId, newRole) => {
-    if (!isAdmin) {
-      alert('只有管理員或超級管理員（在管理視角下）可以變更權限');
+    // 檢查是否有編輯權限
+    if (!canEdit('users')) {
+      alert('您沒有編輯用戶權限');
       return;
     }
 
@@ -962,9 +1028,12 @@ export default function AdminPage() {
       return;
     }
 
-    // 只有超管可以設定 super_admin 角色
-    if (newRole === 'super_admin' && !isSuperAdmin) {
-      alert('只有超級管理員才能指派超級管理員權限');
+    // 檢查是否嘗試設定比自己更高的權限
+    const currentUserLevel = getRoleLevel(actingRole);
+    const newRoleLevel = getRoleLevel(newRole);
+
+    if (newRoleLevel > currentUserLevel) {
+      alert('您無法將用戶設定為比您更高的權限等級');
       return;
     }
 
@@ -2067,30 +2136,111 @@ export default function AdminPage() {
               </div>
             )}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCog className="w-5 h-5 text-indigo-600" />
-                    用戶權限管理
-                  </CardTitle>
-                  <p className="text-sm text-gray-600 mt-2">
-                    管理系統用戶的角色和權限。只有管理員（管理模式）可以變更用戶權限。
-                  </p>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserCog className="w-5 h-5 text-indigo-600" />
+                      用戶權限管理
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 mt-2">
+                      管理系統用戶的角色和權限。只有管理員（管理模式）可以變更用戶權限。
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {/* 建立用戶按鈕（目前功能未實作，反灰禁用） */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={true}
+                      className="opacity-50 cursor-not-allowed"
+                      title="此功能尚未開放"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      建立用戶
+                    </Button>
+                    {/* 刪除用戶按鈕（目前功能未實作，反灰禁用） */}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={true}
+                      className="opacity-50 cursor-not-allowed"
+                      title="此功能尚未開放"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      刪除用戶
+                    </Button>
+                    {canManage('users') && (
+                      <UserImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
+                    )}
+                    {canManage('blacklist') && selectedUsers.length > 0 && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleBatchAddToBlacklist}
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        批量加入黑名單 ({selectedUsers.length})
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <UserImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
+
+                {/* 搜尋欄 */}
+                <div className="mt-4 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="搜尋用戶名稱或 Email..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                  {userSearchTerm && (
+                    <button
+                      onClick={() => setUserSearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {(adminUsers.length > 0 || allUsers.length > 0) ? (
                   <div className="space-y-3">
                     {/* 優先顯示 adminUsers，如果沒有則顯示 allUsers */}
-                    {(adminUsers.length > 0 ? adminUsers : allUsers).map((u) => {
+                    {(adminUsers.length > 0 ? adminUsers : allUsers)
+                      .filter(u => {
+                        // 搜尋過濾：依照名字、Email 過濾
+                        if (!userSearchTerm) return true;
+                        const searchLower = userSearchTerm.toLowerCase();
+                        return (
+                          (u.full_name && u.full_name.toLowerCase().includes(searchLower)) ||
+                          (u.name && u.name.toLowerCase().includes(searchLower)) ||
+                          (u.email && u.email.toLowerCase().includes(searchLower))
+                        );
+                      })
+                      .map((u) => {
                       const isBlacklisted = u.is_blacklisted || false;
                       return (
-                      <Card key={u.id} className={`border ${isBlacklisted ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-blue-300'} transition-colors`}>
+                      <Card key={u.id} className={`border ${
+                        selectedUsers.includes(u.id) ? 'border-blue-500 bg-blue-50' :
+                        isBlacklisted ? 'border-red-300 bg-red-50/30' :
+                        'border-gray-200 hover:border-blue-300'
+                      } transition-colors`}>
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              {/* 勾選框 */}
+                              {canManage('blacklist') && !isBlacklisted && (
+                                <Checkbox
+                                  checked={selectedUsers.includes(u.id)}
+                                  onCheckedChange={() => handleUserSelect(u.id)}
+                                  disabled={user.id === u.id}
+                                />
+                              )}
+                              <div className="flex items-center gap-3 flex-1">
                                 <div className={`w-10 h-10 rounded-full ${isBlacklisted ? 'bg-gradient-to-br from-red-400 to-red-600' : 'bg-gradient-to-br from-blue-400 to-indigo-500'} flex items-center justify-center text-white font-bold`}>
                                   {u.full_name?.charAt(0) || u.email?.charAt(0) || '?'}
                                 </div>
@@ -2128,7 +2278,7 @@ export default function AdminPage() {
                               <Select
                                 value={u.role}
                                 onValueChange={(newRole) => handleRoleChange(u.id, newRole)}
-                                disabled={user.id === u.id || isBlacklisted}
+                                disabled={!canEdit('users') || user.id === u.id || isBlacklisted}
                               >
                                 <SelectTrigger className="w-36">
                                   <SelectValue placeholder={
@@ -2145,19 +2295,23 @@ export default function AdminPage() {
                                       一般用戶
                                     </div>
                                   </SelectItem>
-                                  <SelectItem value="grid_manager">
-                                    <div className="flex items-center gap-2">
-                                      <Settings className="w-4 h-4" />
-                                      網格管理者
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="admin">
-                                    <div className="flex items-center gap-2">
-                                      <Shield className="w-4 h-4" />
-                                      管理員
-                                    </div>
-                                  </SelectItem>
-                                  {user?.role === 'super_admin' && (
+                                  {getRoleLevel(actingRole) >= getRoleLevel('grid_manager') && (
+                                    <SelectItem value="grid_manager">
+                                      <div className="flex items-center gap-2">
+                                        <Settings className="w-4 h-4" />
+                                        網格管理者
+                                      </div>
+                                    </SelectItem>
+                                  )}
+                                  {getRoleLevel(actingRole) >= getRoleLevel('admin') && (
+                                    <SelectItem value="admin">
+                                      <div className="flex items-center gap-2">
+                                        <Shield className="w-4 h-4" />
+                                        管理員
+                                      </div>
+                                    </SelectItem>
+                                  )}
+                                  {getRoleLevel(actingRole) >= getRoleLevel('super_admin') && (
                                     <SelectItem value="super_admin">
                                       <div className="flex items-center gap-2">
                                         <Shield className="w-4 h-4 text-purple-600" />
@@ -2273,37 +2427,59 @@ export default function AdminPage() {
             )}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-red-600">
-                      <XCircle className="w-5 h-5" />
-                      黑名單用戶管理
-                    </CardTitle>
-                    <p className="text-sm text-gray-600 mt-2">
-                      管理被加入黑名單的用戶。只有超級管理員可以查看和管理黑名單。
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {canManage('blacklist') && (
-                      <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadBlacklistedUsers}
-                    >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                      重新載入
-                    </Button>
-                    {canDelete('blacklist') && selectedBlacklistUsers.length > 0 && (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-red-600">
+                        <XCircle className="w-5 h-5" />
+                        黑名單用戶管理
+                      </CardTitle>
+                      <p className="text-sm text-gray-600 mt-2">
+                        管理被加入黑名單的用戶。只有超級管理員可以查看和管理黑名單。
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {canManage('blacklist') && (
+                        <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
+                      )}
                       <Button
-                        variant="destructive"
+                        variant="outline"
                         size="sm"
-                        onClick={handleBatchDeleteBlacklistUsers}
+                        onClick={loadBlacklistedUsers}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        批量永久刪除 ({selectedBlacklistUsers.length})
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        重新載入
                       </Button>
+                      {canDelete('blacklist') && selectedBlacklistUsers.length > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleBatchDeleteBlacklistUsers}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          批量永久刪除 ({selectedBlacklistUsers.length})
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 搜尋欄 */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="搜尋黑名單用戶名稱或 Email..."
+                      value={blacklistSearchTerm}
+                      onChange={(e) => setBlacklistSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                    {blacklistSearchTerm && (
+                      <button
+                        onClick={() => setBlacklistSearchTerm('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 </div>
@@ -2311,7 +2487,18 @@ export default function AdminPage() {
               <CardContent>
                 {blacklistedUsers.length > 0 ? (
                   <div className="space-y-3">
-                    {blacklistedUsers.map((u) => (
+                    {blacklistedUsers
+                      .filter(u => {
+                        // 搜尋過濾：依照名字、Email 過濾
+                        if (!blacklistSearchTerm) return true;
+                        const searchLower = blacklistSearchTerm.toLowerCase();
+                        return (
+                          (u.full_name && u.full_name.toLowerCase().includes(searchLower)) ||
+                          (u.name && u.name.toLowerCase().includes(searchLower)) ||
+                          (u.email && u.email.toLowerCase().includes(searchLower))
+                        );
+                      })
+                      .map((u) => (
                       <Card
                         key={u.id}
                         className={`border-2 transition-colors ${
