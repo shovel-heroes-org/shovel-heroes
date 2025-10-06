@@ -25,6 +25,8 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    # Only run if AWS credentials are configured (skip in upstream repo without AWS setup)
+    if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN != '' }}
 
     steps:
       - name: Checkout code
@@ -93,19 +95,19 @@ jobs:
 
           # Get secrets from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-db-2025100214083654490000000c-89ytP5" \
-            --region ap-east-2 \
+            --secret-id "${{ secrets.AWS_DB_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
             --query SecretString --output text)
 
           APP_SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-app-2025100214083654480000000a-PnHCMb" \
-            --region ap-east-2 \
+            --secret-id "${{ secrets.AWS_APP_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
             --query SecretString --output text)
 
           # Get JWT secret
           JWT_SECRET_OBJ=$(aws secretsmanager get-secret-value \
-            --secret-id "arn:aws:secretsmanager:ap-east-2:447407243904:secret:shovel-heros-staging-jwt-2025100214083654490000000e-cnB4Sa" \
-            --region ap-east-2 \
+            --secret-id "${{ secrets.AWS_JWT_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
             --query SecretString --output text)
 
           # Extract values
@@ -131,7 +133,9 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
-          BACKEND_POD_ROLE_ARN: arn:aws:iam::447407243904:role/shovel-heros-staging-backend-20251002142616455400000002
+          BACKEND_POD_ROLE_ARN: ${{ secrets.BACKEND_POD_ROLE_ARN }}
+          BACKEND_TARGET_GROUP_ARN: ${{ secrets.BACKEND_TARGET_GROUP_ARN }}
+          FRONTEND_TARGET_GROUP_ARN: ${{ secrets.FRONTEND_TARGET_GROUP_ARN }}
         run: |
           # Replace IRSA role ARN placeholder in base manifests
           sed -i "s|BACKEND_POD_ROLE_ARN|$BACKEND_POD_ROLE_ARN|g" k8s/base/serviceaccount.yaml
@@ -140,6 +144,10 @@ jobs:
           sed -i "s|BACKEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG|g" k8s/base/backend-deployment.yaml
           sed -i "s|FRONTEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG|g" k8s/base/frontend-deployment.yaml
 
+          # Replace Target Group ARNs in TargetGroupBinding manifests
+          sed -i "s|BACKEND_TARGET_GROUP_ARN|$BACKEND_TARGET_GROUP_ARN|g" k8s/base/backend-targetgroupbinding.yaml
+          sed -i "s|FRONTEND_TARGET_GROUP_ARN|$FRONTEND_TARGET_GROUP_ARN|g" k8s/base/frontend-targetgroupbinding.yaml
+
           # Apply the manifests (exclude kustomization.yaml)
           kubectl apply -f k8s/base/namespace.yaml
           kubectl apply -f k8s/base/serviceaccount.yaml
@@ -147,6 +155,8 @@ jobs:
           kubectl apply -f k8s/base/frontend-deployment.yaml
           kubectl apply -f k8s/base/backend-service.yaml
           kubectl apply -f k8s/base/frontend-service.yaml
+          kubectl apply -f k8s/base/backend-targetgroupbinding.yaml
+          kubectl apply -f k8s/base/frontend-targetgroupbinding.yaml
           kubectl apply -f k8s/base/ingress.yaml
 
           # Wait for rollout to complete
