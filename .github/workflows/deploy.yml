@@ -25,6 +25,8 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    # Only run if AWS credentials are configured (skip in upstream repo without AWS setup)
+    if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN != '' }}
 
     steps:
       - name: Checkout code
