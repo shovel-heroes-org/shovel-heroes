@@ -1,111 +1,60 @@
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { SupplyDonation, Grid, User } from "@/api/entities";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { SupplyDonation } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Package, Truck, CheckCircle2, Clock, MapPin, 
+import {
+  Package, Truck, CheckCircle2, Clock, MapPin,
   Phone, Calendar, AlertCircle, Plus, ShoppingCart
 } from "lucide-react";
 import AddSupplyRequestModal from "@/components/supplies/AddSupplyRequestModal";
-import GridDetailModal from "@/components/map/GridDetailModal"; // 新增導入
+import GridDetailModal from "@/components/map/GridDetailModal";
+import { useSuppliesData } from "@/hooks/use-supplies-data";
 
 
 export default function SuppliesPage() {
-  const [donations, setDonations] = useState([]);
-  const [grids, setGrids] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    donations,
+    grids,
+    currentUser,
+    stats,
+    unfulfilledRequests,
+    isLoading,
+    mutate: reloadData
+  } = useSuppliesData();
+
   const [showAddRequestModal, setShowAddRequestModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [stats, setStats] = useState({
-    total: 0,
-    pledged: 0,
-    confirmed: 0,
-    delivered: 0
-  });
-  const [unfulfilledRequests, setUnfulfilledRequests] = useState([]);
   const [selectedGridForDonation, setSelectedGridForDonation] = useState(null); // 彈窗選取之網格
   const [gridDetailTab, setGridDetailTab] = useState('supply'); // 控制 GridDetailModal 分頁 (與 URL 同步)
   const initialQueryApplied = useRef(false);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    // 首次載入後解析 URL 以開啟指定 grid/tab
+    if (!initialQueryApplied.current && grids.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const gridParam = params.get('grid');
+      const tabParam = params.get('tab');
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [donationsData, gridsData, userData] = await Promise.all([
-        SupplyDonation.list('-created_date'),
-        Grid.list(),
-        User.me().catch(() => null), // 用戶未登入時返回 null，避免 401 錯誤
-      ]);
-      
-      setDonations(donationsData);
-      setGrids(gridsData);
-      setCurrentUser(userData);
-      
-      setStats({
-        total: donationsData.length,
-        pledged: donationsData.filter(d => d.status === 'pledged').length,
-        confirmed: donationsData.filter(d => d.status === 'confirmed').length,
-        delivered: donationsData.filter(d => d.status === 'delivered').length,
-      });
-
-      // Calculate unfulfilled supply requests
-      const unfulfilled = [];
-      gridsData.forEach(grid => {
-        if (grid.supplies_needed && grid.supplies_needed.length > 0) {
-          grid.supplies_needed.forEach(supply => {
-            const remaining = supply.quantity - (supply.received || 0);
-            if (remaining > 0) {
-              unfulfilled.push({
-                gridId: grid.id,
-                gridCode: grid.code,
-                gridType: grid.grid_type,
-                supplyName: supply.name,
-                totalNeeded: supply.quantity,
-                received: supply.received || 0,
-                remaining: remaining,
-                unit: supply.unit
-              });
-            }
-          });
-        }
-      });
-      setUnfulfilledRequests(unfulfilled);
-
-      // 首次載入後解析 URL 以開啟指定 grid/tab
-      if (!initialQueryApplied.current) {
-        const params = new URLSearchParams(window.location.search);
-        const gridParam = params.get('grid');
-        const tabParam = params.get('tab');
-        if (gridParam) {
-          const found = gridsData.find(g => g.id === gridParam || g.code === gridParam);
-          if (found) {
-            setSelectedGridForDonation(found);
-            if (tabParam && ['info','volunteer','supply','discussion'].includes(tabParam)) {
-              setGridDetailTab(tabParam);
-            } else {
-              setGridDetailTab('supply');
-            }
+      if (gridParam) {
+        const found = grids.find(g => g.id === gridParam || g.code === gridParam);
+        if (found) {
+          setSelectedGridForDonation(found);
+          if (tabParam && ['info','volunteer','supply','discussion'].includes(tabParam)) {
+            setGridDetailTab(tabParam);
+          } else {
+            setGridDetailTab('supply');
           }
         }
-        initialQueryApplied.current = true;
       }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
+      initialQueryApplied.current = true;
     }
-  };
-  
+  }, [grids]);
+
   const handleStatusUpdate = async (donationId, newStatus) => {
     try {
       await SupplyDonation.update(donationId, { status: newStatus });
-      loadData(); // Reload data to reflect the change
+      reloadData();
     } catch (error) {
       console.error(`Failed to update donation status to ${newStatus}:`, error);
       alert('更新狀態失敗，請稍後再試。');
@@ -195,7 +144,6 @@ export default function SuppliesPage() {
   const handleDonationModalClose = () => {
     setSelectedGridForDonation(null);
     setGridDetailTab('supply');
-    loadData(); // 重新載入資料以更新進度
   };
 
   // URL 同步函式
@@ -235,7 +183,7 @@ export default function SuppliesPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [grids]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
@@ -566,7 +514,7 @@ export default function SuppliesPage() {
           onClose={() => setShowAddRequestModal(false)}
           onSuccess={() => {
             setShowAddRequestModal(false);
-            loadData();
+            reloadData();
           }}
           grids={grids}
         />
@@ -577,7 +525,7 @@ export default function SuppliesPage() {
         <GridDetailModal
           grid={selectedGridForDonation}
           onClose={handleDonationModalClose}
-          onUpdate={loadData}
+          onUpdate={reloadData}
           defaultTab={gridDetailTab}
           onTabChange={setGridDetailTab}
         />

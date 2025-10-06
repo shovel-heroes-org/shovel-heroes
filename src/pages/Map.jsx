@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Rectangle, Popup, useMap, Marker, Tooltip } from "react-leaflet";
-import { DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
+import { Grid } from "@/api/entities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +13,7 @@ import AnnouncementPanel from "../components/map/AnnouncementPanel";
 import MarkerClusterGroup from "../components/map/MarkerClusterGroup";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
+import { useMapData } from "../hooks/use-map-data";
 
 const formatCreatedAt = (createdAt) => {
   const today = new Date().toLocaleDateString("zh-TW");
@@ -315,20 +315,11 @@ const MapPositionTracker = ({ setMapPosition }) => {
 };
 
 export default function MapPage() {
-  const [disasterAreas, setDisasterAreas] = useState([]);
-  const [grids, setGrids] = useState([]);
+  const { disasterAreas, grids, stats, urgentGridsList, isLoading, mutate: reloadData } = useMapData();
   const [selectedGrid, setSelectedGrid] = useState(null);
   const [gridDetailTab, setGridDetailTab] = useState('info');
   const initialQueryApplied = useRef(false); // 防止初始載入時 URL 同步提早移除 grid 參數
-  const [loading, setLoading] = useState(true);
   const [selectedGridType, setSelectedGridType] = useState('all');
-  const [stats, setStats] = useState({
-    totalGrids: 0,
-    completedGrids: 0,
-    totalVolunteers: 0,
-    urgentGrids: 0
-  });
-  const [urgentGridsList, setUrgentGridsList] = useState([]);
   const [mapFlyToTarget, setMapFlyToTarget] = useState(null);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const [mapCollapsed, setMapCollapsed] = useState(false);
@@ -386,8 +377,6 @@ export default function MapPage() {
     if (tab && ['info','volunteer','supply','discussion'].includes(tab)) {
       setGridDetailTab(tab);
     }
-    loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // After grids load, if URL has grid param, open it
@@ -461,43 +450,6 @@ export default function MapPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [grids]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [areasData, gridsData] = await Promise.all([
-        DisasterArea.list(),
-        Grid.list()
-      ]);
-
-      setDisasterAreas(areasData);
-      setGrids(gridsData);
-
-      const completedGrids = gridsData.filter(g => g.status === 'completed').length;
-      const totalVolunteers = gridsData.reduce((sum, g) => sum + (g.volunteer_registered || 0), 0);
-      const urgentGrids = gridsData.filter(g => {
-        if (g.grid_type !== 'manpower' || !g.volunteer_needed || g.volunteer_needed === 0) return false;
-        const shortage = (g.volunteer_needed - (g.volunteer_registered || 0)) / g.volunteer_needed;
-        return shortage >= 0.6 && g.status === 'open';
-      });
-      setUrgentGridsList(urgentGrids);
-
-      setStats({
-        totalGrids: gridsData.length,
-        completedGrids,
-        totalVolunteers,
-        urgentGrids: urgentGrids.length,
-      });
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
-      // 首次載入完成後，設置初始載入標誌為 false
-      if (isInitialLoad) {
-        setIsInitialLoad(false);
-      }
-    }
-  };
-
   const getUrgencyScore = (grid) => {
     if (grid.grid_type !== 'manpower' || grid.status !== 'open') return -1;
     return new Date(grid.created_date).getTime() || 0;
@@ -539,7 +491,6 @@ export default function MapPage() {
     setSelectedGrid(null);
     setGridDetailTab('info');
     // 不改變地圖狀態，保持原本的展開/關閉狀態
-    loadData();
   };
 
   const handleFlyToArea = (area) => {
@@ -567,22 +518,31 @@ export default function MapPage() {
         }
       });
 
-      // 只更新本地狀態，不重新載入所有數據
-      setGrids(prevGrids => prevGrids.map(g =>
-        g.id === gridId
-          ? {
-              ...g,
-              center_lat: newCenter.lat,
-              center_lng: newCenter.lng,
-              bounds: {
-                north: newCenter.lat + size,
-                south: newCenter.lat - size,
-                east: newCenter.lng + size,
-                west: newCenter.lng - size
-              }
-            }
-          : g
-      ));
+      // 使用 SWR 的 optimistic update 功能
+      reloadData(
+        data => {
+          const updatedGrids = data.grids.map(g =>
+            g.id === gridId
+              ? {
+                  ...g,
+                  center_lat: newCenter.lat,
+                  center_lng: newCenter.lng,
+                  bounds: {
+                    north: newCenter.lat + size,
+                    south: newCenter.lat - size,
+                    east: newCenter.lng + size,
+                    west: newCenter.lng - size
+                  }
+                }
+              : g
+          );
+          return {
+            ...data,
+            grids: updatedGrids
+          };
+        },
+        { revalidate: false } // 樂觀更新
+      );
     } catch (error) {
       console.error('Failed to update grid position:', error);
     }
@@ -610,7 +570,7 @@ export default function MapPage() {
     return Array.isArray(supplies) ? supplies.filter(s => s.received < s.quantity) : [];
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1105,7 +1065,7 @@ export default function MapPage() {
         <GridDetailModal
           grid={selectedGrid}
           onClose={handleModalClose}
-          onUpdate={loadData}
+          onUpdate={reloadData}
           defaultTab={gridDetailTab}
           onTabChange={setGridDetailTab}
         />
