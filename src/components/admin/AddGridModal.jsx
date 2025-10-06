@@ -358,7 +358,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
 
             <div>
               <Label htmlFor="code">資訊地點（地標）*</Label>
-              <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：A-3, B-4"/>
+              <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：光復國中"/>
             </div>
 
             <div>
