@@ -25,24 +25,40 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    # Only run if AWS credentials are configured (skip in upstream repo without AWS setup)
-    if: secrets.AWS_GITHUB_ACTIONS_ROLE_ARN
+    # Note: Cannot use secrets in job-level if conditions (GitHub Actions limitation)
+    # Using step-level conditionals instead
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if AWS credentials are configured
+        id: check-secrets
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "⚠️ AWS credentials not configured - skipping deployment"
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+            echo "✅ AWS credentials found - proceeding with deployment"
+          fi
+
       - name: Configure AWS credentials via OIDC
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image tag
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         id: set-tag
         run: |
           if [ -n "${{ inputs.image_tag }}" ]; then
@@ -52,9 +68,11 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push backend image
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
@@ -67,6 +85,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
 
       - name: Build and push frontend image
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
@@ -80,15 +99,18 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
 
       - name: Install kubectl
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         uses: azure/setup-kubectl@v4
         with:
           version: 'v1.31.0'
 
       - name: Update kubeconfig for EKS
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         run: |
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
 
       - name: Create namespace and secrets
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         run: |
           # Create namespace if it doesn't exist
           kubectl create namespace shovel-heroes --dry-run=client -o yaml | kubectl apply -f - --validate=false
@@ -130,6 +152,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f - --validate=false
 
       - name: Deploy to Kubernetes
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
@@ -164,6 +187,7 @@ jobs:
           kubectl rollout status deployment/frontend -n shovel-heroes --timeout=5m
 
       - name: Verify deployment
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         run: |
           echo "=== Deployment Status ==="
           kubectl get deployments -n shovel-heroes
@@ -172,6 +196,7 @@ jobs:
           kubectl get ingress -n shovel-heroes
 
       - name: Run health checks
+        if: steps.check-secrets.outputs.has_secrets == 'true'
         run: |
           echo "=== Health Checks ==="
           echo "Waiting for pods to be ready..."
