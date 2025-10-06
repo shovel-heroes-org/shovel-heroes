@@ -138,9 +138,9 @@ export function requirePermission(permissionKey: string, action: 'view' | 'creat
 
 /**
  * 從資料庫檢查資源權限
- * @private
+ * @export
  */
-async function checkResourcePermission(
+export async function checkResourcePermission(
   app: FastifyInstance,
   role: string,
   permissionKey: string,
@@ -182,18 +182,43 @@ async function checkResourcePermission(
  * @private
  */
 function getDefaultPermission(role: string, permissionKey: string, action: string): boolean {
+  // 備份分支政策：預設完全開放，讓資料庫的 role_permissions 表決定實際權限
+  // 如果資料庫沒有記錄，則採用這裡的寬鬆預設值
   const permissions: Record<string, Record<string, Record<string, boolean>>> = {
     guest: {
-      announcements: { view: true }
+      announcements: { view: true },
+      users: { view: true, create: false, edit: false, delete: false, manage: false },
+      grids: { view: true, create: false, edit: false, delete: false, manage: false },
+      volunteers: { view: true, create: false, edit: false, delete: false, manage: false },
+      'disaster-areas': { view: true, create: false, edit: false, delete: false, manage: false }
     },
     user: {
-      announcements: { view: true }
+      announcements: { view: true },
+      users: { view: true, create: true, edit: true, delete: false, manage: false },
+      grids: { view: true, create: true, edit: true, delete: false, manage: false },
+      volunteers: { view: true, create: true, edit: true, delete: false, manage: false },
+      'disaster-areas': { view: true, create: true, edit: true, delete: false, manage: false }
     },
     grid_manager: {
-      announcements: { view: true, create: true, edit: true, delete: true }
+      announcements: { view: true, create: true, edit: true, delete: true },
+      users: { view: true, create: true, edit: true, delete: true, manage: false },
+      grids: { view: true, create: true, edit: true, delete: true, manage: true },
+      volunteers: { view: true, create: true, edit: true, delete: true, manage: true },
+      'disaster-areas': { view: true, create: true, edit: true, delete: true, manage: false }
     },
     admin: {
-      announcements: { view: true, create: true, edit: true, delete: true, manage: true }
+      announcements: { view: true, create: true, edit: true, delete: true, manage: true },
+      users: { view: true, create: true, edit: true, delete: true, manage: true },
+      grids: { view: true, create: true, edit: true, delete: true, manage: true },
+      volunteers: { view: true, create: true, edit: true, delete: true, manage: true },
+      'disaster-areas': { view: true, create: true, edit: true, delete: true, manage: true }
+    },
+    super_admin: {
+      announcements: { view: true, create: true, edit: true, delete: true, manage: true },
+      users: { view: true, create: true, edit: true, delete: true, manage: true },
+      grids: { view: true, create: true, edit: true, delete: true, manage: true },
+      volunteers: { view: true, create: true, edit: true, delete: true, manage: true },
+      'disaster-areas': { view: true, create: true, edit: true, delete: true, manage: true }
     }
   };
 

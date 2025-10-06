@@ -44,12 +44,15 @@ import {
   Users,
   Download,
   Upload,
+  Plus,
 } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
+import { useRequireLogin } from "@/hooks/useRequireLogin";
 import SupplyRequestViewModal from "@/components/admin/SupplyRequestViewModal";
 import SupplyDonationViewModal from "@/components/admin/SupplyDonationViewModal";
 import EditSupplyRequestModal from "@/components/admin/EditSupplyRequestModal";
 import EditSupplyDonationModal from "@/components/supplies/EditSupplyDonationModal";
+import AddSupplyRequestModal from "@/components/supplies/AddSupplyRequestModal";
 import {
   moveSupplyToTrash,
   restoreSupplyFromTrash,
@@ -110,7 +113,13 @@ export default function SupplyManagement() {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // 新增物資需求狀態
+  const [showAddRequestModal, setShowAddRequestModal] = useState(false);
+
   const { canCreate, canEdit, canDelete, canView, canManage, hasPermission } = usePermission();
+
+  // 登入檢查
+  const addSupplyLogin = useRequireLogin("新增物資需求");
 
   // ==================== 訊息提示函數 ====================
   const showMessage = useCallback((text, type = 'info') => {
@@ -232,6 +241,18 @@ export default function SupplyManagement() {
       });
     }
 
+    // 排序：我的物資優先顯示在前面
+    if (currentUser) {
+      filtered.sort((a, b) => {
+        const aIsMine = a.created_by === currentUser.id || a.created_by_id === currentUser.id;
+        const bIsMine = b.created_by === currentUser.id || b.created_by_id === currentUser.id;
+
+        if (aIsMine && !bIsMine) return -1; // a 是我的，排在前面
+        if (!aIsMine && bIsMine) return 1;  // b 是我的，排在前面
+        return 0; // 都是我的或都不是我的，保持原順序
+      });
+    }
+
     setFilteredGrids(filtered);
   }, [grids, needsSearchTerm, showOnlyMyNeeds, showOnlyUrgent, currentUser]);
 
@@ -257,6 +278,18 @@ export default function SupplyManagement() {
         donation.created_by === currentUser.id ||
         donation.created_by_id === currentUser.id
       );
+    }
+
+    // 排序：我的物資優先顯示在前面
+    if (currentUser) {
+      filtered.sort((a, b) => {
+        const aIsMine = a.created_by === currentUser.id || a.created_by_id === currentUser.id;
+        const bIsMine = b.created_by === currentUser.id || b.created_by_id === currentUser.id;
+
+        if (aIsMine && !bIsMine) return -1; // a 是我的，排在前面
+        if (!aIsMine && bIsMine) return 1;  // b 是我的，排在前面
+        return 0; // 都是我的或都不是我的，保持原順序
+      });
     }
 
     setFilteredDonations(filtered);
@@ -796,6 +829,22 @@ export default function SupplyManagement() {
     }
   };
 
+  // 新增物資需求
+  const handleAddSupplyRequest = () => {
+    // 檢查登入狀態（包含訪客模式）
+    if (addSupplyLogin.requireLogin(() => {
+      setShowAddRequestModal(true);
+    })) {
+      // 已登入，執行回調
+    }
+  };
+
+  const handleAddRequestSuccess = async () => {
+    setShowAddRequestModal(false);
+    await loadGrids(); // 重新載入物資需求列表
+    showMessage('物資需求新增成功！', 'success');
+  };
+
   // ==================== 輔助函數 ====================
 
   const formatDate = (dateString) => {
@@ -964,9 +1013,22 @@ export default function SupplyManagement() {
                   </Button>
                 </div>
 
-                {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
-                {canManage('supplies') && (
-                  <div className="flex gap-2">
+                <div className="flex gap-2">
+                  {/* 新增物資需求按鈕 - 參考物資管理中心權限 */}
+                  {!isNeedsTrashView && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={handleAddSupplyRequest}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      新增物資需求
+                    </Button>
+                  )}
+
+                  {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
+                  {canManage('supplies') && (
+                    <>
                     <Button
                       size="sm"
                       variant="outline"
@@ -996,49 +1058,70 @@ export default function SupplyManagement() {
                         {importing ? '匯入中...' : '匯入CSV'}
                       </Button>
                     </label>
-                  </div>
-                )}
-              </div>
-
-              {/* 批次操作按鈕 */}
-              {selectedNeedsItems.length > 0 && (
-                <div className="flex gap-2 mb-4 justify-end">
-                  {!isNeedsTrashView && canEdit('trash_supplies') && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={handleBatchDeleteNeeds}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      批量移至垃圾桶 ({selectedNeedsItems.length})
-                    </Button>
-                  )}
-                  {isNeedsTrashView && (
-                    <>
-                      {canEdit('trash_supplies') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleBatchRestoreNeeds}
-                        >
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          批量還原 ({selectedNeedsItems.length})
-                        </Button>
-                      )}
-                      {canDelete('trash_supplies') && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={handleBatchPermanentDeleteNeeds}
-                        >
-                          <XCircle className="w-4 h-4 mr-2" />
-                          永久刪除 ({selectedNeedsItems.length})
-                        </Button>
-                      )}
                     </>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* 批次操作按鈕 */}
+              {selectedNeedsItems.length > 0 && (() => {
+                // 計算選中項目中屬於自己的數量
+                const currentUserId = currentUser?.id;
+                const ownedCount = selectedNeedsItems.filter(id => {
+                  const grid = (isNeedsTrashView ? trashGrids : filteredGrids).find(g => g.id === id);
+                  return grid && grid.created_by_id === currentUserId;
+                }).length;
+
+                const hasManagePermission = canManage('supplies');
+
+                // 批量刪除：需要 trash_supplies.can_edit (自己的) 或 supplies.can_manage (別人的)
+                const canBatchDelete = hasManagePermission || (canEdit('trash_supplies') && ownedCount === selectedNeedsItems.length);
+
+                // 批量還原：需要 trash_supplies.can_edit (自己的) 或 supplies.can_manage (別人的)
+                const canBatchRestore = hasManagePermission || (canEdit('trash_supplies') && ownedCount === selectedNeedsItems.length);
+
+                // 永久刪除：需要 trash_supplies.can_delete (自己的) 或 supplies.can_manage (別人的)
+                const canBatchPermanentDelete = hasManagePermission || (canDelete('trash_supplies') && ownedCount === selectedNeedsItems.length);
+
+                return (
+                  <div className="flex gap-2 mb-4 justify-end">
+                    {!isNeedsTrashView && canBatchDelete && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleBatchDeleteNeeds}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        批量移至垃圾桶 ({selectedNeedsItems.length})
+                      </Button>
+                    )}
+                    {isNeedsTrashView && (
+                      <>
+                        {canBatchRestore && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleBatchRestoreNeeds}
+                          >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            批量還原 ({selectedNeedsItems.length})
+                          </Button>
+                        )}
+                        {canBatchPermanentDelete && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={handleBatchPermanentDeleteNeeds}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            永久刪除 ({selectedNeedsItems.length})
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* 搜尋與篩選 */}
               {!isNeedsTrashView && (
@@ -1208,7 +1291,8 @@ export default function SupplyManagement() {
                                     <Edit className="w-4 h-4" />
                                   </Button>
                                 )}
-                                {canEdit('trash_supplies') && (
+                                {/* 刪除按鈕：自己的物資可刪除（trash_supplies.can_edit），別人的需要管理權限（supplies.can_manage） */}
+                                {(isMyGrid ? canEdit('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1221,7 +1305,8 @@ export default function SupplyManagement() {
                               </>
                             ) : (
                               <>
-                                {canEdit('trash_supplies') && (
+                                {/* 還原按鈕：自己的可還原（trash_supplies.can_edit），別人的需要管理權限（supplies.can_manage） */}
+                                {(isMyGrid ? canEdit('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1233,7 +1318,8 @@ export default function SupplyManagement() {
                                     還原
                                   </Button>
                                 )}
-                                {canDelete('trash_supplies') && (
+                                {/* 永久刪除：自己的可永久刪除（trash_supplies.can_delete），別人的需要管理權限（supplies.can_manage） */}
+                                {(isMyGrid ? canDelete('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="destructive"
@@ -1288,44 +1374,64 @@ export default function SupplyManagement() {
                 </div>
 
                 {/* 批次操作按鈕 */}
-                {selectedDonationsItems.length > 0 && (
-                  <div className="flex gap-2">
-                    {!isDonationsTrashView && canEdit('trash_supplies') && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={handleBatchDeleteDonations}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        批量移至垃圾桶 ({selectedDonationsItems.length})
-                      </Button>
-                    )}
-                    {isDonationsTrashView && (
-                      <>
-                        {canEdit('trash_supplies') && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleBatchRestoreDonations}
-                          >
-                            <RotateCcw className="w-4 h-4 mr-2" />
-                            批量還原 ({selectedDonationsItems.length})
-                          </Button>
-                        )}
-                        {canDelete('trash_supplies') && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={handleBatchPermanentDelete}
-                          >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            永久刪除 ({selectedDonationsItems.length})
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
+                {selectedDonationsItems.length > 0 && (() => {
+                  // 計算選中項目中屬於自己的數量
+                  const currentUserId = currentUser?.id;
+                  const ownedCount = selectedDonationsItems.filter(id => {
+                    const donation = (isDonationsTrashView ? trashDonations : filteredDonations).find(d => d.id === id);
+                    return donation && donation.created_by_id === currentUserId;
+                  }).length;
+
+                  const hasManagePermission = canManage('supplies');
+
+                  // 批量刪除：需要 trash_supplies.can_edit (自己的) 或 supplies.can_manage (別人的)
+                  const canBatchDelete = hasManagePermission || (canEdit('trash_supplies') && ownedCount === selectedDonationsItems.length);
+
+                  // 批量還原：需要 trash_supplies.can_edit (自己的) 或 supplies.can_manage (別人的)
+                  const canBatchRestore = hasManagePermission || (canEdit('trash_supplies') && ownedCount === selectedDonationsItems.length);
+
+                  // 永久刪除：需要 trash_supplies.can_delete (自己的) 或 supplies.can_manage (別人的)
+                  const canBatchPermanentDelete = hasManagePermission || (canDelete('trash_supplies') && ownedCount === selectedDonationsItems.length);
+
+                  return (
+                    <div className="flex gap-2">
+                      {!isDonationsTrashView && canBatchDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={handleBatchDeleteDonations}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          批量移至垃圾桶 ({selectedDonationsItems.length})
+                        </Button>
+                      )}
+                      {isDonationsTrashView && (
+                        <>
+                          {canBatchRestore && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleBatchRestoreDonations}
+                            >
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              批量還原 ({selectedDonationsItems.length})
+                            </Button>
+                          )}
+                          {canBatchPermanentDelete && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={handleBatchPermanentDelete}
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              永久刪除 ({selectedDonationsItems.length})
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
@@ -1515,7 +1621,8 @@ export default function SupplyManagement() {
                                     <Edit className="w-4 h-4" />
                                   </Button>
                                 )}
-                                {canEdit('trash_supplies') && (
+                                {/* 刪除按鈕：自己的捐贈可用 trash_supplies.can_edit，別人的需要 supplies.can_manage */}
+                                {(isMyDonation ? canEdit('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1528,7 +1635,8 @@ export default function SupplyManagement() {
                               </>
                             ) : (
                               <>
-                                {canEdit('trash_supplies') && (
+                                {/* 還原按鈕：自己的捐贈可用 trash_supplies.can_edit，別人的需要 supplies.can_manage */}
+                                {(isMyDonation ? canEdit('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1540,7 +1648,8 @@ export default function SupplyManagement() {
                                     還原
                                   </Button>
                                 )}
-                                {canDelete('trash_supplies') && (
+                                {/* 永久刪除按鈕：自己的捐贈可用 trash_supplies.can_delete，別人的需要 supplies.can_manage */}
+                                {(isMyDonation ? canDelete('trash_supplies') : canManage('supplies')) && (
                                   <Button
                                     size="sm"
                                     variant="destructive"
@@ -1613,6 +1722,16 @@ export default function SupplyManagement() {
           }}
           donation={editingDonation}
           onSave={handleSaveDonation}
+        />
+      )}
+
+      {/* 新增物資需求模態框 */}
+      {showAddRequestModal && (
+        <AddSupplyRequestModal
+          isOpen={showAddRequestModal}
+          onClose={() => setShowAddRequestModal(false)}
+          onSuccess={handleAddRequestSuccess}
+          grids={grids}
         />
       )}
     </div>

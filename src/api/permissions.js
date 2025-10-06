@@ -1,4 +1,4 @@
-import { http } from './rest/client.js';
+import { http, getStandardHeaders } from './rest/client.js';
 
 /**
  * 取得所有權限設定
@@ -86,9 +86,7 @@ export async function exportPermissions() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/api/permissions/export`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: getStandardHeaders()
     }
   );
 

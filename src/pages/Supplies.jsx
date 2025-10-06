@@ -632,35 +632,29 @@ export default function SuppliesPage() {
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                  {/* 編輯按鈕：
-                                    * 1. can_edit + 是自己 (isSelf)：可以編輯自己的物資
-                                    * 2. can_manage + 是別人 (!isSelf)：可以編輯別人的物資
-                                    * 判斷 isSelf: donation.created_by_id === currentUserId
-                                  */}
+                                  {/* 編輯和刪除按鈕權限邏輯 */}
                                   {(() => {
                                     const isSelf = currentUserId && donation.created_by_id === currentUserId;
+
+                                    // 編輯權限：
+                                    // - 編輯自己：需要 supplies.can_edit + 是自己
+                                    // - 編輯他人：需要 supplies.can_manage
                                     const canEditThis = (canEditSelf && isSelf) || (canEditOthers && !isSelf);
 
-                                    // console.log('🔐 [編輯按鈕權限]', {
-                                    //   donationId: donation.id,
-                                    //   created_by_id: donation.created_by_id,
-                                    //   currentUserId,
-                                    //   isSelf,
-                                    //   canEditSelf,
-                                    //   canEditOthers,
-                                    //   canEditThis
-                                    // });
-
-                                    return canEditThis && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-blue-600 hover:text-blue-700"
-                                        onClick={() => handleEditDonation(donation)}
-                                      >
-                                        <Edit className="w-4 h-4 mr-1" />
-                                        編輯
-                                      </Button>
+                                    return (
+                                      <>
+                                        {canEditThis && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-blue-600 hover:text-blue-700"
+                                            onClick={() => handleEditDonation(donation)}
+                                          >
+                                            <Edit className="w-4 h-4 mr-1" />
+                                            編輯
+                                          </Button>
+                                        )}
+                                      </>
                                     );
                                   })()}
                                   {/* 狀態按鈕需要物資狀態管理權限 */}

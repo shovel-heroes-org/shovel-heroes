@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
 import { makeWeakEtag, ifNoneMatchSatisfied, computeListEtag } from '../lib/etag';
 import { z } from 'zod';
+import { checkResourcePermission } from '../middlewares/AuthMiddleware.js';
 
 export function registerUserRoutes(app: FastifyInstance) {
   // Simple auth stub: if Authorization provided, set a fake user id (or from header)
@@ -34,15 +35,18 @@ export function registerUserRoutes(app: FastifyInstance) {
   });
 
   app.get('/users', async (req, reply) => {
-    // Require authenticated real admin and acting role not 'user'
-    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
-    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
-    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isRealAdmin = req.user?.role === 'admin';
-    if (actingRole === 'user' || !isRealAdmin) {
-      return reply.status(403).send({ message: 'Forbidden: admin only' });
-    }
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+
+    // 支援上游的 X-Acting-Role 視角切換機制
+    const user = req.user;
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (user?.role || 'guest');
+
+    // 使用備份分支的寬鬆權限系統檢查
+    const hasPermission = await checkResourcePermission(app, actingRole, 'users', 'view');
+    if (!hasPermission) {
+      return reply.status(403).send({ message: 'Forbidden: insufficient permissions to view users' });
+    }
 
     // Parse query params: pagination (offset/limit) + filters
     const QuerySchema = z.object({
@@ -144,11 +148,15 @@ export function registerUserRoutes(app: FastifyInstance) {
 
   app.put('/users/:id', async (req, reply) => {
     if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
+
+    // 支援上游的 X-Acting-Role 視角切換機制
     const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
     const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
-    const isRealAdmin = req.user?.role === 'admin';
-    if (actingRole === 'user' || !isRealAdmin) {
-      return reply.status(403).send({ message: 'Forbidden: admin only' });
+
+    // 使用備份分支的寬鬆權限系統檢查
+    const hasPermission = await checkResourcePermission(app, actingRole, 'users', 'edit');
+    if (!hasPermission) {
+      return reply.status(403).send({ message: 'Forbidden: insufficient permissions to edit users' });
     }
     const id = (req.params as any)?.id as string;
     if (!id) return reply.status(400).send({ message: 'Missing id' });

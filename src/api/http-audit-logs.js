@@ -1,4 +1,4 @@
-import { http } from './rest/client.js';
+import { http, getStandardHeaders } from './rest/client.js';
 
 /**
  * HTTP 審計日誌 API 函數
@@ -22,9 +22,7 @@ export async function exportHttpAuditLogsToCSV(params = {}) {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/admin/http-audit-logs/export${queryString ? '?' + queryString : ''}`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 

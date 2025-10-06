@@ -251,14 +251,29 @@ export default function AdminPage() {
     try {
       setLoading(true);
 
-      // Use safe backend API to get user list
-      const [areasData, gridsData, registrationsResponse, donationsResponse, usersResponse] = await Promise.all([
-        DisasterArea.list(),
-        Grid.list(),
-        VolunteerRegistration.list(),
-        SupplyDonation.list(),
-        getUsers() // Changed to use the getUsers function
-      ]);
+      // 只載入有權限檢視的資源
+      const promises = [];
+
+      // 災區資料 - 幾乎所有人都能看
+      promises.push(DisasterArea.list());
+
+      // 網格資料 - 幾乎所有人都能看
+      promises.push(Grid.list());
+
+      // 志工報名 - 需要權限
+      promises.push(VolunteerRegistration.list());
+
+      // 物資捐贈 - 需要權限
+      promises.push(SupplyDonation.list());
+
+      // 使用者列表 - 只有有權限的人才載入
+      if (canView('users')) {
+        promises.push(getUsers());
+      } else {
+        promises.push(Promise.resolve([])); // 無權限時回傳空陣列
+      }
+
+      const [areasData, gridsData, registrationsResponse, donationsResponse, usersResponse] = await Promise.all(promises);
 
       // Ensure data is always an array to prevent iteration errors
       setDisasterAreas(areasData || []);
@@ -395,15 +410,19 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, canView]);
+  }, [user, canView, actingRole]);
 
   // user 來自 AuthContext，已集中管理，這裡不再自行抓取
 
-  // 只在初次載入時載入資料，不要在每次 tab 切換時重新載入
+  // 當用戶、角色或權限變更時重新載入資料
+  // 這確保了 actingRole 切換時能正確反映權限狀態
   useEffect(() => {
-    loadData();
+    // 確保使用者已登入且權限已載入
+    if (user && actingRole) {
+      loadData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 空依賴陣列，只在 mount 時執行一次
+  }, [user, actingRole]); // 依賴 user 和 actingRole，當角色切換時重新載入
 
   const handleAreaSettings = (area) => {
     setEditingArea(area);

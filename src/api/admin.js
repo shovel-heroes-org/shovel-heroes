@@ -1,4 +1,4 @@
-import { http } from './rest/client.js';
+import { http, getStandardHeaders } from './rest/client.js';
 
 /**
  * 管理員 API 功能
@@ -78,9 +78,7 @@ export async function downloadGridsTemplate() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/template/grids`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -105,9 +103,7 @@ export async function exportGridsToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/grids`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -137,9 +133,7 @@ export async function exportVolunteersToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/volunteers`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -169,9 +163,7 @@ export async function exportSuppliesToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/supplies`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -201,9 +193,7 @@ export async function exportUsersToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/users`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -233,9 +223,7 @@ export async function exportBlacklistToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/blacklist`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -297,9 +285,7 @@ export async function exportAreasToCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/areas`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -324,9 +310,7 @@ export async function downloadAreasTemplate() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/template/areas`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -357,9 +341,7 @@ export async function exportTrashAreasToCSV() {
       `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-areas`,
       {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-        }
+        headers: getStandardHeaders()
       }
     );
 
@@ -424,9 +406,7 @@ export async function exportTrashGridsToCSV() {
       `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-grids`,
       {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-        }
+        headers: getStandardHeaders()
       }
     );
 
@@ -461,9 +441,7 @@ export async function exportAuditLogsToCSV(params = {}) {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/admin/audit-logs/export${queryString ? '?' + queryString : ''}`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -490,9 +468,7 @@ export async function exportAnnouncementsCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/announcements`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -518,9 +494,7 @@ export async function exportTrashAnnouncementsCSV() {
     `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-announcements`,
     {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-      }
+      headers: getStandardHeaders()
     }
   );
 
@@ -621,9 +595,7 @@ export async function exportTrashSuppliesToCSV() {
       `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-supplies`,
       {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
-        }
+        headers: getStandardHeaders()
       }
     );
 
