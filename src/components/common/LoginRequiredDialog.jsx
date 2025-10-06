@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LogIn } from 'lucide-react';
+import { User } from '@/api/entities';
 
 /**
  * 登入請求對話框
@@ -17,8 +18,8 @@ import { LogIn } from 'lucide-react';
  */
 export default function LoginRequiredDialog({ open, onOpenChange, action = "執行此操作" }) {
   const handleLogin = () => {
-    // 導向登入頁面
-    window.location.href = '/api/auth/line/login';
+    // 使用與右上角登入按鈕相同的邏輯
+    User.login();
   };
 
   return (
