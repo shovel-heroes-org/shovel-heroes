@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { filterVolunteerPrivacy, filterVolunteersPrivacy } from '../lib/privacy-filter.js';
+import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag.js';
 
 interface VolunteerRegistration {
   id: string;

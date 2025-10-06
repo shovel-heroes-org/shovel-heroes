@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
-import { makeWeakEtag, ifNoneMatchSatisfied, computeListEtag } from '../lib/etag';
+import { makeWeakEtag, ifNoneMatchSatisfied, computeListEtag } from '../lib/etag.js';
 import { z } from 'zod';
 import { checkResourcePermission } from '../middlewares/AuthMiddleware.js';
 

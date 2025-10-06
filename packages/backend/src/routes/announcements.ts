@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
 
 const CreateSchema = z.object({

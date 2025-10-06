@@ -7,5 +7,5 @@ spec:
   serviceRef:
     name: frontend
     port: 80
-  targetGroupARN: arn:aws:elasticloadbalancing:ap-east-2:447407243904:targetgroup/fe-20251003172223376900000001/4de94ad42136c343
+  targetGroupARN: FRONTEND_TARGET_GROUP_ARN
   targetType: ip

@@ -51,3 +51,7 @@ csv/
 tasks.md
 requirements.md
 design.md
+
+# Secrets
+secrets.json
+setup-secrets.sh
