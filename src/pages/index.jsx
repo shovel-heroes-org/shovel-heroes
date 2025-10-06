@@ -74,6 +74,9 @@ function PagesContent() {
                 <Route path="/Supplies" element={<Supplies />} />
                 
                 <Route path="/Admin" element={<Admin />} />
+                {/* Support lowercase route and nested users page */}
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/users" element={<Admin />} />
                 
                 <Route path="/About" element={<About />} />
 

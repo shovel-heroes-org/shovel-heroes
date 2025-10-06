@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS users (
   line_sub TEXT UNIQUE,
   avatar_url TEXT,
   role TEXT DEFAULT 'user',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS grids (
@@ -193,7 +194,8 @@ ALTER TABLE announcements
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS line_sub TEXT UNIQUE,
   ADD COLUMN IF NOT EXISTS avatar_url TEXT,
-  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user',
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- New optional columns for discussions metadata
 ALTER TABLE grid_discussions
