@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 

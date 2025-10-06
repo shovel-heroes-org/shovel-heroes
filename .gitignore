@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 .env
+secrets.json
+setup-secrets.sh

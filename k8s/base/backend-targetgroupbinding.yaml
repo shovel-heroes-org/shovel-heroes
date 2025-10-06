@@ -7,5 +7,5 @@ spec:
   serviceRef:
     name: backend
     port: 8787
-  targetGroupARN: arn:aws:elasticloadbalancing:ap-east-2:447407243904:targetgroup/be-20251002135523905000000015/d93c0dca3c31cb27
+  targetGroupARN: BACKEND_TARGET_GROUP_ARN
   targetType: ip
