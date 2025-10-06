@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from 'react-router-dom';
 import { User, DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +35,9 @@ import GridImportExportButtons from "@/components/admin/GridImportExportButtons"
 import { getUsers } from "@/api/functions"; // Added import
 
 export default function AdminPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isUsersRoute = location.pathname.toLowerCase() === '/admin/users' || location.pathname.toLowerCase() === '/admin/user';
   // Use global auth context so we can respect actingRole (admin vs user perspective)
   const { user, actingRole } = useAuth();
   const [disasterAreas, setDisasterAreas] = useState([]);
@@ -40,7 +45,23 @@ export default function AdminPage() {
   const [registrations, setRegistrations] = useState([]);
   const [donations, setDonations] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize from URL query if present
+  const params = new URLSearchParams(location.search);
+  // Support both old (page/pageSize) and new (offset/limit) URL params for backward compat
+  const initialLimit = Number(params.get('limit') || params.get('pageSize') || '20') || 20;
+  const initialOffset = Number(params.get('offset') || '0') || 0;
+  const initialPage = Number(params.get('page') || String(Math.floor(initialOffset / initialLimit) + 1)) || 1;
+  const initialPageSize = initialLimit;
+  const initialRole = params.get('role') || '';
+  const initialQ = params.get('q') || '';
+  const [userPage, setUserPage] = useState(initialPage);
+  const [userPageSize, setUserPageSize] = useState(initialPageSize);
+  const [userRoleFilter, setUserRoleFilter] = useState(initialRole);
+  const [userQuery, setUserQuery] = useState(initialQ);
+  const [userTotalPages, setUserTotalPages] = useState(1);
+  const [userTotal, setUserTotal] = useState(0);
+  const [coreLoading, setCoreLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [stats, setStats] = useState({
     totalAreas: 0,
     totalGrids: 0,
@@ -57,40 +78,19 @@ export default function AdminPage() {
   const [selectedGridType, setSelectedGridType] = useState('all');
   const [isFixingBounds, setIsFixingBounds] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadCoreData = useCallback(async () => {
     try {
-      setLoading(true);
-
-      // Use safe backend API to get user list
-      const [areasData, gridsData, registrationsData, donationsData, usersResponse] = await Promise.all([
+      setCoreLoading(true);
+      const [areasData, gridsData, registrationsData, donationsData] = await Promise.all([
         DisasterArea.list(),
         Grid.list(),
         VolunteerRegistration.list(),
         SupplyDonation.list(),
-        getUsers() // Changed to use the getUsers function
       ]);
-
-      // Ensure data is always an array to prevent iteration errors
       setDisasterAreas(areasData || []);
       setGrids(gridsData || []);
       setRegistrations(registrationsData || []);
       setDonations(donationsData || []);
-
-      // Normalize /users response: backend currently returns a plain array (no wrapper)
-      const normalizedUsers = Array.isArray(usersResponse)
-        ? usersResponse
-        : Array.isArray(usersResponse?.data)
-          ? usersResponse.data
-          : Array.isArray(usersResponse?.data?.data)
-            ? usersResponse.data.data
-            : [];
-      // Ensure consistent shape (full_name fallback)
-      const safeUsers = normalizedUsers.map(u => ({
-        ...u,
-        full_name: u.full_name || u.name || u.email || '未命名用戶'
-      }));
-      setAllUsers(safeUsers);
-
       // Calculate stats
       const completedGrids = (gridsData || []).filter(g => g.status === 'completed').length;
       const urgentGrids = (gridsData || []).filter(g => {
@@ -98,7 +98,6 @@ export default function AdminPage() {
         const shortage = (g.volunteer_needed - g.volunteer_registered) / g.volunteer_needed;
         return shortage >= 0.6;
       }).length;
-
       setStats({
         totalAreas: (areasData || []).length,
         totalGrids: (gridsData || []).length,
@@ -108,17 +107,63 @@ export default function AdminPage() {
         urgentGrids
       });
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load core data:', error);
     } finally {
-      setLoading(false);
+      setCoreLoading(false);
     }
-  }, []); // 移除 user 依賴
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const offset = (userPage - 1) * userPageSize;
+      const { data: rows, total } = await getUsers({ offset, limit: userPageSize, role: userRoleFilter || undefined, q: userQuery || undefined });
+      const safeUsers = (rows || []).map(u => ({
+        ...u,
+        full_name: u.full_name || u.name || u.email || '未命名用戶'
+      }));
+      setAllUsers(safeUsers);
+      setUserTotal(total || 0);
+      setUserTotalPages(Math.max(1, Math.ceil((total || 0) / userPageSize)));
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      setAllUsers([]);
+      setUserTotal(0);
+      setUserTotalPages(1);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [userPage, userPageSize, userRoleFilter, userQuery]);
 
   // user 來自 AuthContext，已集中管理，這裡不再自行抓取
 
+  // Push URL query when filters or page change (only while on users tab route)
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    // If on users route, reflect state to URL (canonicalize to /admin/users)
+    if (isUsersRoute) {
+      const qs = new URLSearchParams();
+  const limit = userPageSize;
+  const offset = (userPage - 1) * userPageSize;
+  if (offset) qs.set('offset', String(offset));
+  if (limit && limit !== 20) qs.set('limit', String(limit));
+      if (userRoleFilter) qs.set('role', userRoleFilter);
+      if (userQuery) qs.set('q', userQuery);
+      const search = qs.toString();
+      const next = `/admin/users${search ? `?${search}` : ''}`;
+      if (location.pathname + location.search !== next) {
+        navigate(next, { replace: true });
+      }
+    }
+    if (isUsersRoute) {
+      loadUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPage, userPageSize, userRoleFilter, userQuery, location.pathname]);
+
+  // Initial core data load once
+  useEffect(() => {
+    loadCoreData();
+  }, [loadCoreData]);
 
   const handleAreaSettings = (area) => {
     setEditingArea(area);
@@ -133,8 +178,8 @@ export default function AdminPage() {
     }
     if (window.confirm(`確定要刪除災區 "${area.name}" 嗎？此操作無法復原。`)) {
       try {
-        await DisasterArea.delete(area.id);
-        loadData();
+  await DisasterArea.delete(area.id);
+  loadCoreData();
       } catch (error) {
         console.error('Failed to delete disaster area:', error);
         alert('刪除災區失敗，請稍後再試。');
@@ -199,8 +244,8 @@ export default function AdminPage() {
           throw err;
         }
 
-        alert(`網格 "${grid.code}" 及其相關記錄已成功刪除`);
-        loadData(); // Reload data
+  alert(`網格 "${grid.code}" 及其相關記錄已成功刪除`);
+  loadCoreData(); // Reload core data only
       } catch (error) {
         console.error('Failed to delete grid:', error);
         alert('刪除網格失敗，請稍後再試。如果問題持續，請聯絡系統管理員。');
@@ -232,9 +277,9 @@ export default function AdminPage() {
     if (window.confirm('確定要修復所有缺失邊界資料的網格嗎？\n\n此操作會根據現有的中心座標自動計算邊界，通常是安全的操作。')) {
       setIsFixingBounds(true);
       try {
-        const response = await fixGridBounds();
+  const response = await fixGridBounds();
         alert(`修復完成！\n${response.data.message}\n\n總網格數：${response.data.totalGrids}\n已修復：${response.data.updatedCount}`);
-        loadData(); // Reload data after fixing
+  loadCoreData(); // Reload core data after fixing
       } catch (error) {
         console.error('Failed to fix grid bounds:', error);
         alert('修復失敗，請稍後再試或聯絡系統管理員。');
@@ -245,28 +290,17 @@ export default function AdminPage() {
   };
 
   const handleRoleChange = async (targetUserId, newRole) => {
-    if (!user || user.email !== 'kuo.tanya@gmail.com') { // Only 'kuo.tanya@gmail.com' can change roles
-      alert('只有架站管理員可以變更權限');
-      return;
-    }
-
     if (user.id === targetUserId) {
       alert('您無法變更自己的權限');
       return;
     }
 
     const targetUser = allUsers.find(u => u.id === targetUserId);
-    // Super admin protection: 'kuo.tanya@gmail.com' cannot have role changed by others
-    if (targetUser && targetUser.email === 'kuo.tanya@gmail.com' && user.email !== 'kuo.tanya@gmail.com') {
-      alert('您沒有權限變更超級管理員的身份');
-      return;
-    }
-
     if (window.confirm(`確定要將用戶 ${targetUser?.full_name || ''} 的權限變更為 ${newRole} 嗎？`)) {
       try {
-        await User.update(targetUserId, { role: newRole });
+  await User.update(targetUserId, { role: newRole });
         alert('用戶權限已更新');
-        loadData();
+  loadUsers();
       } catch (error) {
         console.error('Failed to update user role:', error);
         alert('更新權限失敗，請稍後再試。');
@@ -274,7 +308,7 @@ export default function AdminPage() {
     }
   };
 
-  if (loading) {
+  if (coreLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -373,14 +407,14 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="grids" className="space-y-6">
+  <Tabs defaultValue={isUsersRoute ? 'users' : 'grids'} className="space-y-6">
         <TabsList>
           <TabsTrigger value="areas">災區管理</TabsTrigger>
           <TabsTrigger value="grids">需求管理</TabsTrigger>
           <TabsTrigger value="volunteers">志工管理</TabsTrigger>
           <TabsTrigger value="supplies">物資管理</TabsTrigger>
-          {user && user.email === 'kuo.tanya@gmail.com' && actingRole === 'admin' && (
-            <TabsTrigger value="users">用戶管理</TabsTrigger>
+          {user && actingRole === 'admin' && (
+            <TabsTrigger value="users" onClick={() => { if (location.pathname.toLowerCase() !== '/admin/users') navigate('/admin/users'); }}>用戶管理</TabsTrigger>
           )}
         </TabsList>
 
@@ -453,7 +487,7 @@ export default function AdminPage() {
               <CardTitle>地區需求調整</CardTitle>
               <div className="flex items-center gap-3">
                 {user && user.role === 'admin' && actingRole === 'admin' && (
-                  <GridImportExportButtons onImportSuccess={loadData} />
+                  <GridImportExportButtons onImportSuccess={loadCoreData} />
                 )}
                 {/* 保留原有的新增網格按鈕，但改為較小的樣式 */}
                 <Button
@@ -688,7 +722,7 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
-        {user && user.email === 'kuo.tanya@gmail.com' && actingRole === 'admin' && (
+        {user && actingRole === 'admin' && (
           <TabsContent value="users">
             <Card>
               <CardHeader>
@@ -698,11 +732,67 @@ export default function AdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {allUsers.length > 0 ? (
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={userQuery}
+                      onChange={(e) => { setUserPage(1); setUserQuery(e.target.value); }}
+                      placeholder="搜尋姓名/Email/ID"
+                      className="border rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={userRoleFilter || 'all'}
+                      onValueChange={(v) => { setUserPage(1); setUserRoleFilter(v === 'all' ? '' : v); }}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="角色篩選" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部角色</SelectItem>
+                        <SelectItem value="user">user</SelectItem>
+                        <SelectItem value="grid_manager">grid_manager</SelectItem>
+                        <SelectItem value="admin">admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Select
+                      value={String(userPageSize)}
+                      onValueChange={(v) => { setUserPage(1); setUserPageSize(Number(v)); }}
+                    >
+                      <SelectTrigger className="w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">每頁 10 筆</SelectItem>
+                        <SelectItem value="20">每頁 20 筆</SelectItem>
+                        <SelectItem value="50">每頁 50 筆</SelectItem>
+                        <SelectItem value="100">每頁 100 筆</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {(usersLoading && allUsers.length === 0) ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : allUsers.length > 0 ? (
                   <div className="space-y-4">
                     {allUsers.map((u) => (
                       <div key={u.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            {u.avatar_url ? (
+                              <AvatarImage src={u.avatar_url} alt={u.full_name || u.name || 'avatar'} />
+                            ) : null}
+                            <AvatarFallback>
+                              {(u.full_name || u.name || 'U').slice(0,1).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
                           <p className="font-semibold text-lg">{u.full_name}</p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -712,8 +802,7 @@ export default function AdminPage() {
                             onValueChange={(newRole) => handleRoleChange(u.id, newRole)}
                             disabled={
                               actingRole !== 'admin' ||
-                              user.id === u.id ||
-                              (user.email !== 'kuo.tanya@gmail.com' && u.email === 'kuo.tanya@gmail.com')
+                              user.id === u.id
                             }
                           >
                             <SelectTrigger className="w-32">
@@ -728,6 +817,21 @@ export default function AdminPage() {
                         </div>
                       </div>
                     ))}
+                    {usersLoading && (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                      </div>
+                    )}
+                    {/* Pagination Controls */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="text-sm text-gray-600">共 {userTotal} 筆，頁 {userPage} / {userTotalPages}</div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setUserPage(1)} disabled={userPage === 1}>«</Button>
+                        <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.max(1, p - 1))} disabled={userPage === 1}>上一頁</Button>
+                        <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.min(userTotalPages, p + 1))} disabled={userPage >= userTotalPages}>下一頁</Button>
+                        <Button variant="outline" size="sm" onClick={() => setUserPage(userTotalPages)} disabled={userPage >= userTotalPages}>»</Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -748,7 +852,7 @@ export default function AdminPage() {
           onClose={() => setShowNewAreaModal(false)}
           onSuccess={() => {
             setShowNewAreaModal(false);
-            loadData();
+            loadCoreData();
           }}
         />
       )}
@@ -760,7 +864,7 @@ export default function AdminPage() {
           onClose={() => setShowNewGridModal(false)}
           onSuccess={() => {
             setShowNewGridModal(false);
-            loadData();
+            loadCoreData();
           }}
           disasterAreas={disasterAreas}
         />
@@ -773,7 +877,7 @@ export default function AdminPage() {
           onClose={() => setShowEditGridModal(false)}
           onSuccess={() => {
             setShowEditGridModal(false);
-            loadData();
+            loadCoreData();
           }}
           grid={editingGrid}
         />

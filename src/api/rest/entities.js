@@ -55,6 +55,7 @@ export const User = {
       return null; // not logged in
     }
   },
+  update: (id, data) => http.put(`/users/${id}`, data),
   login: () => {
     // Always go to backend (absolute) to avoid hitting frontend dev server path only
     window.location.href = `${API_BASE}/auth/line/login`;

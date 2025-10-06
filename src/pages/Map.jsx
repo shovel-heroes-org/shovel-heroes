@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MapContainer, TileLayer, Rectangle, Popup, useMap, Marker, Tooltip } from "react-leaflet";
 import { Grid } from "@/api/entities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus } from "lucide-react";
 import GridDetailModal from "../components/map/GridDetailModal";
@@ -136,6 +135,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
   return (
     <>
       <Rectangle
+        key={`rect-${grid.id}`}
         bounds={[
           [grid.bounds.south, grid.bounds.west],
           [grid.bounds.north, grid.bounds.east]
@@ -227,16 +227,14 @@ const MapFlyToController = ({ target }) => {
   const map = useMap();
 
   useEffect(() => {
-    if (target && map) {
-      // 添加檢查確保地圖已完全初始化
-      try {
-        map.flyTo(target.center, target.zoom, {
-          animate: true,
-          duration: 1.5
-        });
-      } catch (error) {
-        console.warn('Map flyTo error:', error);
+    if (!target || !map) return;
+    try {
+      const [lat, lng] = target.center;
+      if (isFinite(lat) && isFinite(lng) && isFinite(target.zoom)) {
+        map.flyTo(target.center, target.zoom, { animate: true, duration: 1.5 });
       }
+    } catch (error) {
+      console.warn('Map flyTo error:', error);
     }
   }, [target, map]);
 
@@ -265,17 +263,20 @@ const MapResizer = ({ mapCollapsed }) => {
   return null;
 };
 
-const MapBoundsFitter = ({ grids, initialLoad }) => {
+const MapBoundsFitter = ({ grids, initialLoad, onDone }) => {
   const map = useMap();
+  const didFitRef = useRef(false);
 
   useEffect(() => {
     // 只在初次載入且沒有儲存的地圖位置時才自動調整範圍
-    if (map && grids && grids.length > 0 && initialLoad) {
+    if (map && grids && grids.length > 0 && initialLoad && !didFitRef.current) {
       try {
-        const validGrids = grids.filter(g => g.center_lat && g.center_lng);
+        const validGrids = grids.filter(g => isFinite(g.center_lat) && isFinite(g.center_lng));
         if (validGrids.length > 0) {
           const bounds = validGrids.map(g => [g.center_lat, g.center_lng]);
           map.fitBounds(bounds, { padding: [50, 50] });
+          didFitRef.current = true;
+          onDone && onDone();
         }
       } catch (error) {
         console.warn('Map fitBounds error:', error);
@@ -288,27 +289,40 @@ const MapBoundsFitter = ({ grids, initialLoad }) => {
 
 const MapPositionTracker = ({ setMapPosition }) => {
   const map = useMap();
+  const lastRef = useRef({ lat: undefined, lng: undefined, zoom: undefined });
 
   useEffect(() => {
-    if (map) {
-      const updatePosition = () => {
+    if (!map) return;
+    const EPS = 1e-7;
+    const updatePosition = () => {
+      try {
         const center = map.getCenter();
         const zoom = map.getZoom();
-        setMapPosition({
-          center: [center.lat, center.lng],
-          zoom: zoom
+        const lat = center.lat;
+        const lng = center.lng;
+        const prev = lastRef.current;
+        const sameLat = typeof prev.lat === 'number' && Math.abs(prev.lat - lat) < EPS;
+        const sameLng = typeof prev.lng === 'number' && Math.abs(prev.lng - lng) < EPS;
+        const sameZoom = prev.zoom === zoom;
+        if (sameLat && sameLng && sameZoom) return;
+        lastRef.current = { lat, lng, zoom };
+        setMapPosition((p) => {
+          if (p && Math.abs(p.center[0] - lat) < EPS && Math.abs(p.center[1] - lng) < EPS && p.zoom === zoom) {
+            return p; // avoid unnecessary updates
+          }
+          return { center: [lat, lng], zoom };
         });
-      };
+      } catch (e) {
+        // ignore
+      }
+    };
 
-      // 監聽地圖移動和縮放事件
-      map.on('moveend', updatePosition);
-      map.on('zoomend', updatePosition);
-
-      return () => {
-        map.off('moveend', updatePosition);
-        map.off('zoomend', updatePosition);
-      };
-    }
+    map.on('moveend', updatePosition);
+    map.on('zoomend', updatePosition);
+    return () => {
+      map.off('moveend', updatePosition);
+      map.off('zoomend', updatePosition);
+    };
   }, [map, setMapPosition]);
 
   return null;
@@ -758,7 +772,6 @@ export default function MapPage() {
               zoom={mapPosition.zoom}
               className="h-full w-full"
               zoomControl={true}
-              preferCanvas={true}
             >
               <TileLayer
                 attribution='&copy; <a href="https://maps.nlsc.gov.tw/">國土測繪中心</a>'
@@ -768,7 +781,7 @@ export default function MapPage() {
               />
               <MapFlyToController target={mapFlyToTarget} />
               <MapResizer mapCollapsed={mapCollapsed} />
-              <MapBoundsFitter grids={filteredGrids} initialLoad={isInitialLoad} />
+              <MapBoundsFitter grids={filteredGrids} initialLoad={isInitialLoad} onDone={() => setIsInitialLoad(false)} />
               <MapPositionTracker setMapPosition={setMapPosition} />
 
               <MarkerClusterGroup>
@@ -903,7 +916,7 @@ export default function MapPage() {
             </div>
           </div>
 
-          <ScrollArea className="h-[calc(100vh-280px)]">
+          <div className="h-[calc(100vh-280px)] overflow-y-auto">
             <div className="p-4 space-y-4">
               <AnimatePresence>
                 {sortedAndFilteredGrids.map((grid) => {
@@ -1057,7 +1070,7 @@ export default function MapPage() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
 
