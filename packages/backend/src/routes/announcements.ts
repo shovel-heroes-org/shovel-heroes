@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { z } from 'zod';
 
 const CreateSchema = z.object({
@@ -28,10 +29,17 @@ const UpdateSchema = z.object({
 });
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
-  app.get('/announcements', async () => {
+  app.get('/announcements', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query('SELECT * FROM announcements ORDER BY created_at DESC');
-    return rows;
+    const weakEtag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'order']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, weakEtag)) {
+      return reply.code(304).header('ETag', weakEtag).send();
+    }
+    return reply
+      .header('ETag', weakEtag)
+      .header('Cache-Control', 'public, no-cache')
+      .send(rows);
   });
   app.post('/announcements', async (req, reply) => {
     const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;

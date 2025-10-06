@@ -1,19 +1,19 @@
-
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MapContainer, TileLayer, Rectangle, Popup, useMap, Marker, Tooltip } from "react-leaflet";
-import { DisasterArea, Grid, VolunteerRegistration, SupplyDonation } from "@/api/entities";
+import { Grid } from "@/api/entities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Users, Package, AlertTriangle, MapPin, Clock, Phone, List, ChevronRight, UserPlus, PackagePlus, CalendarClock } from "lucide-react";
 import GridDetailModal from "../components/map/GridDetailModal";
 import AnnouncementPanel from "../components/map/AnnouncementPanel";
+import MarkerClusterGroup from "../components/map/MarkerClusterGroup";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence } from "framer-motion";
 import { formatCreatedDate } from "@/lib/utils";
+import { useMapData } from "../hooks/use-map-data";
 
 const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -119,6 +119,7 @@ const DraggableRectangle = ({ grid, onGridClick, onGridMove }) => {
   return (
     <>
       <Rectangle
+        key={`rect-${grid.id}`}
         bounds={[
           [grid.bounds.south, grid.bounds.west],
           [grid.bounds.north, grid.bounds.east]
@@ -210,16 +211,14 @@ const MapFlyToController = ({ target }) => {
   const map = useMap();
 
   useEffect(() => {
-    if (target && map) {
-      // 添加檢查確保地圖已完全初始化
-      try {
-        map.flyTo(target.center, target.zoom, {
-          animate: true,
-          duration: 1.5
-        });
-      } catch (error) {
-        console.warn('Map flyTo error:', error);
+    if (!target || !map) return;
+    try {
+      const [lat, lng] = target.center;
+      if (isFinite(lat) && isFinite(lng) && isFinite(target.zoom)) {
+        map.flyTo(target.center, target.zoom, { animate: true, duration: 1.5 });
       }
+    } catch (error) {
+      console.warn('Map flyTo error:', error);
     }
   }, [target, map]);
 
@@ -248,45 +247,86 @@ const MapResizer = ({ mapCollapsed }) => {
   return null;
 };
 
-const MapBoundsFitter = ({ grids }) => {
+const MapBoundsFitter = ({ grids, initialLoad, onDone }) => {
   const map = useMap();
+  const didFitRef = useRef(false);
 
   useEffect(() => {
-    if (map && grids && grids.length > 0) {
+    // 只在初次載入且沒有儲存的地圖位置時才自動調整範圍
+    if (map && grids && grids.length > 0 && initialLoad && !didFitRef.current) {
       try {
-        const validGrids = grids.filter(g => g.center_lat && g.center_lng);
+        const validGrids = grids.filter(g => isFinite(g.center_lat) && isFinite(g.center_lng));
         if (validGrids.length > 0) {
           const bounds = validGrids.map(g => [g.center_lat, g.center_lng]);
           map.fitBounds(bounds, { padding: [50, 50] });
+          didFitRef.current = true;
+          onDone && onDone();
         }
       } catch (error) {
         console.warn('Map fitBounds error:', error);
       }
     }
-  }, [grids, map]);
+  }, [grids, map, initialLoad]);
+
+  return null;
+};
+
+const MapPositionTracker = ({ setMapPosition }) => {
+  const map = useMap();
+  const lastRef = useRef({ lat: undefined, lng: undefined, zoom: undefined });
+
+  useEffect(() => {
+    if (!map) return;
+    const EPS = 1e-7;
+    const updatePosition = () => {
+      try {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const lat = center.lat;
+        const lng = center.lng;
+        const prev = lastRef.current;
+        const sameLat = typeof prev.lat === 'number' && Math.abs(prev.lat - lat) < EPS;
+        const sameLng = typeof prev.lng === 'number' && Math.abs(prev.lng - lng) < EPS;
+        const sameZoom = prev.zoom === zoom;
+        if (sameLat && sameLng && sameZoom) return;
+        lastRef.current = { lat, lng, zoom };
+        setMapPosition((p) => {
+          if (p && Math.abs(p.center[0] - lat) < EPS && Math.abs(p.center[1] - lng) < EPS && p.zoom === zoom) {
+            return p; // avoid unnecessary updates
+          }
+          return { center: [lat, lng], zoom };
+        });
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    map.on('moveend', updatePosition);
+    map.on('zoomend', updatePosition);
+    return () => {
+      map.off('moveend', updatePosition);
+      map.off('zoomend', updatePosition);
+    };
+  }, [map, setMapPosition]);
 
   return null;
 };
 
 export default function MapPage() {
-  const [disasterAreas, setDisasterAreas] = useState([]);
-  const [grids, setGrids] = useState([]);
+  const { disasterAreas, grids, stats, urgentGridsList, isLoading, mutate: reloadData } = useMapData();
   const [selectedGrid, setSelectedGrid] = useState(null);
   const [gridDetailTab, setGridDetailTab] = useState('info');
   const initialQueryApplied = useRef(false); // 防止初始載入時 URL 同步提早移除 grid 參數
-  const [loading, setLoading] = useState(true);
   const [selectedGridType, setSelectedGridType] = useState('all');
-  const [stats, setStats] = useState({
-    totalGrids: 0,
-    completedGrids: 0,
-    totalVolunteers: 0,
-    urgentGrids: 0
-  });
-  const [urgentGridsList, setUrgentGridsList] = useState([]);
   const [mapFlyToTarget, setMapFlyToTarget] = useState(null);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const [mapCollapsed, setMapCollapsed] = useState(false);
   const [mapKey, setMapKey] = useState(0); // 新增：用於強制重新渲染地圖
+  const [mapPosition, setMapPosition] = useState({
+    center: [23.6351, 121.4228],
+    zoom: 11
+  }); // 新增：儲存地圖位置狀態
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // 追蹤是否為初次載入
 
   useEffect(() => {
     const checkMapCollapseRequest = () => {
@@ -335,8 +375,6 @@ export default function MapPage() {
     if (tab && ['info','volunteer','supply','discussion'].includes(tab)) {
       setGridDetailTab(tab);
     }
-    loadData();
-   
   }, []);
 
   // After grids load, if URL has grid param, open it
@@ -348,7 +386,7 @@ export default function MapPage() {
       const found = grids.find(g => g.id === gridParam || g.code === gridParam);
       if (found) {
         setSelectedGrid(found);
-        setMapCollapsed(true);
+        // 不改變地圖狀態，保持原本的展開/關閉狀態
       }
     }
     // 標記初始查詢已處理（不論是否找到 grid）
@@ -399,7 +437,7 @@ export default function MapPage() {
         const found = grids.find(g => g.id === gridParam || g.code === gridParam);
         if (found) {
           setSelectedGrid(found);
-          setMapCollapsed(true);
+          // 不改變地圖狀態，保持原本的展開/關閉狀態
           return;
         }
       }
@@ -410,45 +448,9 @@ export default function MapPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [grids]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [areasData, gridsData] = await Promise.all([
-        DisasterArea.list(),
-        Grid.list()
-      ]);
-
-      setDisasterAreas(areasData);
-      setGrids(gridsData);
-
-      const completedGrids = gridsData.filter(g => g.status === 'completed').length;
-      const totalVolunteers = gridsData.reduce((sum, g) => sum + (g.volunteer_registered || 0), 0);
-      const urgentGrids = gridsData.filter(g => {
-        if (g.grid_type !== 'manpower' || !g.volunteer_needed || g.volunteer_needed === 0) return false;
-        const shortage = (g.volunteer_needed - (g.volunteer_registered || 0)) / g.volunteer_needed;
-        return shortage >= 0.6 && g.status === 'open';
-      });
-      setUrgentGridsList(urgentGrids);
-
-      setStats({
-        totalGrids: gridsData.length,
-        completedGrids,
-        totalVolunteers,
-        urgentGrids: urgentGrids.length,
-      });
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getUrgencyScore = (grid) => {
     if (grid.grid_type !== 'manpower' || grid.status !== 'open') return -1;
-    const volunteerShortage = grid.volunteer_needed > 0
-      ? (grid.volunteer_needed - (grid.volunteer_registered || 0)) / grid.volunteer_needed
-      : 0;
-    return volunteerShortage;
+    return new Date(grid.created_date).getTime() || 0;
   };
 
   const getGridTypeText = (type) => {
@@ -480,13 +482,13 @@ export default function MapPage() {
   const handleGridClick = (grid) => {
     setSelectedGrid(grid);
     setGridDetailTab('info');
-    setMapCollapsed(true);
+    // 不改變地圖狀態，保持原本的展開/關閉狀態
   };
 
   const handleModalClose = () => {
     setSelectedGrid(null);
     setGridDetailTab('info');
-    loadData();
+    // 不改變地圖狀態，保持原本的展開/關閉狀態
   };
 
   const handleFlyToArea = (area) => {
@@ -514,22 +516,31 @@ export default function MapPage() {
         }
       });
 
-      // 只更新本地狀態，不重新載入所有數據
-      setGrids(prevGrids => prevGrids.map(g =>
-        g.id === gridId
-          ? {
-              ...g,
-              center_lat: newCenter.lat,
-              center_lng: newCenter.lng,
-              bounds: {
-                north: newCenter.lat + size,
-                south: newCenter.lat - size,
-                east: newCenter.lng + size,
-                west: newCenter.lng - size
-              }
-            }
-          : g
-      ));
+      // 使用 SWR 的 optimistic update 功能
+      reloadData(
+        data => {
+          const updatedGrids = data.grids.map(g =>
+            g.id === gridId
+              ? {
+                  ...g,
+                  center_lat: newCenter.lat,
+                  center_lng: newCenter.lng,
+                  bounds: {
+                    north: newCenter.lat + size,
+                    south: newCenter.lat - size,
+                    east: newCenter.lng + size,
+                    west: newCenter.lng - size
+                  }
+                }
+              : g
+          );
+          return {
+            ...data,
+            grids: updatedGrids
+          };
+        },
+        { revalidate: false } // 樂觀更新
+      );
     } catch (error) {
       console.error('Failed to update grid position:', error);
     }
@@ -538,10 +549,13 @@ export default function MapPage() {
   const handleManualMapToggle = () => {
     const isCurrentlyCollapsed = mapCollapsed;
     setMapCollapsed(!isCurrentlyCollapsed);
-
-    // 如果要展開地圖，強制重新渲染以避免 Leaflet 錯誤
+    
+    // 展開地圖時，使用輕微的延遲來確保地圖正確渲染，但不重設位置
     if (isCurrentlyCollapsed) {
-      setMapKey(prev => prev + 1);
+      setTimeout(() => {
+        // 觸發地圖重新計算尺寸，但保持當前位置
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
     }
   };
 
@@ -554,7 +568,7 @@ export default function MapPage() {
     return Array.isArray(supplies) ? supplies.filter(s => s.received < s.quantity) : [];
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -565,8 +579,8 @@ export default function MapPage() {
   const typeStats = getGridTypeStats();
 
   return (
-    <div className="flex flex-col min-w-[436px]">
-      <div className="bg-white border-b border-gray-200 px-4 py-4 min-w-[436px]">
+    <div className="flex flex-col min-w-xxs">
+      <div className="bg-white border-b border-gray-200 px-4 py-4 min-w-xxs">
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Popover>
@@ -727,7 +741,7 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="bg-gray-50 border-b border-gray-200 px-4 py-4 min-w-[436px]">
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-4 min-w-xxs">
         <AnnouncementPanel />
       </div>
 
@@ -738,11 +752,10 @@ export default function MapPage() {
           {!mapCollapsed && (
             <MapContainer
               key={mapKey}
-              center={[23.6351, 121.4228]}
-              zoom={11}
+              center={mapPosition.center}
+              zoom={mapPosition.zoom}
               className="h-full w-full"
               zoomControl={true}
-              preferCanvas={true}
             >
               <TileLayer
                 attribution='&copy; <a href="https://maps.nlsc.gov.tw/">國土測繪中心</a>'
@@ -752,16 +765,19 @@ export default function MapPage() {
               />
               <MapFlyToController target={mapFlyToTarget} />
               <MapResizer mapCollapsed={mapCollapsed} />
-              <MapBoundsFitter grids={filteredGrids} />
+              <MapBoundsFitter grids={filteredGrids} initialLoad={isInitialLoad} onDone={() => setIsInitialLoad(false)} />
+              <MapPositionTracker setMapPosition={setMapPosition} />
 
-              {filteredGrids.map((grid) => (
-                <DraggableRectangle
-                  key={grid.id}
-                  grid={grid}
-                  onGridClick={handleGridClick}
-                  onGridMove={handleGridMove}
-                />
-              ))}
+              <MarkerClusterGroup>
+                {filteredGrids.map((grid) => (
+                  <DraggableRectangle
+                    key={grid.id}
+                    grid={grid}
+                    onGridClick={handleGridClick}
+                    onGridMove={handleGridMove}
+                  />
+                ))}
+              </MarkerClusterGroup>
             </MapContainer>
           )}
 
@@ -884,7 +900,7 @@ export default function MapPage() {
             </div>
           </div>
 
-          <ScrollArea className="h-[calc(100vh-280px)]">
+          <div className="h-[calc(100vh-280px)] overflow-y-auto">
             <div className="p-4 space-y-4">
               <AnimatePresence>
                 {sortedAndFilteredGrids.map((grid) => {
@@ -1005,7 +1021,7 @@ export default function MapPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedGrid(grid);
-                                setMapCollapsed(true); // Ensures map collapses when "報名" is clicked
+                                // 不改變地圖狀態，保持原本的展開/關閉狀態
                               }}
                             >
                               <UserPlus className="w-3 h-3 mr-1" />
@@ -1020,7 +1036,7 @@ export default function MapPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedGrid(grid);
-                                setMapCollapsed(true); // Ensures map collapses when "捐贈" is clicked
+                                // 不改變地圖狀態，保持原本的展開/關閉狀態
                               }}
                             >
                               <PackagePlus className="w-3 h-3 mr-1" />
@@ -1041,7 +1057,7 @@ export default function MapPage() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
 
@@ -1049,7 +1065,7 @@ export default function MapPage() {
         <GridDetailModal
           grid={selectedGrid}
           onClose={handleModalClose}
-          onUpdate={loadData}
+          onUpdate={reloadData}
           defaultTab={gridDetailTab}
           onTabChange={setGridDetailTab}
         />

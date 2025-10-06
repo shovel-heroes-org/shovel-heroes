@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { AuditLog } from "./audit-log.types";
+import type { AuditLog } from "./audit-log.types.js";
 
 export async function insertAuditLog(pool: Pool, log: AuditLog): Promise<void> {
   await pool.query(

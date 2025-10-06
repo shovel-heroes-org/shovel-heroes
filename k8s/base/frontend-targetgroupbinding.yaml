@@ -1,0 +1,11 @@
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: frontend-tgb
+  namespace: shovel-heroes
+spec:
+  serviceRef:
+    name: frontend
+    port: 80
+  targetGroupARN: FRONTEND_TARGET_GROUP_ARN
+  targetType: ip

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag.js';
 
 // NOTE: This endpoint is an aggregate view combining volunteer_registrations + users.
 // DB schema currently only stores minimal fields for volunteer_registrations.
@@ -141,6 +142,23 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const { rows: countRows } = await app.db.query(countSql, params.slice(0, params.length - 2));
     const total = countRows[0]?.c ?? data.length;
 
-    return { data, can_view_phone: canViewAllPhone, total, status_counts, limit: Number(limit), page: Math.floor(Number(offset) / Number(limit)) + 1 };
+    // Build a representation fingerprint: list items key fields + counts/total affecting representation
+    const etagPayload = {
+      list: data.map(d => ({ id: d.id, grid_id: d.grid_id, status: d.status, created_date: d.created_date })),
+      total,
+      status_counts,
+      can_view_phone: canViewAllPhone,
+      limit: Number(limit),
+      offset: Number(offset)
+    };
+    const etag = makeWeakEtag(etagPayload);
+    if (ifNoneMatchSatisfied((req as any).headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).send();
+    }
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'private, no-cache')
+      .header('Vary', 'Authorization, X-Acting-Role')
+      .send({ data, can_view_phone: canViewAllPhone, total, status_counts, limit: Number(limit), page: Math.floor(Number(offset) / Number(limit)) + 1 });
   });
 }

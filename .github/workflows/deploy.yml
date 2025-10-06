@@ -1,0 +1,207 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (e.g., v1.0.0)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: ap-east-2
+  EKS_CLUSTER_NAME: eks-shovel-heros
+  ECR_BACKEND_REPO: shovel-heros-staging-shovel-heroes-backend
+  ECR_FRONTEND_REPO: shovel-heros-staging-shovel-heroes-frontend
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    # Note: Cannot use secrets in job-level if conditions (GitHub Actions limitation)
+    # Using step-level conditionals instead
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if AWS credentials are configured
+        id: check-secrets
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "⚠️ AWS credentials not configured - skipping deployment"
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+            echo "✅ AWS credentials found - proceeding with deployment"
+          fi
+
+      - name: Configure AWS credentials via OIDC
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: set-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          docker build -f Dockerfile.backend \
+            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
+
+      - name: Build and push frontend image
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+        run: |
+          docker build -f Dockerfile.frontend \
+            --build-arg VITE_API_BASE=https://api.shovel-heroes.cc \
+            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
+
+      - name: Install kubectl
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.31.0'
+
+      - name: Update kubeconfig for EKS
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Create namespace and secrets
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          # Create namespace if it doesn't exist
+          kubectl create namespace shovel-heroes --dry-run=client -o yaml | kubectl apply -f - --validate=false
+
+          # Get secrets from AWS Secrets Manager
+          DB_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ secrets.AWS_DB_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString --output text)
+
+          APP_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ secrets.AWS_APP_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString --output text)
+
+          # Get JWT secret
+          JWT_SECRET_OBJ=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ secrets.AWS_JWT_SECRET_ARN }}" \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString --output text)
+
+          # Extract values
+          DATABASE_URL=$(echo $DB_SECRET | jq -r '.url')
+          JWT_SECRET=$(echo $JWT_SECRET_OBJ | jq -r '.secret')
+          API_KEY="null"
+          LINE_CHANNEL_ID=$(echo $APP_SECRET | jq -r '.line_channel_id')
+          LINE_CHANNEL_SECRET=$(echo $APP_SECRET | jq -r '.line_channel_secret')
+          TURNSTILE_SECRET_KEY=$(echo $APP_SECRET | jq -r '.turnstile_secret_key')
+
+          # Create Kubernetes secret
+          kubectl create secret generic shovel-heroes-secrets \
+            --from-literal=database-url="$DATABASE_URL" \
+            --from-literal=jwt-secret="$JWT_SECRET" \
+            --from-literal=api-key="$API_KEY" \
+            --from-literal=line-channel-id="$LINE_CHANNEL_ID" \
+            --from-literal=line-channel-secret="$LINE_CHANNEL_SECRET" \
+            --from-literal=turnstile-secret-key="$TURNSTILE_SECRET_KEY" \
+            -n shovel-heroes \
+            --dry-run=client -o yaml | kubectl apply -f - --validate=false
+
+      - name: Deploy to Kubernetes
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.set-tag.outputs.IMAGE_TAG }}
+          BACKEND_POD_ROLE_ARN: ${{ secrets.BACKEND_POD_ROLE_ARN }}
+          BACKEND_TARGET_GROUP_ARN: ${{ secrets.BACKEND_TARGET_GROUP_ARN }}
+          FRONTEND_TARGET_GROUP_ARN: ${{ secrets.FRONTEND_TARGET_GROUP_ARN }}
+        run: |
+          # Replace IRSA role ARN placeholder in base manifests
+          sed -i "s|BACKEND_POD_ROLE_ARN|$BACKEND_POD_ROLE_ARN|g" k8s/base/serviceaccount.yaml
+
+          # Update images in manifests
+          sed -i "s|BACKEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG|g" k8s/base/backend-deployment.yaml
+          sed -i "s|FRONTEND_ECR_URL:latest|$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG|g" k8s/base/frontend-deployment.yaml
+
+          # Replace Target Group ARNs in TargetGroupBinding manifests
+          sed -i "s|BACKEND_TARGET_GROUP_ARN|$BACKEND_TARGET_GROUP_ARN|g" k8s/base/backend-targetgroupbinding.yaml
+          sed -i "s|FRONTEND_TARGET_GROUP_ARN|$FRONTEND_TARGET_GROUP_ARN|g" k8s/base/frontend-targetgroupbinding.yaml
+
+          # Apply the manifests (exclude kustomization.yaml)
+          kubectl apply -f k8s/base/namespace.yaml
+          kubectl apply -f k8s/base/serviceaccount.yaml
+          kubectl apply -f k8s/base/backend-deployment.yaml
+          kubectl apply -f k8s/base/frontend-deployment.yaml
+          kubectl apply -f k8s/base/backend-service.yaml
+          kubectl apply -f k8s/base/frontend-service.yaml
+          kubectl apply -f k8s/base/backend-targetgroupbinding.yaml
+          kubectl apply -f k8s/base/frontend-targetgroupbinding.yaml
+          kubectl apply -f k8s/base/ingress.yaml
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/backend -n shovel-heroes --timeout=5m
+          kubectl rollout status deployment/frontend -n shovel-heroes --timeout=5m
+
+      - name: Verify deployment
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get deployments -n shovel-heroes
+          kubectl get pods -n shovel-heroes
+          kubectl get services -n shovel-heroes
+          kubectl get ingress -n shovel-heroes
+
+      - name: Run health checks
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "=== Health Checks ==="
+          echo "Waiting for pods to be ready..."
+          sleep 10
+          echo "Backend health check:"
+          kubectl get pods -n shovel-heroes -l app.kubernetes.io/component=backend
+          echo "Frontend health check:"
+          kubectl get pods -n shovel-heroes -l app.kubernetes.io/component=frontend

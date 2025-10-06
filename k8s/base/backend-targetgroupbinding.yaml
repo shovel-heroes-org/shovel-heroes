@@ -1,0 +1,11 @@
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: backend-tgb
+  namespace: shovel-heroes
+spec:
+  serviceRef:
+    name: backend
+    port: 8787
+  targetGroupARN: BACKEND_TARGET_GROUP_ARN
+  targetType: ip

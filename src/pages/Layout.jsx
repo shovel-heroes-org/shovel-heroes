@@ -3,16 +3,18 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, LogIn } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext.jsx';
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import AddGridModal from "@/components/admin/AddGridModal";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const { user, actingRole, toggleActingRole } = useAuth();
+  const { isMobile } = useBreakpoint();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
@@ -111,10 +113,10 @@ export default function Layout({ children, currentPageName }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-xxs">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px]">
-        <div className="px-4 min-w-[436px]">
+      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-xxs">
+        <div className="px-4 min-w-xxs">
           <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo */}
             <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
@@ -154,9 +156,10 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center space-x-4 flex-shrink-0">
               <Button
                 onClick={handleNewGridClick}
+                size={isMobile ? "sm" : "default"}
                 className="bg-orange-600 hover:bg-orange-700 text-white flex items-center whitespace-nowrap"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
+                <UserPlus className="hidden md:inline w-4 h-4" />
                 我要人力
               </Button>
 
@@ -200,17 +203,23 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> 登出</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="flex gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer" size={isMobile ? "sm" : "default"}>
+                      <LogOut className="hidden md:inline w-4 h-4" /> 
+                      登出
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button onClick={() => User.login()} className="bg-blue-600 hover:bg-blue-700 text-white">登入</Button>
+                <Button onClick={() => User.login()} size={isMobile ? "sm" : "default"} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <LogIn className="hidden md:inline w-4 h-4" />
+                  登入
+                </Button>
               )}
 
               {/* Mobile Menu Button */}
               <Button
                 variant="ghost"
-                size="icon"
+                size={isMobile ? "xs" : "icon"}
                 className="sm:hidden"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
@@ -253,7 +262,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 relative flex-shrink-0 mt-auto">
-        <div className="px-4 py-2 min-w-[436px]">
+        <div className="px-4 py-2 min-w-xxs">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">

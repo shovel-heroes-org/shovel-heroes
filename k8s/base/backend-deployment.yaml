@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: shovel-heroes
+  labels:
+    app.kubernetes.io/name: shovel-heroes
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shovel-heroes
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shovel-heroes
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: shovel-heroes-backend
+      containers:
+      - name: backend
+        image: BACKEND_ECR_URL:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8787
+          name: http
+          protocol: TCP
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8787"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: database-url
+        - name: AUTH_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: jwt-secret
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: api-key
+        - name: LINE_CHANNEL_ID
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: line-channel-id
+        - name: LINE_CHANNEL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: line-channel-secret
+        - name: TURNSTILE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: shovel-heroes-secrets
+              key: turnstile-secret-key
+        - name: PUBLIC_BASE_URL
+          value: "https://shovel-heroes.cc"
+        - name: PUBLIC_APP_URL
+          value: "https://shovel-heroes.cc"
+        - name: LINE_REDIRECT_URI
+          value: "https://shovel-heroes.cc/auth/line/callback"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8787
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8787
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+      volumes:
+      - name: tmp
+        emptyDir: {}

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -23,7 +24,7 @@ const GridCreateSchema = z.object({
 });
 
 export function registerGridRoutes(app: FastifyInstance) {
-  app.get('/grids', async () => {
+  app.get('/grids', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query(`
       SELECT 
@@ -34,7 +35,12 @@ export function registerGridRoutes(app: FastifyInstance) {
         created_at, updated_at, created_date, updated_date
       FROM grids
       ORDER BY created_at DESC`);
-    return rows;
+    // Weak ETag across stable keys: id + updated_at + created_at + volunteer_registered + order-insensitive projections
+    const etag = computeListEtag(rows, ['id', 'updated_at', 'created_at', 'volunteer_registered']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(rows);
   });
 
   app.post('/grids', async (req, reply) => {
@@ -171,16 +177,33 @@ export function registerGridRoutes(app: FastifyInstance) {
     if (actingRole !== 'user' && !(isRealAdmin || isOwner)) {
       return reply.status(403).send({ message: 'Forbidden' });
     }
-    // Ensure no dependent volunteer_registrations or supply_donations remain (simplistic integrity check)
+    // Ensure no dependent records remain unless force=true and admin mode
     const deps = await app.db.query(`
       SELECT 
-        (SELECT COUNT(*) FROM volunteer_registrations WHERE grid_id=$1) AS vr_count,
-        (SELECT COUNT(*) FROM supply_donations WHERE grid_id=$1) AS sd_count,
-        (SELECT COUNT(*) FROM grid_discussions WHERE grid_id=$1) AS gd_count
+        (SELECT COUNT(*)::int FROM volunteer_registrations WHERE grid_id=$1) AS vr_count,
+        (SELECT COUNT(*)::int FROM supply_donations WHERE grid_id=$1) AS sd_count,
+        (SELECT COUNT(*)::int FROM grid_discussions WHERE grid_id=$1) AS gd_count
     `, [id]);
-    const d = deps.rows[0];
-    if (d && (Number(d.vr_count) > 0 || Number(d.sd_count) > 0 || Number(d.gd_count) > 0)) {
+    const d = deps.rows[0] || { vr_count: 0, sd_count: 0, gd_count: 0 };
+    const hasDeps = Number(d.vr_count) > 0 || Number(d.sd_count) > 0 || Number(d.gd_count) > 0;
+
+    // Auto force when in admin mode; also allow explicit ?force=true for backwards-compat
+    const adminMode = isRealAdmin && actingRole !== 'user';
+    const forceParam = ((req.query as any)?.force ?? '').toString().toLowerCase() === 'true';
+    const force = adminMode || forceParam;
+
+    if (hasDeps && !(force && adminMode)) {
       return reply.status(409).send({ message: 'Grid has related records', details: d });
+    }
+    if (hasDeps && force && adminMode) {
+      // Best-effort cascade delete in admin mode
+      try {
+        await app.db.query('DELETE FROM volunteer_registrations WHERE grid_id=$1', [id]);
+        await app.db.query('DELETE FROM supply_donations WHERE grid_id=$1', [id]);
+        await app.db.query('DELETE FROM grid_discussions WHERE grid_id=$1', [id]);
+      } catch (e) {
+        return reply.status(500).send({ message: 'Failed to delete related records', error: (e as any)?.message });
+      }
     }
     await app.db.query('DELETE FROM grids WHERE id=$1', [id]);
     return reply.status(204).send();

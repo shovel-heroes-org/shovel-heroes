@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -22,15 +23,31 @@ const CreateSchema = z.object({
 );
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
-  app.get('/volunteer-registrations', async (req) => {
+  app.get('/volunteer-registrations', async (req, reply) => {
+    // Admin-only in admin mode (acting role not 'user')
+    if (!req.user) return reply.status(401).send({ message: 'Unauthorized' });
+    const actingRoleHeader = (req.headers['x-acting-role'] || (req.headers as any)['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+    const isRealAdmin = req.user?.role === 'admin';
+    if (actingRole === 'user' || !isRealAdmin) {
+      return reply.status(403).send({ message: 'Forbidden: admin only' });
+    }
     if (!app.hasDecorator('db')) return [];
     const gridId = (req.query as any)?.grid_id;
     if (gridId) {
       const { rows } = await app.db.query('SELECT * FROM volunteer_registrations WHERE grid_id=$1 ORDER BY created_at DESC', [gridId]);
-      return rows;
+      const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'status']);
+      if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+        return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization, X-Acting-Role').send();
+      }
+      return reply.header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization, X-Acting-Role').send(rows);
     }
     const { rows } = await app.db.query('SELECT * FROM volunteer_registrations ORDER BY created_at DESC');
-    return rows;
+    const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'status']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization, X-Acting-Role').send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization, X-Acting-Role').send(rows);
   });
   app.post('/volunteer-registrations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);

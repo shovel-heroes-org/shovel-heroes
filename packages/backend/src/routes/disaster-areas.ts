@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { listDisasterAreas, createDisasterArea, getDisasterArea, updateDisasterArea, deleteDisasterArea } from '../modules/disaster-areas/repo.js';
 import { z } from 'zod';
+import { computeListEtag, ifNoneMatchSatisfied, makeWeakEtag } from '../lib/etag.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const CreateSchema = z.object({
@@ -18,8 +19,13 @@ const CreateSchema = z.object({
 const UpdateSchema = CreateSchema.partial();
 
 export function registerDisasterAreaRoutes(app: FastifyInstance) {
-  app.get('/disaster-areas', async () => {
-    return listDisasterAreas(app);
+  app.get('/disaster-areas', async (req, reply) => {
+    const list = await listDisasterAreas(app);
+    const etag = computeListEtag(list as any[], ['id', 'updated_at', 'created_at', 'status', 'name']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'public, no-cache').send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(list);
   });
 
   app.post('/disaster-areas', async (req, reply) => {
@@ -35,7 +41,11 @@ export function registerDisasterAreaRoutes(app: FastifyInstance) {
     const { id } = req.params as any;
     const da = await getDisasterArea(app, id);
     if (!da) return reply.status(404).send({ message: 'Not found' });
-    return da;
+    const etag = makeWeakEtag(da);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'public, no-cache').send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(da);
   });
 
   app.put('/disaster-areas/:id', async (req, reply) => {
