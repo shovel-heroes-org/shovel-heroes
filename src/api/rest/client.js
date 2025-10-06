@@ -2,21 +2,32 @@
 // Uses fetch; can be swapped for axios easily.
 
 export const API_BASE = import.meta.env.VITE_API_BASE || 'https://your.api.server';
-
 async function request(path, { method = 'GET', headers = {}, body } = {}) {
-  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('sh_token') : null;
-  const actingRole = typeof localStorage !== 'undefined' ? localStorage.getItem('sh-acting-role') : null;
+  let authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('sh_token') : null;
+  // 清理無效的 token 值
+  if (authToken === 'null' || authToken === 'undefined' || !authToken) {
+    authToken = null;
+  }
+
+  let actingRole = typeof localStorage !== 'undefined' ? localStorage.getItem('sh-acting-role') : null;
+  // 清理無效的 actingRole 值
+  if (actingRole === 'null' || actingRole === 'undefined' || !actingRole) {
+    actingRole = null;
+  }
+
   const extraHeaders = {};
   // Only send acting role header when intentionally limiting to user perspective.
   if (actingRole === 'user') {
-    extraHeaders['X-Acting-Role'] = 'user';
+    extraHeaders['X-Acting-Role'] = actingRole;
   }
   const options = { method, headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}), ...extraHeaders, ...headers } };
   if (body !== undefined) options.body = typeof body === 'string' ? body : JSON.stringify(body);
-  const res = await fetch(`${API_BASE}${path}`, options);
+    const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`API ${method} ${path} failed ${res.status}: ${text}`);
+    const error = new Error(`API ${method} ${path} failed ${res.status}: ${text}`);
+    error.status = res.status;
+    throw error;
   }
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) return res.json();

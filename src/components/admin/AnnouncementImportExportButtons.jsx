@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
-import { exportAnnouncementsCSV, exportTrashAnnouncementsCSV, importAnnouncementsCSV } from '@/api/admin';
+import { exportAnnouncementsCSV, exportTrashAnnouncementsCSV, importAnnouncementsCSV, importTrashAnnouncementsCSV } from '@/api/admin';
 
 export default function AnnouncementImportExportButtons({ onImportSuccess, showMessage, isTrashView = false }) {
   const [importing, setImporting] = useState(false);
@@ -39,7 +38,10 @@ export default function AnnouncementImportExportButtons({ onImportSuccess, showM
     reader.onload = async (e) => {
       const csvContent = e.target.result;
       try {
-        const result = await importAnnouncementsCSV({ csvContent });
+        // 根據 isTrashView 決定使用哪個匯入函式
+        const result = isTrashView
+          ? await importTrashAnnouncementsCSV({ csvContent })
+          : await importAnnouncementsCSV({ csvContent });
 
         if (result.success) {
           const message = `${result.message}`;
@@ -79,7 +81,7 @@ export default function AnnouncementImportExportButtons({ onImportSuccess, showM
       </Button>
 
       <label htmlFor="announcement-csv-importer" className="relative inline-block cursor-pointer">
-        <Input
+        <input
           type="file"
           accept=".csv"
           onChange={handleFileImport}

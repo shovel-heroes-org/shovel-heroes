@@ -79,17 +79,30 @@ export function createAuditLogMiddleware(app: FastifyInstance) {
   }
 
   /**
-   * 請求成功完成時記錄
+   * 請求完成時記錄（包含成功和錯誤狀態）
    */
   async function onResponse(req: FastifyRequest, reply: FastifyReply) {
-    // 只記錄成功的請求（4xx 和 5xx 由 onError 處理）
-    if (reply.statusCode >= 400) return;
-
     // 過濾敏感的 headers
     const { authorization, cookie, "set-cookie": setCookie, ...filteredHeaders } = req.headers;
 
     const startTime = (req as any).startTime;
     const durationMs = startTime ? Date.now() - startTime : 0;
+
+    // 檢查是否為錯誤回應
+    const isError = reply.statusCode >= 400;
+    let errorMessage = null;
+
+    // 嘗試從 response body 提取錯誤訊息
+    if (isError && reply.locals?.responseBody) {
+      try {
+        const body = typeof reply.locals.responseBody === 'string'
+          ? JSON.parse(reply.locals.responseBody)
+          : reply.locals.responseBody;
+        errorMessage = body.message || body.error || `HTTP ${reply.statusCode}`;
+      } catch {
+        errorMessage = `HTTP ${reply.statusCode}`;
+      }
+    }
 
     await saveAuditLog({
       userId: (req as any).user?.id || null,
@@ -102,6 +115,7 @@ export function createAuditLogMiddleware(app: FastifyInstance) {
       responseBody: reply.locals?.responseBody ?? null,
       statusCode: reply.statusCode,
       durationMs,
+      error: errorMessage,
     });
   }
 

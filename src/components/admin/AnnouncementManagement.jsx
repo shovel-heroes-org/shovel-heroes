@@ -55,7 +55,7 @@ export default function AnnouncementManagement() {
   // 訊息提示狀態
   const [message, setMessage] = useState(null);
 
-  const { canCreate, canEdit, canDelete, canView } = usePermission();
+  const { canCreate, canEdit, canDelete, canView, canManage } = usePermission();
 
   // 訊息提示函數
   const showMessage = (text, type = 'info') => {
@@ -313,11 +313,18 @@ export default function AnnouncementManagement() {
               </p>
             </div>
             <div className="flex gap-2">
-              <AnnouncementImportExportButtons
-                onImportSuccess={loadAnnouncements}
-                showMessage={showMessage}
-                isTrashView={isTrashView}
-              />
+              {canManage('announcements') && (
+                <AnnouncementImportExportButtons
+                  onImportSuccess={() => {
+                  // 匯入成功後重新載入兩邊的資料
+                  // 因為匯入到垃圾桶可能會將一般列表的資料移到垃圾桶
+                  loadAnnouncements();
+                  loadTrashAnnouncements();
+                }}
+                  showMessage={showMessage}
+                  isTrashView={isTrashView}
+                />
+              )}
               {canCreate('announcements') && (
                 <Button onClick={handleAdd}>
                   <Plus className="w-4 h-4 mr-2" />

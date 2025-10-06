@@ -93,8 +93,24 @@ async function checkResourcePermission(
 }
 
 export function registerGridRoutes(app: FastifyInstance) {
-  app.get('/grids', async () => {
+  app.get('/grids', async (req) => {
     if (!app.hasDecorator('db')) return [];
+
+    // 從 JWT middleware 獲取用戶資訊 (req.user 由 users.ts 的 preHandler 設定)
+    const user = (req as any).user;
+    const actingRole = req.headers['x-acting-role'] as string;
+
+    // 獲取作用角色（視角切換）
+    const effectiveRole = actingRole || user?.role || 'guest';
+
+    // 檢查 view_grid_contact 權限
+    const { rows: permissions } = await app.db.query(
+      'SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = $2',
+      [effectiveRole, 'view_grid_contact']
+    );
+    const canViewGridContact = permissions.length > 0 && permissions[0].can_view === 1;
+
+    // 查詢網格
     const { rows } = await app.db.query(`
       SELECT
         id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
@@ -105,7 +121,15 @@ export function registerGridRoutes(app: FastifyInstance) {
       FROM grids
       WHERE status != 'deleted'
       ORDER BY created_at DESC`);
-    return rows;
+
+    // 應用隱私過濾
+    const { filterGridsPrivacy } = await import('../lib/privacy-filter.js');
+    const filteredGrids = await filterGridsPrivacy(rows, user, app.db, {
+      actingRole: effectiveRole,
+      canViewGridContact
+    });
+
+    return filteredGrids;
   });
 
   app.post('/grids', async (req, reply) => {
@@ -171,8 +195,24 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.get('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(404).send({ message: 'Not found' });
+
+    // 從 JWT middleware 獲取用戶資訊 (req.user 由 users.ts 的 preHandler 設定)
+    const user = (req as any).user;
+    const actingRole = req.headers['x-acting-role'] as string;
+
+    // 獲取作用角色（視角切換）
+    const effectiveRole = actingRole || user?.role || 'guest';
+
+    // 檢查 view_grid_contact 權限
+    const { rows: permissions } = await app.db.query(
+      'SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = $2',
+      [effectiveRole, 'view_grid_contact']
+    );
+    const canViewGridContact = permissions.length > 0 && permissions[0].can_view === 1;
+
+    // 查詢網格
     const { rows } = await app.db.query(`
-      SELECT 
+      SELECT
         id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
         meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status,
         COALESCE(supplies_needed, '[]'::jsonb) AS supplies_needed,
@@ -180,7 +220,15 @@ export function registerGridRoutes(app: FastifyInstance) {
         created_at, updated_at, created_date, updated_date
       FROM grids WHERE id=$1`, [id]);
     if (!rows[0]) return reply.status(404).send({ message: 'Not found' });
-    return rows[0];
+
+    // 應用隱私過濾
+    const { filterGridPrivacy } = await import('../lib/privacy-filter.js');
+    const filteredGrid = await filterGridPrivacy(rows[0], user, app.db, {
+      actingRole: effectiveRole,
+      canViewGridContact
+    });
+
+    return filteredGrid;
   });
 
   app.put('/grids/:id', async (req, reply) => {
@@ -217,6 +265,7 @@ export function registerGridRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  // 軟刪除（移至垃圾桶）
   app.delete('/grids/:id', async (req, reply) => {
     const { id } = req.params as any;
     if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
@@ -226,13 +275,79 @@ export function registerGridRoutes(app: FastifyInstance) {
       return reply.status(401).send({ message: 'Unauthorized' });
     }
 
-    // 檢查權限
+    // 檢查編輯權限（軟刪除需要編輯權限）
+    const permCheck = await checkResourcePermission(app, req, 'edit', id);
+    if (!permCheck.allowed) {
+      return reply.status(403).send({ message: permCheck.message || 'Forbidden' });
+    }
+
+    // 檢查網格是否存在
+    const { rows: gridRows } = await app.db.query('SELECT status FROM grids WHERE id=$1', [id]);
+    if (gridRows.length === 0) {
+      return reply.status(404).send({ message: 'Grid not found' });
+    }
+
+    // 軟刪除：設定 status 為 'deleted'
+    await app.db.query('UPDATE grids SET status=$1, updated_at=NOW() WHERE id=$2', ['deleted', id]);
+    return reply.status(204).send();
+  });
+
+  // 還原（從垃圾桶還原）
+  app.post('/grids/:id/restore', async (req, reply) => {
+    const { id } = req.params as any;
+    if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+
+    // Auth & permission
+    if (!req.user) {
+      return reply.status(401).send({ message: 'Unauthorized' });
+    }
+
+    // 檢查編輯權限（還原需要編輯權限）
+    const permCheck = await checkResourcePermission(app, req, 'edit', id);
+    if (!permCheck.allowed) {
+      return reply.status(403).send({ message: permCheck.message || 'Forbidden' });
+    }
+
+    // 檢查網格是否存在且在垃圾桶中
+    const { rows: gridRows } = await app.db.query('SELECT status FROM grids WHERE id=$1', [id]);
+    if (gridRows.length === 0) {
+      return reply.status(404).send({ message: 'Grid not found' });
+    }
+    if (gridRows[0].status !== 'deleted') {
+      return reply.status(400).send({ message: 'Grid is not in trash' });
+    }
+
+    // 還原：設定 status 為 'open'
+    await app.db.query('UPDATE grids SET status=$1, updated_at=NOW() WHERE id=$2', ['open', id]);
+    return reply.status(204).send();
+  });
+
+  // 永久刪除（從垃圾桶永久刪除）
+  app.delete('/grids/:id/permanent', async (req, reply) => {
+    const { id } = req.params as any;
+    if (!app.hasDecorator('db')) return reply.status(503).send({ message: 'DB not ready' });
+
+    // Auth & permission
+    if (!req.user) {
+      return reply.status(401).send({ message: 'Unauthorized' });
+    }
+
+    // 檢查刪除權限（永久刪除需要刪除權限）
     const permCheck = await checkResourcePermission(app, req, 'delete', id);
     if (!permCheck.allowed) {
       return reply.status(403).send({ message: permCheck.message || 'Forbidden' });
     }
 
-    // Ensure no dependent volunteer_registrations or supply_donations remain (simplistic integrity check)
+    // 檢查網格是否在垃圾桶中
+    const { rows: gridRows } = await app.db.query('SELECT status FROM grids WHERE id=$1', [id]);
+    if (gridRows.length === 0) {
+      return reply.status(404).send({ message: 'Grid not found' });
+    }
+    if (gridRows[0].status !== 'deleted') {
+      return reply.status(400).send({ message: 'Grid must be in trash before permanent deletion' });
+    }
+
+    // 檢查關聯記錄
     const deps = await app.db.query(`
       SELECT
         (SELECT COUNT(*) FROM volunteer_registrations WHERE grid_id=$1) AS vr_count,
@@ -240,10 +355,70 @@ export function registerGridRoutes(app: FastifyInstance) {
         (SELECT COUNT(*) FROM grid_discussions WHERE grid_id=$1) AS gd_count
     `, [id]);
     const d = deps.rows[0];
-    if (d && (Number(d.vr_count) > 0 || Number(d.sd_count) > 0 || Number(d.gd_count) > 0)) {
-      return reply.status(409).send({ message: 'Grid has related records', details: d });
+    const hasRelatedRecords = d && (Number(d.vr_count) > 0 || Number(d.sd_count) > 0 || Number(d.gd_count) > 0);
+
+    // 如果有關聯記錄，進行級聯刪除
+    if (hasRelatedRecords) {
+      // 取得作用中的角色
+      const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+      const actingRole = actingRoleHeader === 'user' ? 'user' : (req.user?.role || 'user');
+
+      // 檢查級聯刪除權限
+      const { rows: cascadePermRows } = await app.db.query(
+        `SELECT can_delete FROM role_permissions WHERE role = $1 AND permission_key = 'trash_supplies'`,
+        [actingRole]
+      );
+
+      const canCascadeDelete = cascadePermRows.length > 0 &&
+        (cascadePermRows[0].can_delete === 1 || cascadePermRows[0].can_delete === true);
+
+      // 如果沒有級聯刪除權限，返回 409 錯誤
+      if (!canCascadeDelete) {
+        return reply.status(409).send({
+          message: 'Grid has related records',
+          details: d,
+          hint: 'Need trash_supplies delete permission for cascade delete'
+        });
+      }
+
+      // 級聯刪除關聯記錄
+      if (Number(d.vr_count) > 0) {
+        await app.db.query('DELETE FROM volunteer_registrations WHERE grid_id=$1', [id]);
+      }
+      if (Number(d.sd_count) > 0) {
+        await app.db.query('DELETE FROM supply_donations WHERE grid_id=$1', [id]);
+      }
+      if (Number(d.gd_count) > 0) {
+        await app.db.query('DELETE FROM grid_discussions WHERE grid_id=$1', [id]);
+      }
     }
+
+    // 永久刪除網格
     await app.db.query('DELETE FROM grids WHERE id=$1', [id]);
     return reply.status(204).send();
+  });
+
+  // 取得垃圾桶中的網格
+  app.get('/grids/trash', async (req, reply) => {
+    if (!app.hasDecorator('db')) return [];
+
+    // Auth & permission
+    if (!req.user) {
+      return reply.status(401).send({ message: 'Unauthorized' });
+    }
+
+    // 查詢 status = 'deleted' 的網格
+    const { rows } = await app.db.query(`
+      SELECT
+        id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
+        meeting_point, risks_notes, contact_info, center_lat, center_lng, bounds, status,
+        COALESCE(supplies_needed, '[]'::jsonb) AS supplies_needed,
+        grid_manager_id, completion_photo, created_by_id, created_by, is_sample,
+        created_at, updated_at, created_date, updated_date
+      FROM grids
+      WHERE status = 'deleted'
+      ORDER BY updated_at DESC`);
+
+    return rows;
   });
 }

@@ -22,6 +22,8 @@ interface UpdatePermissionBody {
   can_edit?: number;
   can_delete?: number;
   can_manage?: number;
+  permission_name?: string;
+  description?: string;
 }
 
 export default async function permissionsRoutes(app: FastifyInstance) {
@@ -141,6 +143,14 @@ export default async function permissionsRoutes(app: FastifyInstance) {
       if (updateData.can_manage !== undefined) {
         updateFields.push(`can_manage = $${paramIndex++}`);
         updateValues.push(updateData.can_manage);
+      }
+      if (updateData.permission_name !== undefined) {
+        updateFields.push(`permission_name = $${paramIndex++}`);
+        updateValues.push(updateData.permission_name);
+      }
+      if (updateData.description !== undefined) {
+        updateFields.push(`description = $${paramIndex++}`);
+        updateValues.push(updateData.description);
       }
 
       if (updateFields.length === 0) {
@@ -319,6 +329,66 @@ export default async function permissionsRoutes(app: FastifyInstance) {
       app.log.error('重置角色權限失敗:', error);
       return reply.status(500).send({
         message: '重置角色權限失敗',
+        error: error.message
+      });
+    }
+  });
+
+  // 取得當前角色的所有權限（公開 API，用於前端快取）
+  app.get<{
+    Querystring: {
+      role: string;
+    }
+  }>('/api/permissions/for-role', async (request, reply) => {
+    try {
+      const { role } = request.query;
+
+      if (!role) {
+        return reply.status(400).send({ message: '缺少角色參數' });
+      }
+
+      // 驗證角色是否有效
+      if (!['super_admin', 'admin', 'grid_manager', 'user', 'guest'].includes(role)) {
+        return reply.status(400).send({ message: '無效的角色' });
+      }
+
+      const { rows } = await app.db.query(`
+        SELECT
+          permission_key,
+          can_view,
+          can_create,
+          can_edit,
+          can_delete,
+          can_manage
+        FROM role_permissions
+        WHERE role = $1
+        ORDER BY permission_key
+      `, [role]);
+
+      // 轉換為更易於前端使用的格式
+      const permissions: Record<string, {
+        view: boolean;
+        create: boolean;
+        edit: boolean;
+        delete: boolean;
+        manage: boolean;
+      }> = {};
+
+      rows.forEach((row: any) => {
+        permissions[row.permission_key] = {
+          view: row.can_view === 1,
+          create: row.can_create === 1,
+          edit: row.can_edit === 1,
+          delete: row.can_delete === 1,
+          manage: row.can_manage === 1
+        };
+      });
+
+      return reply.send({ role, permissions });
+    } catch (error: any) {
+      app.log.error('取得角色權限失敗:', error);
+      return reply.status(500).send({
+        message: '取得角色權限失敗',
         error: error.message
       });
     }

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { checkPermission } from '@/api/permissions';
+import { getAllPermissionsForRole } from '@/api/permissions';
 
 /**
  * 權限檢查 Hook - 絕對權限控制版本
@@ -13,6 +13,8 @@ export function usePermission() {
   const { user, actingRole } = useAuth();
   const [permissionCache, setPermissionCache] = useState({});
   const [permissionLoading, setPermissionLoading] = useState({});
+  const isLoadingAllRef = useRef(false); // 使用 ref 防止重複載入（立即生效）
+  const loadedRoleRef = useRef(null); // 記錄已載入的角色
 
   /**
    * 清除權限快取（當權限設定更新時使用）
@@ -38,11 +40,7 @@ export function usePermission() {
       return false;
     }
 
-    // 超級管理員有所有權限（這是角色的特殊性，不需要查表）
-    if (actingRole === 'super_admin') {
-      return true;
-    }
-
+    // 所有角色(包含超級管理員)都從資料庫檢查權限
     // 檢查快取
     const cacheKey = `${actingRole}:${permissionKey}:${action}`;
     if (permissionCache[cacheKey] !== undefined) {
@@ -58,7 +56,55 @@ export function usePermission() {
   }, [user, actingRole, permissionCache, permissionLoading]);
 
   /**
+   * 批量載入角色的所有權限（帶防重複載入機制）
+   * @returns {Promise<void>}
+   */
+  const loadAllPermissions = useCallback(async () => {
+    if (!user || !actingRole) return;
+
+    // 訪客模式不需要從API載入
+    if (actingRole === 'guest') {
+      return;
+    }
+
+    // 防止重複載入：如果正在載入中或已載入過相同角色，直接返回
+    if (isLoadingAllRef.current || loadedRoleRef.current === actingRole) {
+      return;
+    }
+
+    try {
+      isLoadingAllRef.current = true; // 立即標記為載入中
+      // console.log(`🔄 批量載入權限 - 角色: ${actingRole}`);
+
+      const result = await getAllPermissionsForRole(actingRole);
+      const permissions = result?.permissions || {};
+
+      // 將批量權限轉換為快取格式
+      const newCache = {};
+      Object.keys(permissions).forEach(permissionKey => {
+        const perm = permissions[permissionKey];
+        newCache[`${actingRole}:${permissionKey}:view`] = perm.view || false;
+        newCache[`${actingRole}:${permissionKey}:create`] = perm.create || false;
+        newCache[`${actingRole}:${permissionKey}:edit`] = perm.edit || false;
+        newCache[`${actingRole}:${permissionKey}:delete`] = perm.delete || false;
+        newCache[`${actingRole}:${permissionKey}:manage`] = perm.manage || false;
+      });
+
+      // 更新快取
+      setPermissionCache(newCache);
+      loadedRoleRef.current = actingRole; // 記錄已載入的角色
+      // console.log(`✅ 批量載入權限完成 - 角色: ${actingRole}, 權限數: ${Object.keys(permissions).length}`);
+    } catch (error) {
+      // console.error('批量載入權限失敗:', error);
+      // 載入失敗時保持空快取，hasPermission 會返回 false
+    } finally {
+      isLoadingAllRef.current = false; // 完成載入
+    }
+  }, [user, actingRole]);
+
+  /**
    * 從 API 檢查權限（非同步）- 絕對權限版本
+   * 注意：此函數現在主要用於向後兼容，實際權限已透過 loadAllPermissions 批量載入
    * @param {string} permissionKey - 權限鍵值
    * @param {string} action - 動作類型
    * @returns {Promise<boolean>} 是否有權限
@@ -74,48 +120,19 @@ export function usePermission() {
       return false;
     }
 
-    // 超級管理員（角色特殊性）
-    if (actingRole === 'super_admin') {
-      return true;
-    }
-
     const cacheKey = `${actingRole}:${permissionKey}:${action}`;
 
-    // 標記為載入中
-    setPermissionLoading(prev => ({ ...prev, [cacheKey]: true }));
-
-    try {
-      const result = await checkPermission(actingRole, permissionKey, action);
-      const hasAccess = result?.hasPermission || false;
-
-      // 更新快取
-      setPermissionCache(prev => ({
-        ...prev,
-        [cacheKey]: hasAccess
-      }));
-
-      // 取消載入中標記
-      setPermissionLoading(prev => {
-        const newState = { ...prev };
-        delete newState[cacheKey];
-        return newState;
-      });
-
-      return hasAccess;
-    } catch (error) {
-      console.error('檢查權限失敗:', error);
-      // 取消載入中標記
-      setPermissionLoading(prev => {
-        const newState = { ...prev };
-        delete newState[cacheKey];
-        return newState;
-      });
-
-      // ⚠️ 重要：失敗時返回 false，不使用預設值
-      // 權限授權設定是絕對的，如果無法從資料庫讀取，就拒絕存取
-      return false;
+    // 檢查快取
+    if (permissionCache[cacheKey] !== undefined) {
+      return permissionCache[cacheKey];
     }
-  }, [user, actingRole]);
+
+    // 如果快取中沒有，觸發完整權限載入
+    await loadAllPermissions();
+
+    // 再次檢查快取
+    return permissionCache[cacheKey] || false;
+  }, [user, actingRole, permissionCache, loadAllPermissions]);
 
   /**
    * 檢查是否可以檢視
@@ -153,77 +170,43 @@ export function usePermission() {
   }, [hasPermission]);
 
   /**
-   * 視角切換時清除快取並重新載入權限
+   * 視角切換時清除快取並批量重新載入權限
    */
   useEffect(() => {
     // 清除舊的快取（因為角色改變了）
     setPermissionCache({});
+    isLoadingAllRef.current = false; // 重置載入狀態
+    loadedRoleRef.current = null; // 清除已載入角色記錄
 
-    if (!user || !actingRole || actingRole === 'guest' || actingRole === 'super_admin') {
+    if (!user || !actingRole || actingRole === 'guest') {
       return;
     }
 
-    // 預載入常用權限
-    const commonPermissions = [
-      ['grids', 'view'],
-      ['grids', 'create'],
-      ['grids', 'edit'],
-      ['grids', 'delete'],
-      ['disaster_areas', 'view'],
-      ['volunteers', 'view'],
-      ['supplies', 'view'],
-      ['admin_panel', 'view'],
-      ['users', 'view'],
-      ['role_permissions', 'view'],
-      ['role_permissions', 'edit'],
-      ['announcements', 'view'],
-      ['blacklist', 'view'],
-      ['audit_logs', 'view']
-    ];
-
-    // 使用 setTimeout 確保快取清除後再載入
-    setTimeout(() => {
-      commonPermissions.forEach(([key, action]) => {
-        checkPermissionAsync(key, action);
-      });
-    }, 0);
-  }, [user, actingRole, checkPermissionAsync]);
+    // 批量載入所有權限（一次 API 請求取代多次請求）
+    loadAllPermissions();
+  }, [user, actingRole]);
 
   /**
-   * 監聽權限更新事件，自動清除快取
+   * 監聽權限更新事件，自動清除快取並批量重新載入
    */
   useEffect(() => {
     const handlePermissionUpdate = () => {
-      console.log('🔄 檢測到權限更新，清除快取並重新載入權限');
-      clearPermissionCache();
+      // console.log('🔄 檢測到權限更新，清除快取並批量重新載入權限');
+      setPermissionCache({});
+      isLoadingAllRef.current = false; // 重置載入狀態
+      loadedRoleRef.current = null; // 清除已載入角色記錄
 
-      // 重新預載入常用權限
-      if (user && actingRole && actingRole !== 'guest' && actingRole !== 'super_admin') {
-        const commonPermissions = [
-          ['grids', 'view'],
-          ['grids', 'create'],
-          ['grids', 'edit'],
-          ['grids', 'delete'],
-          ['disaster_areas', 'view'],
-          ['volunteers', 'view'],
-          ['supplies', 'view'],
-          ['admin_panel', 'view'],
-          ['users', 'view'],
-          ['role_permissions', 'view'],
-          ['role_permissions', 'edit']
-        ];
-
+      // 批量重新載入所有權限
+      if (user && actingRole && actingRole !== 'guest') {
         setTimeout(() => {
-          commonPermissions.forEach(([key, action]) => {
-            checkPermissionAsync(key, action);
-          });
+          loadAllPermissions();
         }, 100);
       }
     };
 
     window.addEventListener('permission-updated', handlePermissionUpdate);
     return () => window.removeEventListener('permission-updated', handlePermissionUpdate);
-  }, [user, actingRole, clearPermissionCache, checkPermissionAsync]);
+  }, [user, actingRole]);
 
   return {
     hasPermission,
@@ -234,6 +217,7 @@ export function usePermission() {
     canDelete,
     canManage,
     clearPermissionCache, // 新增：清除快取函數
+    authUser: user, // 新增：返回當前使用者
     currentRole: actingRole,
     isGuest: actingRole === 'guest',
     isUser: actingRole === 'user',

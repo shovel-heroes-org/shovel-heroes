@@ -11,10 +11,12 @@ import { useAuth } from '@/context/AuthContext.jsx';
 import { useRequireLogin } from "@/hooks/useRequireLogin";
 import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 import AddGridModal from "@/components/admin/AddGridModal";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const { user, actingRole, setActingRole, toggleActingRole, guestMode } = useAuth();
+  const { hasPermission } = usePermission();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
@@ -90,13 +92,16 @@ export default function Layout({ children, currentPageName }) {
 
     // 訪客模式下不顯示需要登入的功能
     if (user && actingRole !== 'guest') {
-      base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
+      // 志工中心:必須有 volunteers 檢視權限才顯示
+      if (hasPermission('volunteers', 'view')) {
+        base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
+      }
       // 所有登入用戶都可以看到管理後台（但功能受權限限制）
       base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
     }
     base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
     return base;
-  }, [user, actingRole]);
+  }, [user, actingRole, hasPermission]);
 
   const isActive = (url) => location.pathname === url;
 

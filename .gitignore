@@ -24,3 +24,30 @@ dist-ssr
 *.sw?
 
 .env
+
+# Documentation and progress tracking
+docs/knowledge/
+docs/*.md
+!docs/README.md
+
+# Test files
+tests/e2e/
+test-results/
+playwright-report/
+screenshots/
+
+# Backend scripts
+packages/backend/scripts/
+
+# CSV exports
+csv/
+*.csv
+
+# Workflow confirmations
+.workflow-confirmations.json
+.current-issue
+
+# Task management
+tasks.md
+requirements.md
+design.md

@@ -73,12 +73,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
         is_sample: row.is_sample ? '是' : '否',
         // 將 bounds JSONB 轉換為 JSON 字串
         bounds: row.bounds ? JSON.stringify(row.bounds) : '',
-        // 將 supplies_needed JSONB 轉換為可讀格式
-        supplies_needed: row.supplies_needed
-          ? (Array.isArray(row.supplies_needed)
-              ? row.supplies_needed.join('; ')
-              : JSON.stringify(row.supplies_needed))
-          : ''
+        // 將 supplies_needed JSONB 轉換為 JSON 字串（確保匯入時能解析）
+        supplies_needed: row.supplies_needed ? JSON.stringify(row.supplies_needed) : ''
       }));
 
       const csv = stringify(formattedRows, {
@@ -88,7 +84,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           code: '網格代碼',
           grid_type: '類型',
           disaster_area_id: '災區ID',
-          area_name: '災區名稱',
+          area_name: '災區',
           volunteer_needed: '需求人數',
           volunteer_registered: '已登記人數',
           meeting_point: '集合點',
@@ -215,6 +211,18 @@ export function registerCSVRoutes(app: FastifyInstance) {
         const risksNotes = record['風險備註'] || '';
         const contactInfo = record['聯絡資訊'] || '';
 
+        // 解析 supplies_needed JSON 字串（如果有的話）
+        let suppliesNeeded: any = null;
+        const suppliesNeededRaw = record['所需物資'];
+        if (suppliesNeededRaw) {
+          try {
+            suppliesNeeded = JSON.parse(suppliesNeededRaw);
+          } catch {
+            // 如果解析失敗，保留原始字串
+            suppliesNeeded = suppliesNeededRaw;
+          }
+        }
+
         // Check if grid code exists
         if (body.skipDuplicates) {
           const { rows: existing } = await app.db.query(
@@ -253,12 +261,12 @@ export function registerCSVRoutes(app: FastifyInstance) {
           `INSERT INTO grids (
             id, code, grid_type, disaster_area_id, volunteer_needed,
             meeting_point, risks_notes, contact_info, center_lat, center_lng,
-            status, created_by_id, created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            supplies_needed, status, created_by_id, created_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             gridId, code, gridType, areaId, volunteerNeeded,
             meetingPoint, risksNotes, contactInfo, centerLat, centerLng,
-            'open', req.user?.id, req.user?.name || 'CSV Import'
+            suppliesNeeded, 'open', req.user?.id, req.user?.name || 'CSV Import'
           ]
         );
 
@@ -712,6 +720,277 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Export trash supply donations to CSV
+  app.get('/csv/export/trash-supplies', { preHandler: requirePermission('trash_supplies', 'view') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    try {
+      const { rows } = await app.db.query(
+        `SELECT
+          sd.id, sd.grid_id, sd.name, sd.quantity, sd.unit, sd.donor_contact,
+          sd.created_at, sd.delivery_method, sd.delivery_address, sd.delivery_time,
+          sd.notes, sd.status, sd.supply_name, sd.donor_name, sd.donor_phone,
+          sd.donor_email, sd.created_by_id, sd.created_by, sd.updated_at,
+          g.code as grid_code,
+          da.name as area_name
+        FROM supply_donations sd
+        LEFT JOIN grids g ON sd.grid_id = g.id
+        LEFT JOIN disaster_areas da ON g.disaster_area_id = da.id
+        WHERE sd.status = 'deleted'
+        ORDER BY sd.updated_at DESC`
+      );
+
+      // 格式化時間欄位
+      const formattedRows = rows.map(row => ({
+        ...row,
+        created_at: formatDateTime(row.created_at),
+        updated_at: formatDateTime(row.updated_at)
+      }));
+
+      const csv = stringify(formattedRows, {
+        header: true,
+        columns: {
+          id: 'ID',
+          grid_id: '網格ID',
+          grid_code: '網格代碼',
+          area_name: '災區',
+          name: '物資名稱(舊)',
+          supply_name: '物資名稱',
+          quantity: '數量',
+          unit: '單位',
+          donor_contact: '捐贈者聯絡(舊)',
+          donor_name: '捐贈者姓名',
+          donor_phone: '聯絡電話',
+          donor_email: 'Email',
+          delivery_method: '配送方式',
+          delivery_address: '送達地址',
+          delivery_time: '預計送達時間',
+          notes: '備註',
+          status: '狀態',
+          created_by_id: '建立者ID',
+          created_by: '建立者',
+          created_at: '捐贈時間',
+          updated_at: '更新時間'
+        }
+      });
+
+      const csvWithBOM = '\uFEFF' + csv;
+      reply.type('text/csv; charset=utf-8');
+      reply.header('Content-Disposition', 'attachment; filename="trash_supplies_export.csv"');
+      return csvWithBOM;
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to export trash supplies');
+      return reply.status(500).send({ message: 'Failed to export trash supplies' });
+    }
+  });
+
+  // Import trash supply donations from CSV
+  app.post('/csv/import/trash-supplies',
+    { preHandler: requirePermission('trash_supplies', 'manage') },
+    async (req: FastifyRequest, reply) => {
+      if (!app.hasDecorator('db')) {
+        return reply.status(503).send({ message: 'Database not available' });
+      }
+
+      const body = req.body as { csv: string; skipDuplicates?: boolean };
+
+      if (!body.csv) {
+        return reply.status(400).send({ message: 'CSV data is required' });
+      }
+
+      try {
+        // 移除 BOM 字元
+        const csvData = removeBOM(body.csv);
+        const records = parse(csvData, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true,
+          encoding: 'utf-8'
+        });
+
+        let imported = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+
+        for (const record of records as any[]) {
+          const recordId = record['ID'];
+          const gridCode = record['網格代碼'];
+          const supplyName = record['物資名稱'] || '';
+          const quantity = parseInt(record['數量'] || '1');
+          const unit = record['單位'] || '';
+          const donorName = record['捐贈者姓名'] || '';
+          const donorPhone = record['聯絡電話'] || '';
+          const donorEmail = record['Email'] || '';
+          const deliveryMethod = record['配送方式'] || '';
+          const deliveryAddress = record['送達地址'] || '';
+          const deliveryTime = record['預計送達時間'] || '';
+          const notes = record['備註'] || '';
+
+          // 驗證必填欄位
+          if (!gridCode) {
+            errors.push(`Missing required field (網格代碼) in row: ${JSON.stringify(record)}`);
+            continue;
+          }
+
+          // 如果有 ID，嘗試找到並更新現有記錄（移動到垃圾桶）
+          if (recordId) {
+            const { rows: existing } = await app.db.query(
+              'SELECT id, status FROM supply_donations WHERE id = $1',
+              [recordId]
+            );
+
+            if (existing.length > 0) {
+              // 找到網格 ID
+              const { rows: grids } = await app.db.query(
+                'SELECT id FROM grids WHERE code = $1',
+                [gridCode]
+              );
+
+              if (grids.length === 0) {
+                errors.push(`Grid not found: ${gridCode}`);
+                continue;
+              }
+
+              const gridId = grids[0].id;
+
+              // 更新現有記錄，將狀態改為 deleted（移動到垃圾桶）
+              await app.db.query(
+                `UPDATE supply_donations SET
+                  grid_id = $1,
+                  supply_name = $2,
+                  quantity = $3,
+                  unit = $4,
+                  donor_name = $5,
+                  donor_phone = $6,
+                  donor_email = $7,
+                  delivery_method = $8,
+                  delivery_address = $9,
+                  delivery_time = $10,
+                  notes = $11,
+                  status = 'deleted',
+                  updated_at = NOW()
+                WHERE id = $12`,
+                [
+                  gridId,
+                  supplyName,
+                  quantity,
+                  unit,
+                  donorName,
+                  donorPhone,
+                  donorEmail,
+                  deliveryMethod,
+                  deliveryAddress,
+                  deliveryTime,
+                  notes,
+                  recordId
+                ]
+              );
+              imported++;
+              continue;
+            }
+          }
+
+          // 檢查是否已存在於垃圾桶（避免重複）
+          if (body.skipDuplicates) {
+            const { rows: existingTrash } = await app.db.query(
+              'SELECT id FROM supply_donations WHERE supply_name = $1 AND donor_name = $2 AND status = $3',
+              [supplyName, donorName, 'deleted']
+            );
+
+            if (existingTrash.length > 0) {
+              skipped++;
+              continue;
+            }
+          }
+
+          // 找到網格 ID
+          const { rows: grids } = await app.db.query(
+            'SELECT id FROM grids WHERE code = $1',
+            [gridCode]
+          );
+
+          if (grids.length === 0) {
+            errors.push(`Grid not found: ${gridCode}`);
+            continue;
+          }
+
+          const gridId = grids[0].id;
+
+          // 插入新記錄到垃圾桶
+          // 如果 CSV 包含 id 欄位，使用該 id；否則讓資料庫自動生成
+          if (recordId) {
+            // 有 id 的情況：直接插入指定的 id
+            await app.db.query(
+              `INSERT INTO supply_donations (
+                id, grid_id, supply_name, quantity, unit,
+                donor_name, donor_phone, donor_email,
+                delivery_method, delivery_address, delivery_time,
+                notes, status, created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'deleted', NOW(), NOW())
+              ON CONFLICT (id) DO NOTHING`,
+              [
+                recordId,
+                gridId,
+                supplyName,
+                quantity,
+                unit,
+                donorName,
+                donorPhone,
+                donorEmail,
+                deliveryMethod,
+                deliveryAddress,
+                deliveryTime,
+                notes
+              ]
+            );
+          } else {
+            // 沒有 id 的情況：讓資料庫自動生成
+            await app.db.query(
+              `INSERT INTO supply_donations (
+                grid_id, supply_name, quantity, unit,
+                donor_name, donor_phone, donor_email,
+                delivery_method, delivery_address, delivery_time,
+                notes, status, created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'deleted', NOW(), NOW())`,
+              [
+                gridId,
+                supplyName,
+                quantity,
+                unit,
+                donorName,
+                donorPhone,
+                donorEmail,
+                deliveryMethod,
+                deliveryAddress,
+                deliveryTime,
+                notes
+              ]
+            );
+          }
+          imported++;
+        }
+
+        app.log.info({ imported, skipped, errors: errors.length }, '[csv] Trash supply donations import completed');
+
+        return reply.send({
+          message: 'Import completed',
+          imported,
+          skipped,
+          errors: errors.length > 0 ? errors : undefined
+        });
+
+      } catch (err: any) {
+        app.log.error({ err }, '[csv] Failed to import trash supply donations');
+        return reply.status(500).send({
+          message: 'Failed to import trash supply donations',
+          error: err.message
+        });
+      }
+    }
+  );
+
   // Export CSV template for supply donations
   app.get('/csv/template/supplies', { preHandler: requirePermission('supplies', 'manage') }, async (req, reply) => {
     const template = stringify([{
@@ -977,12 +1256,30 @@ export function registerCSVRoutes(app: FastifyInstance) {
           continue;
         }
 
-        // Check for duplicates - 如果有 email，基於 email 檢查；否則跳過重複檢查
-        if (body.skipDuplicates && email) {
-          const { rows: existing } = await app.db.query(
-            'SELECT id FROM users WHERE email = $1',
-            [email]
-          );
+        // Check for duplicates - 基於 email 或 name 檢查
+        if (body.skipDuplicates) {
+          let existing: any[] = [];
+
+          // 優先使用 email 檢查重複
+          if (email) {
+            const { rows } = await app.db.query(
+              'SELECT id FROM users WHERE email = $1',
+              [email]
+            );
+            existing = rows;
+          }
+
+          // 如果沒有 email，使用 name 檢查重複
+          if (!email || existing.length === 0) {
+            const { rows } = await app.db.query(
+              'SELECT id FROM users WHERE name = $1',
+              [name]
+            );
+            if (rows.length > 0) {
+              existing = rows;
+            }
+          }
+
           if (existing.length > 0) {
             skipped++;
             continue;
@@ -1244,10 +1541,10 @@ export function registerCSVRoutes(app: FastifyInstance) {
         `SELECT
           id, title, body, content, category, is_pinned, external_links,
           contact_phone, "order", created_by_id, created_by, is_sample,
-          priority, status, created_at, created_date, updated_date, deleted_at
+          priority, status, created_at, created_date, updated_date
         FROM announcements
-        WHERE status = 'deleted' AND deleted_at IS NOT NULL
-        ORDER BY deleted_at DESC`
+        WHERE status = 'deleted'
+        ORDER BY updated_date DESC`
       );
 
       // 格式化時間欄位和 external_links
@@ -1256,7 +1553,6 @@ export function registerCSVRoutes(app: FastifyInstance) {
         created_at: formatDateTime(row.created_at),
         created_date: formatDateTime(row.created_date),
         updated_date: formatDateTime(row.updated_date),
-        deleted_at: formatDateTime(row.deleted_at),
         is_pinned: row.is_pinned ? '是' : '否',
         is_sample: row.is_sample ? '是' : '否',
         // 將 external_links JSON 轉換為可讀格式
@@ -1286,8 +1582,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           status: '狀態',
           created_at: '建立時間',
           created_date: '建立日期',
-          updated_date: '更新日期',
-          deleted_at: '刪除時間'
+          updated_date: '更新日期'
         }
       });
 
@@ -1387,6 +1682,171 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
   });
 
+  // Import trash announcements from CSV
+  app.post('/csv/import/trash-announcements', { preHandler: requirePermission('announcements', 'manage') }, async (req: FastifyRequest, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const requestBody = req.body as { csv: string; skipDuplicates?: boolean };
+
+    if (!requestBody.csv) {
+      return reply.status(400).send({ message: 'CSV data is required' });
+    }
+
+    try {
+      // 移除 BOM 字元
+      const csvData = removeBOM(requestBody.csv);
+      const records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        encoding: 'utf-8'
+      });
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: { row: number; error: string }[] = [];
+
+      for (let i = 0; i < records.length; i++) {
+        const record = (records as any[])[i];
+
+        // 支援匯出格式的欄位
+        const title = record['標題（必填）'] || record['標題'];
+        const announcementBody = record['內容'] || '';
+        const content = record['詳細內容'] || '';
+        const category = record['分類'] || '';
+        const isPinned = record['是否置頂'] === '是' || record['是否置頂'] === 'true';
+        const externalLinksRaw = record['外部連結'] || '';
+        const contactPhone = record['聯絡電話'] || '';
+        const order = parseInt(record['排序'] || '0');
+        const isSample = record['是否為範例'] === '是' || record['是否為範例'] === 'true';
+        const priority = record['優先級'] || 'normal';
+
+        if (!title) {
+          errors.push({ row: i + 2, error: '缺少必填欄位：標題' });
+          continue;
+        }
+
+        // 驗證優先級
+        if (!['low', 'normal', 'high'].includes(priority)) {
+          errors.push({ row: i + 2, error: `無效的優先級：${priority}（應為 low/normal/high）` });
+          continue;
+        }
+
+        // 解析外部連結（格式：名稱:網址; 名稱:網址）
+        let externalLinks: any = null;
+        if (externalLinksRaw) {
+          try {
+            externalLinks = externalLinksRaw.split(';').map((link: string) => {
+              const [name, url] = link.trim().split(':');
+              return { name: name?.trim() || '', url: url?.trim() || '' };
+            }).filter((link: any) => link.url);
+          } catch {
+            externalLinks = null;
+          }
+        }
+
+        // 檢查是否存在相同標題的公告（不限狀態）
+        const { rows: existingAnnouncements } = await app.db.query(
+          'SELECT id, status FROM announcements WHERE title = $1',
+          [title]
+        );
+
+        // 如果存在相同標題的公告
+        if (existingAnnouncements.length > 0) {
+          let hasOpen = false;
+          let hasDeleted = false;
+
+          // 檢查各種狀態
+          for (const existingAnnouncement of existingAnnouncements) {
+            if (existingAnnouncement.status === 'open' || existingAnnouncement.status === 'active') {
+              hasOpen = true;
+            } else if (existingAnnouncement.status === 'deleted') {
+              hasDeleted = true;
+            }
+          }
+
+          // 如果有 open/active 狀態的公告，將其改為 deleted
+          if (hasOpen) {
+            for (const existingAnnouncement of existingAnnouncements) {
+              if (existingAnnouncement.status === 'open' || existingAnnouncement.status === 'active') {
+                await app.db.query(
+                  `UPDATE announcements SET status = 'deleted', updated_date = NOW() WHERE id = $1`,
+                  [existingAnnouncement.id]
+                );
+              }
+            }
+            imported++;
+            continue;  // 不再插入新記錄
+          }
+
+          // 如果已經存在 deleted 狀態的公告
+          if (hasDeleted) {
+            if (requestBody.skipDuplicates) {
+              skipped++;
+              continue;  // 跳過，不插入新記錄
+            }
+            // 如果沒有設定 skipDuplicates，也跳過不插入新記錄（避免重複）
+            skipped++;
+            continue;
+          }
+
+          // 如果存在其他狀態的公告（如 inactive），將其改為 deleted
+          for (const existingAnnouncement of existingAnnouncements) {
+            await app.db.query(
+              `UPDATE announcements SET status = 'deleted', updated_date = NOW() WHERE id = $1`,
+              [existingAnnouncement.id]
+            );
+          }
+          imported++;
+          continue;  // 不再插入新記錄
+        }
+
+        // 只有當不存在相同標題的公告時，才插入新記錄
+        const announcementId = `announcement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await app.db.query(
+          `INSERT INTO announcements (
+            id, title, body, content, category, is_pinned, external_links,
+            contact_phone, "order", created_by_id, created_by, is_sample,
+            priority, status, created_at, updated_date
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'deleted', NOW(), NOW())`,
+          [announcementId, title, announcementBody, content, category, isPinned,
+           externalLinks ? JSON.stringify(externalLinks) : null,
+           contactPhone, order, req.user?.id, req.user?.name || 'CSV Import', isSample, priority]
+        );
+
+        imported++;
+      }
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `匯入 ${imported} 筆垃圾桶公告資料（略過 ${skipped} 筆）`,
+        action_type: 'import',
+        resource_type: 'announcement',
+        details: { imported, skipped, errors: errors.length, trash: true },
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[csv] Trash announcements import completed: ${imported} imported, ${skipped} skipped`);
+      return {
+        success: true,
+        message: `匯入完成：成功 ${imported} 筆，略過 ${skipped} 筆`,
+        imported,
+        skipped,
+        errors: errors.length > 0 ? errors : undefined
+      };
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to import trash announcements');
+      return reply.status(500).send({ message: 'Failed to import trash announcements', error: err.message });
+    }
+  });
+
   // ==================== 垃圾桶災區 CSV 匯出/匯入 ====================
 
   // Export trash disaster areas to CSV
@@ -1399,17 +1859,17 @@ export function registerCSVRoutes(app: FastifyInstance) {
       const { rows } = await app.db.query(
         `SELECT
           id, name, county, township, description, status,
-          center_lat, center_lng, created_at, deleted_at
+          center_lat, center_lng, created_at, updated_at
         FROM disaster_areas
         WHERE status = 'deleted'
-        ORDER BY deleted_at DESC`
+        ORDER BY updated_at DESC`
       );
 
       // 格式化時間欄位
       const formattedRows = rows.map(row => ({
         ...row,
         created_at: formatDateTime(row.created_at),
-        deleted_at: formatDateTime(row.deleted_at)
+        updated_at: formatDateTime(row.updated_at)
       }));
 
       const csv = stringify(formattedRows, {
@@ -1424,7 +1884,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           center_lat: '緯度',
           center_lng: '經度',
           created_at: '建立時間',
-          deleted_at: '刪除時間'
+          updated_at: '更新時間'
         }
       });
 
@@ -1445,73 +1905,85 @@ export function registerCSVRoutes(app: FastifyInstance) {
     }
 
     const body = req.body as { csv: string; skipDuplicates?: boolean };
-    const csvData = body.csv;
-    const skipDuplicates = body.skipDuplicates !== false;
 
-    if (!csvData || typeof csvData !== 'string') {
-      return reply.status(400).send({ message: 'Invalid CSV data' });
+    if (!body.csv) {
+      return reply.status(400).send({ message: 'CSV data is required' });
     }
 
     try {
-      // 移除 BOM 字符
-      const cleanedCsv = removeBOM(csvData);
-
-      const records = await new Promise<any[]>((resolve, reject) => {
-        parse(cleanedCsv, {
-          columns: true,
-          skip_empty_lines: true,
-          trim: true
-        }, (err, output) => {
-          if (err) reject(err);
-          else resolve(output);
-        });
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        encoding: 'utf-8'
       });
-
-      app.log.info(`[csv] Parsed ${records.length} trash area records`);
 
       let imported = 0;
       let skipped = 0;
       const errors: string[] = [];
 
-      for (const record of records) {
-        const name = record['災區名稱'] || record['災區名稱（必填）'] || '';
-        const county = record['縣市'] || record['縣市（必填）'] || '';
-        const township = record['鄉鎮區'] || record['鄉鎮區（必填）'] || '';
+      for (const record of records as any[]) {
+        // 支援匯出格式的欄位
+        const recordId = record['ID'];
+        const name = record['災區名稱（必填）'] || record['災區名稱'];
+        const county = record['縣市（必填）'] || record['縣市'] || '';
+        const township = record['鄉鎮區（必填）'] || record['鄉鎮區'] || '';
         const description = record['描述'] || '';
-        const centerLat = parseFloat(record['緯度'] || record['緯度（必填）']);
-        const centerLng = parseFloat(record['經度'] || record['經度（必填）']);
+        const centerLat = parseFloat(record['緯度（必填）'] || record['緯度']);
+        const centerLng = parseFloat(record['經度（必填）'] || record['經度']);
 
-        // 驗證必填欄位
+        // Validate required fields (只有名稱、經緯度為必填)
         if (!name || isNaN(centerLat) || isNaN(centerLng)) {
           errors.push(`缺少必填欄位（災區名稱、緯度、經度）: ${JSON.stringify(record)}`);
           continue;
         }
 
-        // 檢查是否已存在（使用名稱和座標）
-        const { rows: existing } = await app.db.query(
-          `SELECT id FROM disaster_areas
-           WHERE name = $1 AND center_lat = $2 AND center_lng = $3 AND status = 'deleted'`,
-          [name, centerLat, centerLng]
+        // 如果有 ID，嘗試恢復現有記錄
+        if (recordId) {
+          const { rows: existing } = await app.db.query(
+            'SELECT id, status FROM disaster_areas WHERE id = $1',
+            [recordId]
+          );
+
+          if (existing.length > 0) {
+            // 更新現有記錄為 deleted 狀態（恢復到垃圾桶）
+            await app.db.query(
+              `UPDATE disaster_areas SET
+                name = $1, county = $2, township = $3, description = $4,
+                center_lat = $5, center_lng = $6, status = 'deleted'
+              WHERE id = $7`,
+              [name, county, township, description, centerLat, centerLng, recordId]
+            );
+            imported++;
+            continue;
+          }
+        }
+
+        // Check for duplicates by title (只在垃圾桶中檢查)
+        if (body.skipDuplicates) {
+          const { rows: existing } = await app.db.query(
+            'SELECT id FROM disaster_areas WHERE name = $1 AND status = $2',
+            [name, 'deleted']
+          );
+          if (existing.length > 0) {
+            skipped++;
+            continue;
+          }
+        }
+
+        // 插入新的垃圾桶災區（使用 CSV 的 ID 或生成新的）
+        const areaId = recordId || `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await app.db.query(
+          `INSERT INTO disaster_areas (
+            id, name, county, township, description, center_lat, center_lng, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'deleted')
+          ON CONFLICT (id) DO NOTHING`,
+          [areaId, name, county, township, description, centerLat, centerLng]
         );
 
-        if (existing.length > 0 && skipDuplicates) {
-          skipped++;
-          continue;
-        }
-
-        // 如果不存在，插入新的垃圾桶災區
-        if (existing.length === 0) {
-          const areaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await app.db.query(
-            `INSERT INTO disaster_areas
-             (id, name, county, township, description, status, center_lat, center_lng, created_at, deleted_at)
-             VALUES ($1, $2, $3, $4, $5, 'deleted', $6, $7, NOW(), NOW())`,
-            [areaId, name, county, township, description, centerLat, centerLng]
-          );
-          imported++;
-        } else {
-          skipped++;
-        }
+        imported++;
       }
 
       app.log.info(`[csv] Trash areas import completed: ${imported} imported, ${skipped} skipped`);
@@ -1541,19 +2013,19 @@ export function registerCSVRoutes(app: FastifyInstance) {
         `SELECT
           g.id, g.code, g.grid_type, g.volunteer_needed, g.volunteer_registered,
           g.meeting_point, g.risks_notes, g.contact_info, g.status,
-          g.center_lat, g.center_lng, g.created_at, g.deleted_at,
+          g.center_lat, g.center_lng, g.created_at, g.updated_at,
           da.name as area_name
         FROM grids g
         LEFT JOIN disaster_areas da ON g.disaster_area_id = da.id
         WHERE g.status = 'deleted'
-        ORDER BY g.deleted_at DESC`
+        ORDER BY g.updated_at DESC`
       );
 
       // 格式化時間欄位
       const formattedRows = rows.map(row => ({
         ...row,
         created_at: formatDateTime(row.created_at),
-        deleted_at: formatDateTime(row.deleted_at)
+        updated_at: formatDateTime(row.updated_at)
       }));
 
       const csv = stringify(formattedRows, {
@@ -1562,7 +2034,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           id: 'ID',
           code: '網格代碼',
           grid_type: '類型',
-          area_name: '災區名稱',
+          area_name: '災區',
           volunteer_needed: '需求人數',
           volunteer_registered: '已登記人數',
           meeting_point: '集合點',
@@ -1572,7 +2044,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           center_lat: '緯度',
           center_lng: '經度',
           created_at: '建立時間',
-          deleted_at: '刪除時間'
+          updated_at: '更新時間'
         }
       });
 
@@ -1599,6 +2071,143 @@ export function registerCSVRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error({ err }, '[csv] Failed to export trash grids');
       return reply.status(500).send({ message: 'Failed to export trash grids' });
+    }
+  });
+
+  // Import trash grids from CSV
+  app.post('/csv/import/trash-grids', { preHandler: requirePermission('trash_grids', 'manage') }, async (req: FastifyRequest, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const body = req.body as { csv: string; skipDuplicates?: boolean };
+
+    if (!body.csv) {
+      return reply.status(400).send({ message: 'CSV data is required' });
+    }
+
+    try {
+      // 移除 BOM 字元
+      const csvData = removeBOM(body.csv);
+      const records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        encoding: 'utf-8'
+      });
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const record of records as any[]) {
+        // 支援匯出格式的欄位名稱
+        const code = record['網格代碼'] || record['網格代碼（必填）'] || '';
+        const gridType = record['類型'] || record['類型（必填）'] || 'manpower';
+        const areaName = record['災區名稱'] || record['災區'] || '';
+        const volunteerNeeded = parseInt(record['需求人數'] || '0');
+        const volunteerRegistered = parseInt(record['已登記人數'] || '0');
+        const meetingPoint = record['集合點'] || '';
+        const risksNotes = record['風險備註'] || '';
+        const contactInfo = record['聯絡資訊'] || '';
+        const centerLat = parseFloat(record['緯度'] || record['緯度（必填）'] || '0');
+        const centerLng = parseFloat(record['經度'] || record['經度（必填）'] || '0');
+
+        // 驗證必填欄位
+        if (!code || !areaName || isNaN(centerLat) || isNaN(centerLng)) {
+          errors.push(`缺少必填欄位（網格代碼、災區名稱、緯度、經度）: ${JSON.stringify(record)}`);
+          continue;
+        }
+
+        // 檢查是否存在相同代碼的網格
+        const { rows: existingGrids } = await app.db.query(
+          `SELECT id, status FROM grids WHERE code = $1`,
+          [code]
+        );
+
+        // 如果存在相同代碼的網格
+        if (existingGrids.length > 0) {
+          const existingGrid = existingGrids[0];
+
+          // 如果現有網格狀態為 open，將其改為 deleted（移回垃圾桶）
+          if (existingGrid.status === 'open') {
+            await app.db.query(
+              `UPDATE grids SET status = 'deleted', updated_at = NOW() WHERE id = $1`,
+              [existingGrid.id]
+            );
+            imported++;
+            continue;
+          }
+
+          // 如果現有網格已經在垃圾桶中且設定了跳過重複
+          if (existingGrid.status === 'deleted' && body.skipDuplicates) {
+            skipped++;
+            continue;
+          }
+        }
+
+        // 尋找或建立災區
+        let areaId: string;
+        const { rows: areas } = await app.db.query(
+          'SELECT id FROM disaster_areas WHERE name = $1',
+          [areaName]
+        );
+
+        if (areas.length > 0) {
+          areaId = areas[0].id;
+        } else {
+          // 建立新的災區（標記為已刪除的災區）
+          const newAreaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await app.db.query(
+            `INSERT INTO disaster_areas (id, name, center_lat, center_lng, status, deleted_at)
+             VALUES ($1, $2, $3, $4, 'deleted', NOW())`,
+            [newAreaId, areaName, centerLat, centerLng]
+          );
+          areaId = newAreaId;
+        }
+
+        // 插入新的垃圾桶網格
+        const gridId = `grid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await app.db.query(
+          `INSERT INTO grids (
+            id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
+            meeting_point, risks_notes, contact_info, center_lat, center_lng,
+            status, created_by_id, created_by, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'deleted', $12, $13, NOW(), NOW())`,
+          [
+            gridId, code, gridType, areaId, volunteerNeeded, volunteerRegistered,
+            meetingPoint, risksNotes, contactInfo, centerLat, centerLng,
+            req.user?.id, req.user?.name || 'CSV Import'
+          ]
+        );
+        imported++;
+      }
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `匯入 ${imported} 筆垃圾桶網格資料（略過 ${skipped} 筆）`,
+        action_type: 'import',
+        resource_type: 'grid',
+        details: { imported, skipped, errors: errors.length, trash: true },
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[csv] Trash grids import completed: ${imported} imported, ${skipped} skipped`);
+      return {
+        success: true,
+        message: `匯入完成：成功 ${imported} 筆，略過 ${skipped} 筆`,
+        imported,
+        skipped,
+        errors: errors.length > 0 ? errors : undefined
+      };
+    } catch (err: any) {
+      app.log.error({ err }, '[csv] Failed to import trash grids');
+      return reply.status(500).send({ message: 'Failed to import trash grids', error: err.message });
     }
   });
 }

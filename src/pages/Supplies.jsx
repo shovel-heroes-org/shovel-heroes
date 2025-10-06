@@ -37,8 +37,20 @@ export default function SuppliesPage() {
   const [editingDonation, setEditingDonation] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  // 權限狀態
+  const [canViewDonorContact, setCanViewDonorContact] = useState(false);
+  const [canView, setCanView] = useState(false);
+  const [canCreate, setCanCreate] = useState(false);
+  const [canEditSelf, setCanEditSelf] = useState(false);
+  const [canEditOthers, setCanEditOthers] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
   // 權限檢查
   const { canEdit, canManage, hasPermission } = usePermission();
+
+  // 檢查物資狀態管理權限
+  const hasStatusManagementPermission = hasPermission('supplies_status_management', 'view');
 
   // 登入檢查
   const addSupplyLogin = useRequireLogin("新增物資需求");
@@ -52,16 +64,53 @@ export default function SuppliesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [donationsData, gridsData, userData] = await Promise.all([
+      const [donationsResponse, gridsData, userData] = await Promise.all([
         SupplyDonation.list('-created_date'),
         Grid.list(),
         User.me().catch(() => null), // 用戶未登入時返回 null，避免 401 錯誤
       ]);
-      
+
+      // console.log('🔍 [Supplies] API 原始回應:', donationsResponse);
+
+      // 解析權限資訊
+      const donationsData = donationsResponse.data || donationsResponse;
       setDonations(donationsData);
       setGrids(gridsData);
       setCurrentUser(userData);
-      
+
+      // 設定權限狀態
+      if (donationsResponse.can_view_donor_contact !== undefined) {
+        setCanViewDonorContact(donationsResponse.can_view_donor_contact);
+      }
+      if (donationsResponse.can_view !== undefined) {
+        setCanView(donationsResponse.can_view);
+      }
+      if (donationsResponse.can_create !== undefined) {
+        setCanCreate(donationsResponse.can_create);
+      }
+      if (donationsResponse.can_edit !== undefined) {
+        setCanEditSelf(donationsResponse.can_edit);
+      }
+      if (donationsResponse.can_manage !== undefined) {
+        setCanEditOthers(donationsResponse.can_manage);
+      }
+      if (donationsResponse.can_delete !== undefined) {
+        setCanDelete(donationsResponse.can_delete);
+      }
+      if (donationsResponse.user_id !== undefined) {
+        setCurrentUserId(donationsResponse.user_id);
+      }
+
+      // console.log('🔐 [Supplies] 權限狀態:', {
+      //   canViewDonorContact: donationsResponse.can_view_donor_contact,
+      //   canView: donationsResponse.can_view,
+      //   canCreate: donationsResponse.can_create,
+      //   canEditSelf: donationsResponse.can_edit,
+      //   canEditOthers: donationsResponse.can_manage,
+      //   canDelete: donationsResponse.can_delete,
+      //   currentUserId: donationsResponse.user_id
+      // });
+
       setStats({
         total: donationsData.length,
         pledged: donationsData.filter(d => d.status === 'pledged').length,
@@ -117,7 +166,7 @@ export default function SuppliesPage() {
       setLoading(false);
     }
   };
-  
+
   const handleStatusUpdate = async (donationId, newStatus) => {
     try {
       await SupplyDonation.update(donationId, { status: newStatus });
@@ -427,8 +476,8 @@ export default function SuppliesPage() {
                           </div>
 
                           <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                            <div 
-                              className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+                            <div
+                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${(request.received / request.totalNeeded) * 100}%` }}
                             ></div>
                           </div>
@@ -499,14 +548,19 @@ export default function SuppliesPage() {
                         // 檢查是否有 view_donor_contact 隱私權限
                         const hasDonorContactPermission = hasPermission('view_donor_contact', 'view');
 
+                        // 檢查是否有 supplies 管理權限（超管/管理員）
+                        const hasSuppliesManagePermission = canManage('supplies');
+
                         // 聯絡資訊顯示邏輯：
-                        // 1. 網格建立者/管理員 + 有隱私權限：可以看到
-                        // 2. 捐贈者本人 + 有隱私權限：可以看到自己的
-                        // 3. 其他人：看不到
-                        // 4. 如果隱私權限被取消，所有人都看不到（包括捐贈者本人和網格建立者）
+                        // 1. 超管/管理員 + 有隱私權限：可以看到所有人
+                        // 2. 網格建立者/管理員 + 有隱私權限：可以看到該網格的捐贈者
+                        // 3. 捐贈者本人 + 有隱私權限：可以看到自己的
+                        // 4. 其他人：看不到
+                        // 5. 如果隱私權限被取消，所有人都看不到（包括捐贈者本人和網格建立者）
                         const canViewPhone = currentUser && hasDonorContactPermission && (
-                          isGridOwner ||  // 網格建立者/管理員（需要隱私權限）
-                          isDonorSelf     // 捐贈者本人（需要隱私權限）
+                          hasSuppliesManagePermission ||  // 超管/管理員（需要隱私權限）
+                          isGridOwner ||                  // 網格建立者/管理員（需要隱私權限）
+                          isDonorSelf                     // 捐贈者本人（需要隱私權限）
                         );
 
                         return (
@@ -544,7 +598,7 @@ export default function SuppliesPage() {
                                           {donation.donor_phone && ` - ${donation.donor_phone}`}
                                         </span>
                                       ) : (
-                                        <span className="text-gray-400 italic text-xs">(僅限管理員/相關格主/捐贈者本人查看聯絡資訊)</span>
+                                        <span className="text-gray-400 italic text-xs">(需要隱私權限且為管理員/相關格主/捐贈者本人才能查看聯絡資訊)</span>
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -573,30 +627,44 @@ export default function SuppliesPage() {
                                   )}
 
                                   <div className="mt-2 space-y-1 text-xs text-gray-500">
-                                    {donation.delivery_time && (
-                                      <div>預計送達時間: {donation.delivery_time}</div>
-                                    )}
                                     <div>捐贈時間: {donation.created_at ? new Date(donation.created_at).toLocaleString('zh-TW') : '尚未記錄'}</div>
                                   </div>
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                  {/* 編輯按鈕：管理員、網格建立者、網格管理員、或捐贈者本人可以編輯 */}
-                                  {(canEdit('supplies') || canManage('supplies') ||
-                                    currentUser?.id === grid?.created_by_id ||
-                                    currentUser?.id === grid?.grid_manager_id ||
-                                    isDonorSelf) && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-blue-600 hover:text-blue-700"
-                                      onClick={() => handleEditDonation(donation)}
-                                    >
-                                      <Edit className="w-4 h-4 mr-1" />
-                                      編輯
-                                    </Button>
-                                  )}
-                                  {donation.status === 'pledged' && (
+                                  {/* 編輯按鈕：
+                                    * 1. can_edit + 是自己 (isSelf)：可以編輯自己的物資
+                                    * 2. can_manage + 是別人 (!isSelf)：可以編輯別人的物資
+                                    * 判斷 isSelf: donation.created_by_id === currentUserId
+                                  */}
+                                  {(() => {
+                                    const isSelf = currentUserId && donation.created_by_id === currentUserId;
+                                    const canEditThis = (canEditSelf && isSelf) || (canEditOthers && !isSelf);
+
+                                    // console.log('🔐 [編輯按鈕權限]', {
+                                    //   donationId: donation.id,
+                                    //   created_by_id: donation.created_by_id,
+                                    //   currentUserId,
+                                    //   isSelf,
+                                    //   canEditSelf,
+                                    //   canEditOthers,
+                                    //   canEditThis
+                                    // });
+
+                                    return canEditThis && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-blue-600 hover:text-blue-700"
+                                        onClick={() => handleEditDonation(donation)}
+                                      >
+                                        <Edit className="w-4 h-4 mr-1" />
+                                        編輯
+                                      </Button>
+                                    );
+                                  })()}
+                                  {/* 狀態按鈕需要物資狀態管理權限 */}
+                                  {hasStatusManagementPermission && donation.status === 'pledged' && (
                                     <>
                                       <Button
                                         size="sm"
@@ -615,7 +683,7 @@ export default function SuppliesPage() {
                                       </Button>
                                     </>
                                   )}
-                                  {donation.status === 'confirmed' && (
+                                  {hasStatusManagementPermission && donation.status === 'confirmed' && (
                                     <Button
                                       size="sm"
                                       className="bg-yellow-600 hover:bg-yellow-700"
@@ -624,7 +692,7 @@ export default function SuppliesPage() {
                                       標記運送中
                                     </Button>
                                   )}
-                                  {donation.status === 'in_transit' && (
+                                  {hasStatusManagementPermission && donation.status === 'in_transit' && (
                                     <Button
                                       size="sm"
                                       className="bg-green-600 hover:bg-green-700"
@@ -633,7 +701,7 @@ export default function SuppliesPage() {
                                       確認送達
                                     </Button>
                                   )}
-                                  {donation.status === 'delivered' && (
+                                  {hasStatusManagementPermission && donation.status === 'delivered' && (
                                     // 只有網格建立者、網格管理員或管理員可以確認收到
                                     (currentUser?.role === 'admin' ||
                                      currentUser?.role === 'super_admin' ||
@@ -669,7 +737,7 @@ export default function SuppliesPage() {
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {showAddRequestModal && (
         <AddSupplyRequestModal
           isOpen={showAddRequestModal}

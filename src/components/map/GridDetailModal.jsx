@@ -10,6 +10,7 @@ import {
 import { useRequireLogin } from "@/hooks/useRequireLogin";
 import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 import { useAuth } from "@/context/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,8 +32,14 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // 取得登入狀態
+  // 取得登入狀態和權限
   const { user: authUser, guestMode } = useAuth();
+  const { hasPermission } = usePermission();
+
+  // 檢查志工報名權限（volunteer_registrations）
+  const canViewVolunteerReg = hasPermission('volunteer_registrations', 'view');
+  const canCreateVolunteerReg = hasPermission('volunteer_registrations', 'create');
+  const canEditVolunteerReg = hasPermission('volunteer_registrations', 'edit');
 
   // 登入檢查
   const volunteerLogin = useRequireLogin("報名志工");
@@ -50,7 +57,6 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const [supplyForm, setSupplyForm] = useState({
     donor_name: "",
     donor_phone: "",
-    donor_email: "",
     supply_name: "",
     quantity: "",
     delivery_method: "direct",
@@ -66,6 +72,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const [discussions, setDiscussions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [volunteerAgreedToTerms, setVolunteerAgreedToTerms] = useState(false);
+  const [supplyAgreedToTerms, setSupplyAgreedToTerms] = useState(false);
 
 
   React.useEffect(() => {
@@ -83,8 +90,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
           }));
           setSupplyForm(prev => ({
             ...prev,
-            donor_name: displayName,
-            donor_email: currentUser.email || ""
+            donor_name: displayName
           }));
           setDiscussionForm(prev => ({
             ...prev,
@@ -204,6 +210,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
       await VolunteerRegistration.create({
         ...volunteerForm,
         grid_id: grid.id,
+        user_id: user?.id || undefined,  // 如果用戶已登入，設定 user_id
         skills: volunteerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
         equipment: volunteerForm.equipment.split(',').map(s => s.trim()).filter(Boolean),
       });
@@ -243,6 +250,11 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
     if (!supplyForm.supply_name || !supplyForm.quantity) {
         alert("請選擇物資並填寫數量");
+        return;
+    }
+
+    if (!supplyAgreedToTerms) {
+        alert("請先同意並理解相關條款。");
         return;
     }
 
@@ -362,10 +374,13 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
               <AlertTriangle className="w-4 h-4" />
               基本資訊
             </TabsTrigger>
-            <TabsTrigger value="volunteer" className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              志工報名
-            </TabsTrigger>
+            {/* 志工報名分頁 - 根據 volunteer_registrations 權限顯示 */}
+            {canViewVolunteerReg && (
+              <TabsTrigger value="volunteer" className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                志工報名
+              </TabsTrigger>
+            )}
             <TabsTrigger value="supply" className="flex items-center gap-2">
               <PackagePlus className="w-4 h-4" />
               物資捐贈
@@ -521,7 +536,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   <form onSubmit={handleVolunteerSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="volunteer_name" className="flex items-center gap-1">
+                      <Label htmlFor="volunteer_name">
                         姓名 <span className="text-red-500">*</span>
                       </Label>
                       <Input
@@ -529,6 +544,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         value={volunteerForm.volunteer_name}
                         onChange={(e) => setVolunteerForm({...volunteerForm, volunteer_name: e.target.value})}
                         required
+                        disabled={!canCreateVolunteerReg}
                       />
                     </div>
                     <div>
@@ -537,6 +553,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         id="volunteer_phone"
                         value={volunteerForm.volunteer_phone}
                         onChange={(e) => setVolunteerForm({...volunteerForm, volunteer_phone: e.target.value})}
+                        disabled={!canCreateVolunteerReg}
                       />
                       <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                         <Info className="w-3 h-3"/>
@@ -545,42 +562,46 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     </div>
                   </div>
 
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="available_time">可服務時間</Label>
                     <Input
                       id="available_time"
                       placeholder="例：2024/1/15 上午 9:00-12:00"
                       value={volunteerForm.available_time}
                       onChange={(e) => setVolunteerForm({...volunteerForm, available_time: e.target.value})}
+                      disabled={!canCreateVolunteerReg}
                     />
                   </div>
 
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="skills">專業技能 (用逗號分隔)</Label>
                     <Input
                       id="skills"
                       placeholder="例：重機械操作, 電工, 水電"
                       value={volunteerForm.skills}
                       onChange={(e) => setVolunteerForm({...volunteerForm, skills: e.target.value})}
+                      disabled={!canCreateVolunteerReg}
                     />
                   </div>
 
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="equipment">攜帶工具 (用逗號分隔)</Label>
                     <Input
                       id="equipment"
                       placeholder="例：鏟子, 水桶, 雨鞋"
                       value={volunteerForm.equipment}
                       onChange={(e) => setVolunteerForm({...volunteerForm, equipment: e.target.value})}
+                      disabled={!canCreateVolunteerReg}
                     />
                   </div>
 
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="volunteer_notes">備註</Label>
                     <Textarea
                       id="volunteer_notes"
                       value={volunteerForm.notes}
                       onChange={(e) => setVolunteerForm({...volunteerForm, notes: e.target.value})}
+                      disabled={!canCreateVolunteerReg}
                     />
                   </div>
 
@@ -594,25 +615,29 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     </ul>
                   </div>
 
-                  <div className="flex items-start space-x-2 p-4 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="volunteer-terms-checkbox"
-                      checked={volunteerAgreedToTerms}
-                      onChange={(e) => setVolunteerAgreedToTerms(e.target.checked)}
-                      className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="volunteer-terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
-                      我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
-                    </label>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="volunteer-terms-checkbox"
+                        checked={volunteerAgreedToTerms}
+                        onChange={(e) => setVolunteerAgreedToTerms(e.target.checked)}
+                        className="mt-1"
+                        disabled={!canCreateVolunteerReg}
+                      />
+                      <label htmlFor="volunteer-terms-checkbox" className="text-sm text-orange-800 cursor-pointer">
+                        <AlertTriangle className="w-4 h-4 inline mr-1" />
+                        我已理解並同意：本站為緊急救災媒合平台，我所提供的聯絡資訊（如電話、email）將公開顯示於相關頁面，以便志工與需求方互相聯繫。我了解這些資訊可能被他人查看，並自行評估提供資訊的風險。
+                      </label>
+                    </div>
                   </div>
 
                   <Button
                     type="submit"
-                    className={`w-full ${(!authUser || !volunteerAgreedToTerms ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
-                    disabled={submitting || !authUser || !volunteerAgreedToTerms}
+                    className={`w-full ${(!authUser || !volunteerAgreedToTerms || !canCreateVolunteerReg ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')}`}
+                    disabled={submitting || !authUser || !volunteerAgreedToTerms || !canCreateVolunteerReg}
                   >
-                    {submitting ? "提交中..." : "確認報名"}
+                    {submitting ? "提交中..." : canCreateVolunteerReg ? "確認報名" : "無建立權限"}
                   </Button>
                 </form>
                 )}
@@ -663,8 +688,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                 <div className="border-t pt-6">
                   <form onSubmit={handleSupplySubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="donor_name" className="flex items-center gap-1">
+                      <div className="space-y-2">
+                        <Label htmlFor="donor_name">
                           姓名 <span className="text-red-500">*</span>
                         </Label>
                         <Input
@@ -674,8 +699,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           required
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="donor_phone" className="flex items-center gap-1">
+                      <div className="space-y-2">
+                        <Label htmlFor="donor_phone">
                           電話 <span className="text-red-500">*</span>
                         </Label>
                         <Input
@@ -692,8 +717,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                       <div>
-                          <Label htmlFor="supply_name" className="flex items-center gap-1">
+                       <div className="space-y-2">
+                          <Label htmlFor="supply_name">
                             物資名稱 <span className="text-red-500">*</span>
                           </Label>
                           <Select
@@ -713,8 +738,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                               </SelectContent>
                           </Select>
                       </div>
-                      <div>
-                        <Label htmlFor="quantity" className="flex items-center gap-1">
+                      <div className="space-y-2">
+                        <Label htmlFor="quantity">
                           捐贈數量 <span className="text-red-500">*</span>
                         </Label>
                         <Input
@@ -728,7 +753,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       </div>
                     </div>
 
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="delivery_method">配送方式</Label>
                       <Select
                         value={supplyForm.delivery_method}
@@ -746,7 +771,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       </Select>
                     </div>
 
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="delivery_address">送達地址</Label>
                       <Input
                         id="delivery_address"
@@ -756,7 +781,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       />
                     </div>
 
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="delivery_time">預計送達時間</Label>
                       <Input
                         id="delivery_time"
@@ -766,13 +791,29 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       />
                     </div>
 
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="supply_notes">備註</Label>
                       <Textarea
                         id="supply_notes"
                         value={supplyForm.notes}
                         onChange={(e) => setSupplyForm({...supplyForm, notes: e.target.value})}
                       />
+                    </div>
+
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          id="supply-privacy-agree"
+                          checked={supplyAgreedToTerms}
+                          onChange={(e) => setSupplyAgreedToTerms(e.target.checked)}
+                          className="mt-1"
+                        />
+                        <label htmlFor="supply-privacy-agree" className="text-sm text-orange-800 cursor-pointer">
+                          <AlertTriangle className="w-4 h-4 inline mr-1" />
+                          我已理解並同意：本站為緊急救災媒合平台，我所提供的聯絡資訊（如電話、email）將公開顯示於相關頁面，以便志工與需求方互相聯繫。我了解這些資訊可能被他人查看，並自行評估提供資訊的風險。
+                        </label>
+                      </div>
                     </div>
 
                     {!authUser || guestMode ? (
@@ -807,8 +848,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       // 已登入狀態：顯示提交按鈕
                       <Button
                         type="submit"
-                        className="w-full bg-green-600 hover:bg-green-700"
-                        disabled={submitting}
+                        className={`w-full ${(!authUser || !supplyAgreedToTerms ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700')}`}
+                        disabled={submitting || !authUser || !supplyAgreedToTerms}
                       >
                         {submitting ? "提交中..." : "確認捐贈"}
                       </Button>

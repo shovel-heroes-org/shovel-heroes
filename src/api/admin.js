@@ -449,6 +449,11 @@ export async function exportTrashGridsToCSV() {
   }
 }
 
+// 匯入垃圾桶網格 CSV
+export async function importTrashGridsFromCSV(csvData, skipDuplicates = true) {
+  return http.post('/csv/import/trash-grids', { csv: csvData, skipDuplicates });
+}
+
 // 匯出審計日誌為 CSV
 export async function exportAuditLogsToCSV(params = {}) {
   const queryString = new URLSearchParams(params).toString();
@@ -540,6 +545,11 @@ export async function importAnnouncementsCSV(data) {
   return http.post('/csv/import/announcements', { csv: data.csvContent, skipDuplicates: true });
 }
 
+// CSV 匯入垃圾桶公告功能
+export async function importTrashAnnouncementsCSV(data) {
+  return http.post('/csv/import/trash-announcements', { csv: data.csvContent, skipDuplicates: true });
+}
+
 // ==================== 公告垃圾桶管理 ====================
 
 // 軟刪除公告（移至垃圾桶）
@@ -570,4 +580,73 @@ export async function batchMoveAnnouncementsToTrash(announcementIds) {
 // 批量永久刪除公告
 export async function batchDeleteAnnouncements(announcementIds) {
   return http.post('/admin/announcements/batch-delete', { announcementIds });
+}
+
+// ==================== 物資垃圾桶管理 ====================
+
+// 軟刪除物資（移至垃圾桶）
+export async function moveSupplyToTrash(supplyId) {
+  return http.patch(`/admin/supplies/${supplyId}/trash`, {});
+}
+
+// 從垃圾桶還原物資
+export async function restoreSupplyFromTrash(supplyId) {
+  return http.patch(`/admin/supplies/${supplyId}/restore`, {});
+}
+
+// 永久刪除物資
+export async function permanentlyDeleteSupply(supplyId) {
+  return http.delete(`/admin/supplies/${supplyId}`);
+}
+
+// 取得垃圾桶中的物資
+export async function getTrashSupplies() {
+  return http.get('/admin/trash/supplies');
+}
+
+// 批量移動物資至垃圾桶
+export async function batchMoveSuppliesToTrash(supplyIds) {
+  return http.post('/admin/supplies/batch-trash', { supplyIds });
+}
+
+// 批量永久刪除物資
+export async function batchDeleteSupplies(supplyIds) {
+  return http.post('/admin/supplies/batch-delete', { supplyIds });
+}
+
+// 匯出垃圾桶物資 CSV
+export async function exportTrashSuppliesToCSV() {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/csv/export/trash-supplies`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sh_token')}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      await handleCSVExportError(response, '垃圾桶物資');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trash_supplies_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Export trash supplies failed:', error);
+    throw new Error(`Failed to export trash supplies: ${error.message}`);
+  }
+}
+
+// CSV 匯入垃圾桶物資功能
+export async function importTrashSuppliesFromCSV(csvData, skipDuplicates = true) {
+  return http.post('/csv/import/trash-supplies', { csv: csvData, skipDuplicates });
 }

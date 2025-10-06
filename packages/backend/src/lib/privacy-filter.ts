@@ -31,6 +31,9 @@ interface Grid {
   id: string;
   created_by_id?: string;
   contact_info?: string;
+  code?: string;
+  grid_type?: string;
+  [key: string]: any;
 }
 
 interface VolunteerRegistration {
@@ -38,8 +41,8 @@ interface VolunteerRegistration {
   grid_id: string;
   user_id?: string;
   volunteer_name?: string;
-  volunteer_phone?: string;
-  volunteer_email?: string;
+  volunteer_phone?: string | null;
+  volunteer_email?: string | null;
   created_by_id?: string;
   [key: string]: any;
 }
@@ -94,7 +97,7 @@ function isGridManagerRole(user: User | null, actingRole?: string): boolean {
   return role === 'grid_manager';
 }
 
-function normalizeManagerIds(gridManagerId?: string | string[]): string[] {
+function normalizeManagerIds(gridManagerId?: string | string[] | null | undefined): string[] {
   if (!gridManagerId) return [];
   if (Array.isArray(gridManagerId)) {
     return gridManagerId.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
@@ -103,7 +106,7 @@ function normalizeManagerIds(gridManagerId?: string | string[]): string[] {
 }
 
 function collectManagerIds(
-  gridManagerId?: string | string[],
+  gridManagerId?: string | string[] | null | undefined,
   extras: Array<string | null | undefined> = []
 ): string[] {
   const base = normalizeManagerIds(gridManagerId);
@@ -113,21 +116,29 @@ function collectManagerIds(
 
 interface ContactPrivacyOptions {
   actingRole?: string;
-  gridManagerId?: string | string[];
+  gridManagerId?: string | string[] | null | undefined;
   extraManagerIds?: Array<string | null | undefined>;
   canViewContact?: boolean;
+  canViewGridContact?: boolean;
 }
 
 /**
  * 過濾志工報名資料中的隱私資訊
  *
- * 基於地點關聯的隱私規則：
- * - 網格建立者 A 可以看到在「自己建立的網格」中報名的志工 B 的聯絡資訊（地點關聯）
- * - 志工本人 B 可以看到自己的聯絡資訊
- * - 管理員可以看到所有資訊
- * - 其他人看不到志工的聯絡資訊
+ * 隱私權限控制規則（必須同時滿足兩個條件）：
+ * 1. ✅ 有 view_volunteer_contact 隱私權限（這是必要條件）
+ * 2. 且滿足以下身份之一：
+ *    - 網格建立者
+ *    - 網格管理員
+ *    - 志工本人
+ *    - 超級管理員
+ *    - 管理員
  *
- * 例如：A 建立了「花蓮市區 A1 網格」，B 在 A1 報名當志工，則 A 才能看到 B 的電話/Email
+ * 關鍵邏輯：
+ * - 若沒有隱私權限，所有人都看不到聯絡資訊（包括志工本人和網格建立者）
+ * - 若有隱私權限，只有特定身份才能看到聯絡資訊
+ * - 訪客即使有隱私權限，也看不到（除非是志工本人）
+ * - 一般用戶即使有隱私權限，也看不到（除非是志工本人或網格相關人員）
  */
 export function filterVolunteerPrivacy(
   registration: VolunteerRegistration,
@@ -142,25 +153,42 @@ export function filterVolunteerPrivacy(
     canViewContact = false,
   } = options;
 
+  // DEBUG LOG
+  /*console.log('🔍 filterVolunteerPrivacy DEBUG:', {
+    volunteer_name: registration.volunteer_name,
+    volunteer_phone: registration.volunteer_phone,
+    user_id: user?.id,
+    actingRole,
+    canViewContact,
+    options_received: options
+  });*/
+
   const managerIds = collectManagerIds(gridManagerId, extraManagerIds);
-  const effectiveRole = actingRole || user?.role || 'guest';
   const hasManagerAssociation = !!(user && managerIds.includes(user.id));
   const hasManagerRole = isGridManagerRole(user, actingRole);
 
-  // 若角色沒有檢視權限，僅允許本人看到自己的聯絡資訊
+  // 第一步：檢查是否有隱私權限
+  // 若角色沒有檢視權限，所有人都看不到聯絡資訊（包括志工本人）
   if (!canViewContact) {
-    if (isVolunteerSelf(user, registration)) {
-      return registration;
-    }
+    //console.log('❌ canViewContact is FALSE - returning empty phone/email');
     return {
       ...registration,
-      volunteer_phone: undefined,
-      volunteer_email: undefined,
+      volunteer_phone: '',
+      volunteer_email: '',
     };
   }
 
-  // 管理員或具有網格管理權限者可以看到所有資訊
-  if (isAdmin(user, actingRole) || hasManagerRole || hasManagerAssociation) {
+  //console.log('✅ canViewContact is TRUE - checking identity...');
+
+  // 第二步：有隱私權限後，檢查是否滿足身份條件
+
+  // 超級管理員和管理員可以看到所有資訊
+  if (isAdmin(user, actingRole)) {
+    return registration;
+  }
+
+  // 網格管理員角色或被指定為網格管理員可以看到該網格的聯絡資訊
+  if (hasManagerRole || hasManagerAssociation) {
     return registration;
   }
 
@@ -174,11 +202,12 @@ export function filterVolunteerPrivacy(
     return registration;
   }
 
-  // 其他人無法看到志工的聯絡資訊
+  // 訪客角色：即使有隱私權限，也看不到（因為不是志工本人/網格相關人員）
+  // 一般用戶：即使有隱私權限，也看不到（因為不是志工本人/網格相關人員）
   return {
     ...registration,
-    volunteer_phone: undefined,
-    volunteer_email: undefined,
+    volunteer_phone: '',
+    volunteer_email: '',
   };
 }
 
@@ -197,13 +226,20 @@ export function filterVolunteersPrivacy(
 /**
  * 過濾物資捐贈資料中的隱私資訊
  *
- * 基於地點關聯的隱私規則：
- * - 網格建立者 A 可以看到在「自己建立的網格」中捐贈物資的捐贈者 C 的聯絡資訊（地點關聯）
- * - 捐贈者本人 C 可以看到自己的聯絡資訊
- * - 管理員可以看到所有資訊
- * - 其他人看不到捐贈者的聯絡資訊
+ * 隱私權限控制規則（必須同時滿足兩個條件）：
+ * 1. ✅ 有 view_donor_contact 隱私權限（這是必要條件）
+ * 2. 且滿足以下身份之一：
+ *    - 網格建立者
+ *    - 網格管理員
+ *    - 捐贈者本人
+ *    - 超級管理員
+ *    - 管理員
  *
- * 例如：A 建立了「花蓮市區 A1 網格」，C 在 A1 捐贈礦泉水，則 A 才能看到 C 的電話/Email
+ * 關鍵邏輯：
+ * - 若沒有隱私權限，所有人都看不到聯絡資訊（包括捐贈者本人和網格建立者）
+ * - 若有隱私權限，只有特定身份才能看到聯絡資訊
+ * - 訪客即使有隱私權限，也看不到（除非是捐贈者本人）
+ * - 一般用戶即使有隱私權限，也看不到（除非是捐贈者本人或網格相關人員）
  */
 export function filterDonationPrivacy(
   donation: SupplyDonation,
@@ -222,22 +258,27 @@ export function filterDonationPrivacy(
   const hasManagerAssociation = !!(user && managerIds.includes(user.id));
   const hasManagerRole = isGridManagerRole(user, actingRole);
 
-  // 若角色沒有檢視權限，僅允許捐贈者本人查看
+  // 第一步：檢查是否有隱私權限
+  // 若角色沒有檢視權限，所有人都看不到聯絡資訊（包括捐贈者本人）
   if (!canViewContact) {
-    if (isDonorSelf(user, donation)) {
-      return donation;
-    }
     return {
       ...donation,
-      donor_name: undefined,
-      donor_phone: undefined,
-      donor_email: undefined,
-      donor_contact: undefined,
+      donor_name: '',
+      donor_phone: '',
+      donor_email: '',
+      donor_contact: '',
     };
   }
 
-  // 管理員或具有網格管理權限者可以看到所有資訊
-  if (isAdmin(user, actingRole) || hasManagerRole || hasManagerAssociation) {
+  // 第二步：有隱私權限後，檢查是否滿足身份條件
+
+  // 超級管理員和管理員可以看到所有資訊
+  if (isAdmin(user, actingRole)) {
+    return donation;
+  }
+
+  // 網格管理員角色或被指定為網格管理員可以看到該網格的聯絡資訊
+  if (hasManagerRole || hasManagerAssociation) {
     return donation;
   }
 
@@ -251,13 +292,14 @@ export function filterDonationPrivacy(
     return donation;
   }
 
-  // 其他人無法看到捐贈者的聯絡資訊
+  // 訪客角色：即使有隱私權限，也看不到（因為不是捐贈者本人/網格相關人員）
+  // 一般用戶：即使有隱私權限，也看不到（因為不是捐贈者本人/網格相關人員）
   return {
     ...donation,
-    donor_name: undefined,
-    donor_phone: undefined,
-    donor_email: undefined,
-    donor_contact: undefined,
+    donor_name: '',
+    donor_phone: '',
+    donor_email: '',
+    donor_contact: '',
   };
 }
 
@@ -274,13 +316,93 @@ export function filterDonationsPrivacy(
 }
 
 /**
- * 網格建立者（需求端 A）的聯絡資訊永遠公開，不需要過濾
+ * 過濾網格聯絡資訊
  *
- * 這是核心設計原則：
- * - A 的聯絡資訊永遠顯示，讓志工 B 和捐贈者 C 可以聯繫需求發起人
- * - B 和 C 的聯絡資訊只有對應的網格建立者 A 才能看到（地點關聯）
+ * 更新後的隱私規則：
+ * - 網格聯絡資訊不再公開
+ * - 只有報名該網格的志工才能看到聯絡資訊
+ *
+ * 誰可以看到網格聯絡資訊：
+ * 1. 超級管理員/管理員（有 view_grid_contact 權限時）
+ * 2. 網格建立者本人（有 view_grid_contact 權限時）
+ * 3. 網格管理員（有 view_grid_contact 權限時）
+ * 4. 已報名該網格的志工（有 view_grid_contact 權限時）
+ * 5. 已在該網格捐贈的捐贈者（有 view_grid_contact 權限時）
  */
-export function filterGridPrivacy(grid: Grid, user: User | null): Grid {
-  // 網格建立者（A）的聯絡資訊永遠顯示
-  return grid;
+export async function filterGridPrivacy(
+  grid: Grid,
+  user: User | null,
+  dbPool: any,
+  options: ContactPrivacyOptions = {}
+): Promise<Grid> {
+  const { actingRole, canViewGridContact = false } = options;
+
+  // 第一步：檢查是否有 view_grid_contact 權限
+  // 若沒有權限，所有人都看不到聯絡資訊
+  if (!canViewGridContact) {
+    return {
+      ...grid,
+      contact_info: undefined,
+    };
+  }
+
+  // 第二步：有權限後，檢查是否滿足身份條件
+
+  // 超級管理員和管理員可以看到所有網格聯絡資訊
+  if (isAdmin(user, actingRole)) {
+    return grid;
+  }
+
+  // 網格建立者本人可以看到
+  if (user && grid.created_by_id === user.id) {
+    return grid;
+  }
+
+  // 網格管理員可以看到
+  if (user && grid.grid_manager_id === user.id) {
+    return grid;
+  }
+
+  // 檢查是否為已報名的志工
+  if (user && dbPool) {
+    const { rows: volunteerRows } = await dbPool.query(
+      'SELECT id FROM volunteer_registrations WHERE grid_id = $1 AND user_id = $2 AND status != $3 LIMIT 1',
+      [grid.id, user.id, 'cancelled']
+    );
+    if (volunteerRows.length > 0) {
+      return grid; // 已報名的志工可以看到
+    }
+
+    // 檢查是否為已捐贈的捐贈者
+    const { rows: donationRows } = await dbPool.query(
+      'SELECT id FROM supply_donations WHERE grid_id = $1 AND created_by_id = $2 AND status != $3 LIMIT 1',
+      [grid.id, user.id, 'cancelled']
+    );
+    if (donationRows.length > 0) {
+      return grid; // 已捐贈的捐贈者可以看到
+    }
+  }
+
+  // 其他人看不到聯絡資訊
+  return {
+    ...grid,
+    contact_info: undefined,
+  };
+}
+
+/**
+ * 批次過濾網格聯絡資訊
+ */
+export async function filterGridsPrivacy(
+  grids: Grid[],
+  user: User | null,
+  dbPool: any,
+  options: ContactPrivacyOptions = {}
+): Promise<Grid[]> {
+  const filteredGrids = [];
+  for (const grid of grids) {
+    const filtered = await filterGridPrivacy(grid, user, dbPool, options);
+    filteredGrids.push(filtered);
+  }
+  return filteredGrids;
 }

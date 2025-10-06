@@ -8,12 +8,19 @@ export function AuthProvider({ children }) {
   const [actingRole, setActingRole] = useState('user');
   const [loading, setLoading] = useState(true);
   const [guestMode, setGuestMode] = useState(false); // 訪客模式
+  const [roleSwitching, setRoleSwitching] = useState(false); // 角色切換中
 
   // Load on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // 檢查是否正在切換角色
+        const isSwitching = sessionStorage.getItem('sh-role-switching') === 'true';
+        if (isSwitching) {
+          setRoleSwitching(true);
+        }
+
         const u = await User.me();
         if (cancelled) return;
         setUser(u);
@@ -55,6 +62,12 @@ export function AuthProvider({ children }) {
         } else {
           setActingRole('user');
         }
+
+        // 清除角色切換標記
+        if (isSwitching) {
+          sessionStorage.removeItem('sh-role-switching');
+          setRoleSwitching(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -70,12 +83,17 @@ export function AuthProvider({ children }) {
   const setActingRoleWithStorage = useCallback((role) => {
     if (!user) return;
 
+    // 設定標記：正在切換角色（避免在 reload 時顯示權限錯誤）
+    sessionStorage.setItem('sh-role-switching', 'true');
+
     // 處理訪客模式
     if (role === 'guest') {
       setGuestMode(true);
       setActingRole('guest');
       localStorage.setItem('sh-acting-role', 'guest');
       localStorage.setItem('sh-guest-mode', 'true');
+      // 重新載入頁面以確保所有資料更新
+      window.location.reload();
       return;
     } else {
       setGuestMode(false);
@@ -88,6 +106,8 @@ export function AuthProvider({ children }) {
       if (validRoles.includes(role)) {
         setActingRole(role);
         localStorage.setItem('sh-acting-role', role);
+        // 重新載入頁面以確保所有資料更新
+        window.location.reload();
       }
     }
     // admin 只能切換 user 和 admin
@@ -95,6 +115,8 @@ export function AuthProvider({ children }) {
       if (['user', 'admin', 'guest'].includes(role)) {
         setActingRole(role);
         localStorage.setItem('sh-acting-role', role);
+        // 重新載入頁面以確保所有資料更新
+        window.location.reload();
       }
     }
     // grid_manager 只能切換 user 和 grid_manager
@@ -102,6 +124,8 @@ export function AuthProvider({ children }) {
       if (['user', 'grid_manager', 'guest'].includes(role)) {
         setActingRole(role);
         localStorage.setItem('sh-acting-role', role);
+        // 重新載入頁面以確保所有資料更新
+        window.location.reload();
       }
     }
   }, [user]);
@@ -120,12 +144,12 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, actingRole, setActingRole: setActingRoleWithStorage, toggleActingRole, loading, guestMode }}>
+    <AuthContext.Provider value={{ user, setUser, actingRole, setActingRole: setActingRoleWithStorage, toggleActingRole, loading, guestMode, roleSwitching }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext) || { user: null, actingRole: 'user', loading: true, guestMode: false };
+  return useContext(AuthContext) || { user: null, actingRole: 'user', loading: true, guestMode: false, roleSwitching: false };
 }

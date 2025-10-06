@@ -411,21 +411,25 @@ export function registerAdminRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Disaster area must be in trash before permanent deletion' });
       }
 
+      // Get area info before deletion
+      const { rows: areaInfo } = await app.db.query('SELECT name FROM disaster_areas WHERE id = $1', [areaId]);
+
       // Check if area has grids
       const { rows: gridsCheck } = await app.db.query(
         'SELECT COUNT(*) as count FROM grids WHERE disaster_area_id = $1',
         [areaId]
       );
 
-      if (parseInt(gridsCheck[0].count) > 0) {
-        return reply.status(400).send({
-          message: 'Cannot delete disaster area with existing grids. Delete all grids first.',
-          gridCount: gridsCheck[0].count
-        });
-      }
+      const gridCount = parseInt(gridsCheck[0].count);
 
-      // Get area info before deletion
-      const { rows: areaInfo } = await app.db.query('SELECT name FROM disaster_areas WHERE id = $1', [areaId]);
+      // Delete all grids associated with this disaster area (including trash grids)
+      if (gridCount > 0) {
+        await app.db.query(
+          'DELETE FROM grids WHERE disaster_area_id = $1',
+          [areaId]
+        );
+        app.log.info(`[admin] Deleted ${gridCount} grids associated with disaster area ${areaId}`);
+      }
 
       // Delete the disaster area
       await app.db.query('DELETE FROM disaster_areas WHERE id = $1', [areaId]);
@@ -436,16 +440,20 @@ export function registerAdminRoutes(app: FastifyInstance) {
         user_role: req.user?.role || 'unknown',
         line_id: req.user?.id || '',
         line_name: req.user?.name || '',
-        action: `永久刪除災區 ${areaInfo[0]?.name || areaId}`,
+        action: `永久刪除災區 ${areaInfo[0]?.name || areaId}${gridCount > 0 ? ` (含 ${gridCount} 個網格)` : ''}`,
         action_type: 'permanent_delete',
         resource_type: 'disaster_area',
         resource_id: areaId,
+        details: { gridCount },
         ip_address: req.ip,
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Disaster area permanently deleted: ${areaId}`);
-      return { message: 'Disaster area permanently deleted' };
+      app.log.info(`[admin] Disaster area permanently deleted: ${areaId}${gridCount > 0 ? ` with ${gridCount} grids` : ''}`);
+      return {
+        message: 'Disaster area permanently deleted',
+        deletedGrids: gridCount
+      };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to permanently delete disaster area');
       return reply.status(500).send({ message: 'Failed to delete disaster area' });
@@ -542,30 +550,30 @@ export function registerAdminRoutes(app: FastifyInstance) {
         });
       }
 
-      // Check if any areas have grids
-      const { rows: gridsCheck } = await app.db.query(
-        `SELECT disaster_area_id, COUNT(*) as count
-         FROM grids
-         WHERE disaster_area_id IN (${placeholders})
-         GROUP BY disaster_area_id`,
-        areaIds
-      );
-
-      if (gridsCheck.length > 0) {
-        return reply.status(400).send({
-          message: 'Some disaster areas still have grids. Delete all grids first.',
-          areasWithGrids: gridsCheck
-        });
-      }
-
       // Get area names before deletion
       const { rows: areaNames } = await app.db.query(
         `SELECT name FROM disaster_areas WHERE id IN (${placeholders})`,
         areaIds
       );
 
+      // Count total grids to be deleted
+      const { rows: gridsCountResult } = await app.db.query(
+        `SELECT COUNT(*) as count FROM grids WHERE disaster_area_id IN (${placeholders})`,
+        areaIds
+      );
+      const totalGrids = parseInt(gridsCountResult[0]?.count || '0');
+
+      // Delete all grids associated with these disaster areas (including trash grids)
+      if (totalGrids > 0) {
+        await app.db.query(
+          `DELETE FROM grids WHERE disaster_area_id IN (${placeholders})`,
+          areaIds
+        );
+        app.log.info(`[admin] Deleted ${totalGrids} grids associated with ${areaIds.length} disaster areas`);
+      }
+
       // Delete disaster areas
-      const { rows: deleteResult } = await app.db.query(
+      await app.db.query(
         `DELETE FROM disaster_areas WHERE id IN (${placeholders})`,
         areaIds
       );
@@ -576,16 +584,19 @@ export function registerAdminRoutes(app: FastifyInstance) {
         user_role: req.user?.role || 'unknown',
         line_id: req.user?.id || '',
         line_name: req.user?.name || '',
-        action: `批量永久刪除 ${deleteResult.length} 個災區`,
+        action: `批量永久刪除 ${areaIds.length} 個災區${totalGrids > 0 ? ` (含 ${totalGrids} 個網格)` : ''}`,
         action_type: 'batch_permanent_delete',
         resource_type: 'disaster_area',
-        details: { area_names: areaNames.map(r => r.name) },
+        details: { area_names: areaNames.map(r => r.name), gridCount: totalGrids },
         ip_address: req.ip,
         user_agent: req.headers['user-agent']
       });
 
-      app.log.info(`[admin] Permanently deleted ${deleteResult.length} disaster areas`);
-      return { message: `${deleteResult.length} disaster areas permanently deleted` };
+      app.log.info(`[admin] Permanently deleted ${areaIds.length} disaster areas${totalGrids > 0 ? ` with ${totalGrids} grids` : ''}`);
+      return {
+        message: `${areaIds.length} disaster areas permanently deleted`,
+        deletedGrids: totalGrids
+      };
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete disaster areas');
       return reply.status(500).send({ message: 'Failed to permanently delete disaster areas' });
@@ -1061,6 +1072,272 @@ export function registerAdminRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error({ err }, '[admin] Failed to batch delete announcements');
       return reply.status(500).send({ message: 'Failed to delete announcements' });
+    }
+  });
+
+  // ==================== 物資垃圾桶管理 ====================
+
+  // Soft delete supply (move to trash)
+  app.patch('/admin/supplies/:supplyId/trash', { preHandler: requirePermission('trash_supplies', 'edit') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const { supplyId } = req.params as { supplyId: string };
+
+    try {
+      // Update supply_donation status to 'deleted' (soft delete)
+      const { rows } = await app.db.query(
+        `UPDATE supply_donations
+         SET status = 'deleted', updated_at = NOW()
+         WHERE id = $1 AND status != 'deleted'
+         RETURNING id, name, supply_name, status`,
+        [supplyId]
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ message: 'Supply not found or already deleted' });
+      }
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `將物資「${rows[0].supply_name || rows[0].name}」移至垃圾桶`,
+        action_type: 'delete',
+        resource_type: 'supply',
+        resource_id: supplyId,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[admin] Supply soft deleted: ${supplyId}`);
+      return { message: 'Supply moved to trash', supply: rows[0] };
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to delete supply');
+      return reply.status(500).send({ message: 'Failed to delete supply' });
+    }
+  });
+
+  // Restore supply from trash
+  app.patch('/admin/supplies/:supplyId/restore', { preHandler: requirePermission('trash_supplies', 'edit') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const { supplyId } = req.params as { supplyId: string };
+
+    try {
+      const { rows } = await app.db.query(
+        `UPDATE supply_donations
+         SET status = 'pledged', updated_at = NOW()
+         WHERE id = $1 AND status = 'deleted'
+         RETURNING id, name, supply_name, status`,
+        [supplyId]
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ message: 'Supply not found in trash' });
+      }
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `還原物資「${rows[0].supply_name || rows[0].name}」從垃圾桶`,
+        action_type: 'restore',
+        resource_type: 'supply',
+        resource_id: supplyId,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[admin] Supply restored: ${supplyId}`);
+      return { message: 'Supply restored from trash', supply: rows[0] };
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to restore supply');
+      return reply.status(500).send({ message: 'Failed to restore supply' });
+    }
+  });
+
+  // Permanently delete supply
+  app.delete('/admin/supplies/:supplyId', { preHandler: requirePermission('trash_supplies', 'delete') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const { supplyId } = req.params as { supplyId: string };
+
+    try {
+      // Only allow permanent delete if supply is already in trash
+      const { rows: checkRows } = await app.db.query(
+        `SELECT status, name, supply_name FROM supply_donations WHERE id = $1`,
+        [supplyId]
+      );
+
+      if (checkRows.length === 0) {
+        return reply.status(404).send({ message: 'Supply not found' });
+      }
+
+      if (checkRows[0].status !== 'deleted') {
+        return reply.status(400).send({ message: 'Supply must be in trash before permanent deletion' });
+      }
+
+      const supplyName = checkRows[0].supply_name || checkRows[0].name;
+
+      // Delete the supply
+      await app.db.query('DELETE FROM supply_donations WHERE id = $1', [supplyId]);
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `永久刪除物資「${supplyName}」`,
+        action_type: 'permanent_delete',
+        resource_type: 'supply',
+        resource_id: supplyId,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[admin] Supply permanently deleted: ${supplyId}`);
+      return { message: 'Supply permanently deleted' };
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to permanently delete supply');
+      return reply.status(500).send({ message: 'Failed to delete supply' });
+    }
+  });
+
+  // Get trash (deleted supplies)
+  app.get('/admin/trash/supplies', { preHandler: requirePermission('trash_supplies', 'view') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) return [];
+
+    try {
+      const { rows } = await app.db.query(
+        `SELECT sd.*, g.code as grid_code, da.name as area_name
+         FROM supply_donations sd
+         LEFT JOIN grids g ON sd.grid_id = g.id
+         LEFT JOIN disaster_areas da ON g.disaster_area_id = da.id
+         WHERE sd.status = 'deleted'
+         ORDER BY sd.updated_at DESC`
+      );
+
+      return rows;
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to get trash supplies');
+      return reply.status(500).send({ message: 'Failed to fetch trash supplies' });
+    }
+  });
+
+  // Batch move supplies to trash
+  app.post('/admin/supplies/batch-trash', { preHandler: requirePermission('trash_supplies', 'edit') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const { supplyIds } = req.body as { supplyIds: string[] };
+
+    if (!Array.isArray(supplyIds) || supplyIds.length === 0) {
+      return reply.status(400).send({ message: 'No supply IDs provided' });
+    }
+
+    try {
+      const placeholders = supplyIds.map((_, i) => `$${i + 1}`).join(',');
+      const { rows } = await app.db.query(
+        `UPDATE supply_donations
+         SET status = 'deleted', updated_at = NOW()
+         WHERE id IN (${placeholders}) AND status != 'deleted'
+         RETURNING id, name, supply_name`,
+        supplyIds
+      );
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量移動 ${rows.length} 筆物資至垃圾桶`,
+        action_type: 'batch_delete',
+        resource_type: 'supply',
+        details: { supply_names: rows.map(r => r.supply_name || r.name) },
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[admin] Batch deleted ${rows.length} supplies`);
+      return { message: `${rows.length} supplies moved to trash`, supplies: rows };
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to batch delete supplies');
+      return reply.status(500).send({ message: 'Failed to batch delete supplies' });
+    }
+  });
+
+  // Batch permanently delete supplies
+  app.post('/admin/supplies/batch-delete', { preHandler: requirePermission('trash_supplies', 'delete') }, async (req, reply) => {
+    if (!app.hasDecorator('db')) {
+      return reply.status(503).send({ message: 'Database not available' });
+    }
+
+    const { supplyIds } = req.body as { supplyIds: string[] };
+
+    if (!Array.isArray(supplyIds) || supplyIds.length === 0) {
+      return reply.status(400).send({ message: 'No supply IDs provided' });
+    }
+
+    try {
+      // Check all supplies are in trash
+      const placeholders = supplyIds.map((_, i) => `$${i + 1}`).join(',');
+      const { rows: checkRows } = await app.db.query(
+        `SELECT id FROM supply_donations WHERE id IN (${placeholders}) AND status != 'deleted'`,
+        supplyIds
+      );
+
+      if (checkRows.length > 0) {
+        return reply.status(400).send({
+          message: 'Some supplies are not in trash. Move them to trash first.',
+          notInTrash: checkRows.map(r => r.id)
+        });
+      }
+
+      // Get supply names before deletion
+      const { rows: supplyNames } = await app.db.query(
+        `SELECT name, supply_name FROM supply_donations WHERE id IN (${placeholders})`,
+        supplyIds
+      );
+
+      // Delete supplies
+      const result = await app.db.query(
+        `DELETE FROM supply_donations WHERE id IN (${placeholders})`,
+        supplyIds
+      );
+      const rowCount = result.rows.length;
+
+      // 記錄審計日誌
+      await createAdminAuditLog(app, {
+        user_id: req.user?.id,
+        user_role: req.user?.role || 'unknown',
+        line_id: req.user?.id || '',
+        line_name: req.user?.name || '',
+        action: `批量永久刪除 ${rowCount} 筆物資`,
+        action_type: 'batch_permanent_delete',
+        resource_type: 'supply',
+        details: { supply_names: supplyNames.map(r => r.supply_name || r.name) },
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      app.log.info(`[admin] Permanently deleted ${rowCount} supplies`);
+      return { message: `${rowCount} supplies permanently deleted` };
+    } catch (err: any) {
+      app.log.error({ err }, '[admin] Failed to batch delete supplies');
+      return reply.status(500).send({ message: 'Failed to permanently delete supplies' });
     }
   });
 }

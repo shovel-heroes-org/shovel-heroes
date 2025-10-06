@@ -16,9 +16,12 @@ export const DisasterArea = buildEntity('/disaster-areas');
 export const Grid = buildEntity('/grids');
 export const VolunteerRegistration = {
   ...buildEntity('/volunteer-registrations'),
+  // Override update to use PATCH for editing
+  update: (id, data) => http.patch(`/volunteer-registrations/${id}`, data),
   // Simple client-side filter until backend supports query params
   filter: async (query = {}) => {
-    const all = await http.get('/volunteer-registrations');
+    const response = await http.get('/volunteer-registrations');
+    const all = response.data || response; // Extract data array from response
     if (query.grid_id) return all.filter(r => r.grid_id === query.grid_id);
     return all;
   }
@@ -26,7 +29,8 @@ export const VolunteerRegistration = {
 export const SupplyDonation = {
   ...buildEntity('/supply-donations'),
   filter: async (query = {}) => {
-    const all = await http.get('/supply-donations');
+    const response = await http.get('/supply-donations');
+    const all = response.data || response; // Extract data array from response
     if (query.grid_id) return all.filter(r => r.grid_id === query.grid_id);
     return all;
   }

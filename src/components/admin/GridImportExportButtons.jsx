@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Download, Upload, FileText } from 'lucide-react';
-import { exportGridsToCSV, exportTrashGridsToCSV, importGridsFromCSV } from '@/api/admin';
+import { exportGridsToCSV, exportTrashGridsToCSV, importGridsFromCSV, importTrashGridsFromCSV } from '@/api/admin';
 import { downloadGridTemplate } from '@/api/functions';
 import { parseImportError } from '@/utils/importErrorHandler';
 
@@ -38,10 +37,14 @@ export default function GridImportExportButtons({ onImportSuccess, showMessage, 
     reader.onload = async (e) => {
         const csvContent = e.target.result;
         try {
-            const result = await importGridsFromCSV(csvContent, true);
+            // 根據視圖選擇不同的匯入 API
+            const result = isTrashView
+              ? await importTrashGridsFromCSV(csvContent, true)
+              : await importGridsFromCSV(csvContent, true);
 
             if (result.imported > 0 || result.skipped > 0) {
-                let message = `匯入完成！成功：${result.imported} 筆，跳過：${result.skipped} 筆`;
+                const resourceName = isTrashView ? '垃圾桶網格' : '網格';
+                let message = `${resourceName}匯入完成！成功：${result.imported} 筆，跳過：${result.skipped} 筆`;
                 if (result.errors && result.errors.length > 0) {
                     message += `，錯誤：${result.errors.length} 筆`;
                 }
@@ -77,7 +80,7 @@ export default function GridImportExportButtons({ onImportSuccess, showMessage, 
       </Button>
 
       <label htmlFor="csv-importer" className="relative inline-block cursor-pointer">
-        <Input
+        <input
           type="file"
           accept=".csv"
           onChange={handleFileImport}

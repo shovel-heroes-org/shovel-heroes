@@ -34,8 +34,21 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
     );
     const hasContactPermission = contactPermRows.length > 0 && (contactPermRows[0].can_view === 1 || contactPermRows[0].can_view === true);
 
+    // 查詢物資捐贈管理權限
+    const { rows: suppliesPermRows } = await app.db.query(
+      `SELECT can_view, can_create, can_edit, can_manage, can_delete
+       FROM role_permissions
+       WHERE role = $1 AND permission_key = 'supplies'`,
+      [actingRole]
+    );
+    const hasViewPermission = suppliesPermRows.length > 0 && (suppliesPermRows[0].can_view === 1 || suppliesPermRows[0].can_view === true || suppliesPermRows[0].can_view === '1');
+    const hasCreatePermission = suppliesPermRows.length > 0 && (suppliesPermRows[0].can_create === 1 || suppliesPermRows[0].can_create === true || suppliesPermRows[0].can_create === '1');
+    const hasEditPermission = suppliesPermRows.length > 0 && (suppliesPermRows[0].can_edit === 1 || suppliesPermRows[0].can_edit === true || suppliesPermRows[0].can_edit === '1');
+    const hasManagePermission = suppliesPermRows.length > 0 && (suppliesPermRows[0].can_manage === 1 || suppliesPermRows[0].can_manage === true || suppliesPermRows[0].can_manage === '1');
+    const hasDeletePermission = suppliesPermRows.length > 0 && (suppliesPermRows[0].can_delete === 1 || suppliesPermRows[0].can_delete === true || suppliesPermRows[0].can_delete === '1');
+
     if (gridId) {
-      // 取得物資捐贈資料和網格建立者資訊
+      // 取得物資捐贈資料和網格建立者資訊（排除已刪除的記錄）
       const { rows } = await app.db.query(`
         SELECT
           sd.id, sd.grid_id, sd.name, sd.supply_name, sd.quantity, sd.unit,
@@ -47,7 +60,7 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
           g.grid_manager_id as grid_manager_id
         FROM supply_donations sd
         LEFT JOIN grids g ON g.id = sd.grid_id
-        WHERE sd.grid_id = $1
+        WHERE sd.grid_id = $1 AND (sd.status IS NULL OR sd.status != 'deleted')
         ORDER BY sd.created_at DESC
       `, [gridId]);
 
@@ -61,10 +74,21 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
         actingRole,
         canViewContact: hasContactPermission,
       });
-      return filtered;
+
+      // 回傳資料和權限資訊
+      return {
+        data: filtered,
+        can_view_donor_contact: hasContactPermission,
+        can_view: hasViewPermission,
+        can_create: hasCreatePermission,
+        can_edit: hasEditPermission,
+        can_manage: hasManagePermission,
+        can_delete: hasDeletePermission,
+        user_id: req.user?.id || null
+      };
     }
 
-    // 取得所有物資捐贈（需要分別處理每個網格的隱私）
+    // 取得所有物資捐贈（需要分別處理每個網格的隱私，排除已刪除的記錄）
     const { rows } = await app.db.query(`
       SELECT
         sd.id, sd.grid_id, sd.name, sd.supply_name, sd.quantity, sd.unit,
@@ -76,6 +100,7 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
         g.grid_manager_id as grid_manager_id
       FROM supply_donations sd
       LEFT JOIN grids g ON g.id = sd.grid_id
+      WHERE (sd.status IS NULL OR sd.status != 'deleted')
       ORDER BY sd.created_at DESC
     `);
 
@@ -88,7 +113,17 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
       });
     });
 
-    return filtered;
+    // 回傳資料和權限資訊
+    return {
+      data: filtered,
+      can_view_donor_contact: hasContactPermission,
+      can_view: hasViewPermission,
+      can_create: hasCreatePermission,
+      can_edit: hasEditPermission,
+      can_manage: hasManagePermission,
+      can_delete: hasDeletePermission,
+      user_id: req.user?.id || null
+    };
   });
   app.post('/supply-donations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);
@@ -141,8 +176,8 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
     const body = req.body as any || {};
 
     // 除錯：記錄收到的資料
-    console.log('PUT /supply-donations/:id - Received body:', JSON.stringify(body, null, 2));
-    console.log('Body keys:', Object.keys(body));
+    // console.log('PUT /supply-donations/:id - Received body:', JSON.stringify(body, null, 2));
+    // console.log('Body keys:', Object.keys(body));
 
     // 取得捐贈記錄和網格擁有者資訊
     const { rows: existingRows } = await app.db.query(
@@ -161,11 +196,21 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role || '');
     const isPrivileged = isAdmin || isGridCreator || isGridManager;
 
+    // 檢查物資狀態管理權限
+    const actingRoleHeader = (req.headers['x-acting-role'] || req.headers['X-Acting-Role']) as string | undefined;
+    const actingRole = actingRoleHeader ? String(actingRoleHeader) : (req.user?.role || 'guest');
+
+    const { rows: statusPermRows } = await app.db.query(
+      `SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = 'supplies_status_management'`,
+      [actingRole]
+    );
+    const hasStatusManagementPermission = statusPermRows.length > 0 && (statusPermRows[0].can_view === 1 || statusPermRows[0].can_view === true);
+
     // 判斷是狀態更新還是完整編輯
     const isStatusOnlyUpdate = body.status && Object.keys(body).length === 1;
 
-    console.log('isStatusOnlyUpdate:', isStatusOnlyUpdate);
-    console.log('Current status:', existing.status);
+    // console.log('isStatusOnlyUpdate:', isStatusOnlyUpdate);
+    // console.log('Current status:', existing.status);
 
     if (isStatusOnlyUpdate) {
       // 純狀態更新邏輯
@@ -173,6 +218,11 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
       const allowed = ['pledged', 'confirmed', 'in_transit', 'delivered', 'received', 'cancelled'];
       if (!allowed.includes(status)) {
         return reply.status(400).send({ message: 'Invalid status' });
+      }
+
+      // 檢查是否有物資狀態管理權限
+      if (!hasStatusManagementPermission) {
+        return reply.status(403).send({ message: 'Forbidden - Requires supplies_status_management permission' });
       }
 
       const currentStatus = existing.status || 'pledged';
@@ -276,7 +326,12 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
         paramCounter++;
       }
       if (body.status !== undefined) {
-        // 編輯時也可以更新狀態，但要檢查轉換規則
+        // 編輯時也可以更新狀態，但要檢查轉換規則和權限
+        // 檢查是否有物資狀態管理權限
+        if (!hasStatusManagementPermission) {
+          return reply.status(403).send({ message: 'Forbidden - Requires supplies_status_management permission to change status' });
+        }
+
         const currentStatus = existing.status || 'pledged';
         const newStatus = body.status;
 

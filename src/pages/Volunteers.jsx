@@ -8,11 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Users, Clock, CheckCircle2, AlertCircle, MapPin,
-  Phone, Calendar, Wrench, HardHat, X, Filter
+  Phone, Calendar, Wrench, HardHat, X, Filter, Edit
 } from "lucide-react";
 import { getVolunteers } from "@/api/functions"; // New import
 import { useAuth } from '@/context/AuthContext';
 import UnauthorizedAccess from "@/components/common/UnauthorizedAccess";
+import { usePermission } from "@/hooks/usePermission";
+import EditVolunteerModal from "@/components/volunteers/EditVolunteerModal";
 
 export default function VolunteersPage() {
   const { user, actingRole } = useAuth();
@@ -21,6 +23,9 @@ export default function VolunteersPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [canViewPhone, setCanViewPhone] = useState(false); // New state for phone visibility
+  const [canEditSelf, setCanEditSelf] = useState(false); // 編輯自己的志工報名
+  const [canEditOthers, setCanEditOthers] = useState(false); // 編輯別人的志工報名
+  const [currentUserId, setCurrentUserId] = useState(null); // 當前用戶 ID
   // UI filter states (now URL-synchronized)
   const [selectedGrid, setSelectedGrid] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -31,6 +36,20 @@ export default function VolunteersPage() {
     completed: 0
   });
 
+  // 權限檢查
+  const { canEdit, canManage, hasPermission } = usePermission();
+
+  // 志工報名相關權限（volunteer_registrations）
+  const canEditVolunteer = hasPermission('volunteer_registrations', 'edit');
+  const canManageVolunteer = hasPermission('volunteer_registrations', 'manage');
+
+  // 志工狀態管理權限（volunteer_status_management）
+  const canManageVolunteerStatus = hasPermission('volunteer_status_management', 'view');
+
+  // 編輯相關狀態
+  const [editingRegistration, setEditingRegistration] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
   // Parse initial filters from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -40,17 +59,7 @@ export default function VolunteersPage() {
     if (urlStatus && ['all','pending','confirmed','completed'].includes(urlStatus)) {
       setSelectedStatus(urlStatus);
     }
-    loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 當視角切換時重新載入資料
-  useEffect(() => {
-    if (actingRole) {
-      loadData();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actingRole]);
 
   // Keep URL updated when filters change
   useEffect(() => {
@@ -70,44 +79,59 @@ export default function VolunteersPage() {
       const urlGrid = params.get('grid') || 'all';
       const urlStatus = params.get('status') || 'all';
       setSelectedGrid(urlGrid);
-      setSelectedStatus(['all','pending','confirmed','completed'].includes(urlStatus) ? urlStatus : 'all');
+      setSelectedStatus(['all', 'pending', 'confirmed', 'completed'].includes(urlStatus) ? urlStatus : 'all');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [volunteersResponse, gridsData, userData] = await Promise.all([
+      const [volunteersResponse, gridsData] = await Promise.all([
         getVolunteers(),
-        Grid.list(),
-        User.me().catch(() => null) // 用戶未登入時返回 null
+        Grid.list()
       ]);
+
+      // DEBUG: 記錄原始回應
+      // console.log('🔍 [Volunteers] API 原始回應:', volunteersResponse);
+
       // Normalize various possible shapes safely without ever touching undefined.data
       // Supported shapes:
-      // 1. { data: [...] , can_view_phone?: boolean, total?: number }
+      // 1. { data: [...] , can_view_phone?: boolean, can_edit?: boolean, can_manage?: boolean, user_id?: string }
       // 2. Legacy (unlikely now): [...]
       // 3. Defensive: anything else -> []
       let list = [];
       let canView = false;
+      let canEdit = false;
+      let canManage = false;
+      let userId = null;
+
       if (Array.isArray(volunteersResponse)) {
         list = volunteersResponse;
       } else if (volunteersResponse && Array.isArray(volunteersResponse.data)) {
         list = volunteersResponse.data;
         canView = Boolean(volunteersResponse.can_view_phone);
+        canEdit = Boolean(volunteersResponse.can_edit);
+        canManage = Boolean(volunteersResponse.can_manage);
+        userId = volunteersResponse.user_id || null;
       } else if (volunteersResponse && volunteersResponse.data && Array.isArray(volunteersResponse.data.data)) {
         // Extremely defensive nested case (should not happen now)
         list = volunteersResponse.data.data;
         canView = Boolean(volunteersResponse.data.can_view_phone || volunteersResponse.can_view_phone);
+        canEdit = Boolean(volunteersResponse.data.can_edit || volunteersResponse.can_edit);
+        canManage = Boolean(volunteersResponse.data.can_manage || volunteersResponse.can_manage);
+        userId = volunteersResponse.data.user_id || volunteersResponse.user_id || null;
       }
 
       // Ensure every item has minimal required fields to avoid downstream optional chaining issues
       const finalRegs = list.map(r => ({
         id: r.id,
         grid_id: r.grid_id,
+        user_id: r.user_id || null,  // 保留 user_id (可能為 null)
+        created_by_id: r.created_by_id || null,  // 保留 created_by_id (可能為 null)
         volunteer_name: r.volunteer_name || r.name || '匿名志工',
-        volunteer_phone: r.volunteer_phone,
+        volunteer_phone: r.volunteer_phone || '',  // 避免 undefined
         status: r.status || 'pending',
         available_time: r.available_time || r.time || null,
         skills: Array.isArray(r.skills) ? r.skills : [],
@@ -116,10 +140,30 @@ export default function VolunteersPage() {
         created_date: r.created_date || r.created_at || new Date().toISOString()
       }));
 
+      // DEBUG: 記錄解析後的權限
+      // console.log('🔍 [Volunteers] 解析後的權限:', {
+      //   canView,
+      //   canEdit,
+      //   canManage,
+      //   userId,
+      //   registrationsCount: finalRegs.length
+      // });
+
       setCanViewPhone(canView);
+      setCanEditSelf(canEdit);
+      setCanEditOthers(canManage);
+      setCurrentUserId(userId);
       setRegistrations(finalRegs);
       setGrids(gridsData);
-      setCurrentUser(userData);
+      setCurrentUser(user);
+
+      // DEBUG: 暴露到全域 (用於除錯)
+      window.__VOLUNTEERS_DEBUG__ = {
+        canEditSelf: canEdit,
+        canEditOthers: canManage,
+        currentUserId: userId,
+        registrations: finalRegs
+      };
 
       setStats({
         total: finalRegs.length,
@@ -128,11 +172,24 @@ export default function VolunteersPage() {
         completed: finalRegs.filter(r => r.status === 'completed').length,
       });
     } catch (error) {
-      console.error('Failed to load data:', error);
+      if (error?.status === 401) {
+        setRegistrations([]);
+        setGrids([]);
+        setCurrentUser(null);
+        setCanViewPhone(false);
+        setStats({ total: 0, pending: 0, confirmed: 0, completed: 0 });
+      } else {
+        console.error('Failed to load data:', error);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, actingRole]);
+
+  // 當使用者或視角變更時重新載入資料
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleStatusUpdate = async (registration, newStatus) => {
     try {
@@ -163,6 +220,17 @@ export default function VolunteersPage() {
       console.error('Failed to update volunteer status:', error);
       alert('更新志工狀態失敗，請稍後再試。');
     }
+  };
+
+  const handleEditRegistration = (registration) => {
+    setEditingRegistration(registration);
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    setEditingRegistration(null);
+    loadData(); // 重新載入資料
   };
 
   const getGridInfo = (gridId) => {
@@ -213,12 +281,35 @@ export default function VolunteersPage() {
     );
   }
 
-  // 權限檢查：訪客模式無法訪問志工中心
-  if (!user || actingRole === 'guest') {
+  // 權限檢查：必須有 volunteers 檢視權限才能訪問志工中心
+  const canViewVolunteers = hasPermission('volunteers', 'view');
+
+  if (!user) {
     return (
       <UnauthorizedAccess
         title="無權限訪問志工中心"
         message="志工中心需要登入後才能使用。請先登入以查看和管理志工報名資訊。"
+      />
+    );
+  }
+
+  // 檢查實際角色 (actingRole 可能為 undefined, 需要回退到 user.role)
+  const effectiveRole = actingRole || user.role || 'guest';
+  if (effectiveRole === 'guest') {
+    return (
+      <UnauthorizedAccess
+        title="無權限訪問志工中心"
+        message="訪客模式無法訪問志工中心。請切換到其他角色以查看和管理志工報名資訊。"
+      />
+    );
+  }
+
+  // 權限檢查：必須有 view_volunteer_contact 檢視權限
+  if (!canViewVolunteers) {
+    return (
+      <UnauthorizedAccess
+        title="無權限訪問志工中心"
+        message="您目前的角色沒有訪問志工中心的權限。請聯繫管理員調整權限設定。"
       />
     );
   }
@@ -359,8 +450,10 @@ export default function VolunteersPage() {
                                   <Phone className="w-4 h-4" />
                                   {registration.volunteer_phone ? (
                                     <span>{registration.volunteer_phone}</span>
+                                  ) : registration.volunteer_phone === null ? (
+                                    <span className="text-gray-400 italic text-xs">未提供</span>
                                   ) : (
-                                    <span className="text-gray-500 italic text-xs">僅限管理員/相關格主查看電話</span>
+                                    <span className="text-gray-400 italic text-xs">(需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)</span>
                                   )}
                                 </div>
                                 {registration.available_time && (
@@ -405,9 +498,36 @@ export default function VolunteersPage() {
                               )}
                             </div>
 
-                            {/* Status management buttons - Removed client-side permission checks */}
+                            {/* 狀態操作按鈕 */}
                             <div className="flex flex-col sm:flex-row gap-2">
-                              {registration.status === 'pending' && (
+                              {/* 編輯按鈕：根據 API 返回的權限控制（參考 canViewPhone 的實作方式）*/}
+                              {(() => {
+                                // 判斷是否為志工本人（使用 API 返回的 currentUserId）
+                                const isSelf = currentUserId && (
+                                  registration.user_id === currentUserId ||
+                                  registration.created_by_id === currentUserId
+                                );
+
+                                // 編輯權限邏輯（從 API 取得）：
+                                // 1. canEditSelf (can_edit) + 是自己 → 可以編輯自己的
+                                // 2. canEditOthers (can_manage) + 是別人 → 可以編輯別人的
+                                const canEditThis = (canEditSelf && isSelf) || (canEditOthers && !isSelf);
+
+                                return canEditThis && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-blue-600 hover:text-blue-700"
+                                    onClick={() => handleEditRegistration(registration)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-1" />
+                                    編輯
+                                  </Button>
+                                );
+                              })()}
+
+                              {/* 確認報名/婉拒按鈕：根據 volunteer_status_management 的 view 權限控制 */}
+                              {registration.status === 'pending' && canManageVolunteerStatus && (
                                 <>
                                   <Button
                                     size="sm"
@@ -428,7 +548,8 @@ export default function VolunteersPage() {
                                   </Button>
                                 </>
                               )}
-                              {registration.status === 'confirmed' && (
+                              {/* 標記到場按鈕：根據 volunteer_status_management 的 view 權限控制 */}
+                              {registration.status === 'confirmed' && canManageVolunteerStatus && (
                                 <Button
                                   size="sm"
                                   className="bg-purple-600 hover:bg-purple-700"
@@ -438,7 +559,8 @@ export default function VolunteersPage() {
                                   標記到場
                                 </Button>
                               )}
-                              {registration.status === 'arrived' && (
+                              {/* 標記完成按鈕：根據 volunteer_status_management 的 view 權限控制 */}
+                              {registration.status === 'arrived' && canManageVolunteerStatus && (
                                 <Button
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700"
@@ -467,6 +589,22 @@ export default function VolunteersPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* 編輯志工報名 Modal */}
+      {showEditModal && editingRegistration && (
+        <EditVolunteerModal
+          registration={editingRegistration}
+          grids={grids}
+          canEditSelf={canEditSelf}
+          canEditOthers={canEditOthers}
+          currentUserId={currentUserId}
+          onSuccess={handleEditSuccess}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingRegistration(null);
+          }}
+        />
+      )}
     </div>
   );
 }

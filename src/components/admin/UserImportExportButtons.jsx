@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 import {
   exportUsersToCSV,
@@ -76,7 +75,7 @@ export default function UserImportExportButtons({ onImportSuccess, showMessage }
       </Button>
 
       <label htmlFor="user-csv-importer" className="relative inline-block cursor-pointer">
-        <Input
+        <input
           type="file"
           accept=".csv"
           onChange={handleFileImport}

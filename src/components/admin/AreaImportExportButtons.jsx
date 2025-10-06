@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 import {
   exportAreasToCSV,
@@ -89,7 +88,7 @@ export default function AreaImportExportButtons({ onImportSuccess, showMessage, 
       {/* 下載範本按鈕已移除 - 用戶要求不需要此功能 */}
 
       <label htmlFor="area-csv-importer" className="relative inline-block cursor-pointer">
-        <Input
+        <input
           type="file"
           accept=".csv"
           onChange={handleFileImport}

@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Info, Package, Truck, User, Phone, Mail, MapPin, Calendar, FileText } from "lucide-react";
+import { Info, Package, Truck, User, Phone, MapPin, Calendar, FileText } from "lucide-react";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function EditSupplyDonationModal({
   isOpen,
@@ -19,13 +20,15 @@ export default function EditSupplyDonationModal({
   donation,
   onSave
 }) {
+  // 檢查物資狀態管理權限
+  const { hasPermission } = usePermission();
+  const hasStatusManagementPermission = hasPermission('supplies_status_management', 'view');
   const [formData, setFormData] = useState({
     supply_name: '',
     quantity: '',
     unit: '',
     donor_name: '',
     donor_phone: '',
-    donor_email: '',
     delivery_method: 'direct',
     delivery_time: '',
     delivery_address: '',
@@ -41,7 +44,6 @@ export default function EditSupplyDonationModal({
         unit: donation.unit || '',
         donor_name: donation.donor_name || '',
         donor_phone: donation.donor_phone || '',
-        donor_email: donation.donor_email || '',
         delivery_method: donation.delivery_method || 'direct',
         delivery_time: donation.delivery_time || '',
         delivery_address: donation.delivery_address || '',
@@ -155,29 +157,50 @@ export default function EditSupplyDonationModal({
                 </div>
               </div>
 
-              {/* 狀態選擇 */}
-              <div>
-                <Label htmlFor="status" className="flex items-center gap-2 mb-2">
-                  <Info className="w-4 h-4" />
-                  捐贈狀態
-                </Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => handleSelectChange('status', value)}
-                >
-                  <SelectTrigger className={getStatusColor(formData.status)}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pledged">已承諾</SelectItem>
-                    <SelectItem value="confirmed">已確認</SelectItem>
-                    <SelectItem value="in_transit">運送中</SelectItem>
-                    <SelectItem value="delivered">已送達</SelectItem>
-                    <SelectItem value="received">已收到</SelectItem>
-                    <SelectItem value="cancelled">已取消</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* 狀態選擇 - 需要物資狀態管理權限 */}
+              {hasStatusManagementPermission ? (
+                <div>
+                  <Label htmlFor="status" className="flex items-center gap-2 mb-2">
+                    <Info className="w-4 h-4" />
+                    捐贈狀態
+                  </Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => handleSelectChange('status', value)}
+                  >
+                    <SelectTrigger className={getStatusColor(formData.status)}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pledged">已承諾</SelectItem>
+                      <SelectItem value="confirmed">已確認</SelectItem>
+                      <SelectItem value="in_transit">運送中</SelectItem>
+                      <SelectItem value="delivered">已送達</SelectItem>
+                      <SelectItem value="received">已收到</SelectItem>
+                      <SelectItem value="cancelled">已取消</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    <Info className="w-4 h-4" />
+                    捐贈狀態
+                  </Label>
+                  <div className={`px-3 py-2 rounded-md ${getStatusColor(formData.status)}`}>
+                    {formData.status === 'pledged' && '已承諾'}
+                    {formData.status === 'confirmed' && '已確認'}
+                    {formData.status === 'in_transit' && '運送中'}
+                    {formData.status === 'delivered' && '已送達'}
+                    {formData.status === 'received' && '已收到'}
+                    {formData.status === 'cancelled' && '已取消'}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                    <Info className="w-3 h-3"/>
+                    需要物資狀態管理權限才能修改狀態
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -217,20 +240,6 @@ export default function EditSupplyDonationModal({
                     placeholder="請輸入聯絡電話"
                   />
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="donor_email" className="flex items-center gap-1">
-                  <Mail className="w-3 h-3" />
-                  電子郵件
-                </Label>
-                <Input
-                  id="donor_email"
-                  name="donor_email"
-                  type="email"
-                  value={formData.donor_email}
-                  onChange={handleChange}
-                  placeholder="請輸入電子郵件"
-                />
               </div>
               <p className="text-xs text-gray-500 flex items-center gap-1 bg-gray-50 p-2 rounded">
                 <Info className="w-3 h-3"/>

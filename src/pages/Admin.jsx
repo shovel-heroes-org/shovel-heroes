@@ -19,7 +19,7 @@ import {
 import {
   Shield, MapPin, Users, Package, AlertTriangle,
   Plus, Settings, BarChart3, Clock, CheckCircle2, Trash2, UserCog,
-  RotateCcw, XCircle, Download, Upload, Eye, EyeOff, RefreshCw, Search
+  RotateCcw, XCircle, Download, Upload, Eye, EyeOff, RefreshCw, Search, User as UserIcon
 } from "lucide-react";
 import {
   Select,
@@ -32,6 +32,7 @@ import AddGridModal from "@/components/admin/AddGridModal";
 import AddAreaModal from "@/components/admin/AddAreaModal";
 import EditGridModal from "@/components/admin/EditGridModal";
 import EditAreaModal from "@/components/admin/EditAreaModal";
+import GridViewModal from "@/components/admin/GridViewModal";
 import AreaImportExportButtons from "@/components/admin/AreaImportExportButtons";
 import GridImportExportButtons from "@/components/admin/GridImportExportButtons";
 import VolunteerImportExportButtons from "@/components/admin/VolunteerImportExportButtons";
@@ -41,6 +42,7 @@ import BlacklistImportExportButtons from "@/components/admin/BlacklistImportExpo
 import PermissionManagement from "@/components/admin/PermissionManagement";
 import HttpAuditLogs from "@/components/admin/HttpAuditLogs";
 import AnnouncementManagement from "@/components/admin/AnnouncementManagement";
+import SupplyManagement from "@/components/admin/SupplyManagement";
 import UnauthorizedAccess from "@/components/common/UnauthorizedAccess";
 import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -71,12 +73,18 @@ import {
   permanentlyDeleteAnnouncement,
   getTrashAnnouncements,
   batchMoveAnnouncementsToTrash,
-  batchDeleteAnnouncements
+  batchDeleteAnnouncements,
+  moveSupplyToTrash,
+  restoreSupplyFromTrash,
+  permanentlyDeleteSupply,
+  getTrashSupplies,
+  batchMoveSuppliesToTrash,
+  batchDeleteSupplies
 } from "@/api/admin";
 
 export default function AdminPage() {
   // Use global auth context so we can respect actingRole (admin vs user perspective)
-  const { user, actingRole } = useAuth();
+  const { user, actingRole, roleSwitching } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 使用 usePermission hook 取代所有硬編碼的權限檢查
@@ -86,6 +94,7 @@ export default function AdminPage() {
     canEdit,
     canDelete,
     canManage,
+    hasPermission,
     isAdmin,
     isSuperAdmin,
     isGridManager,
@@ -137,17 +146,22 @@ export default function AdminPage() {
   const [showEditGridModal, setShowEditGridModal] = useState(false);
   const [editingGrid, setEditingGrid] = useState(null);
   const [selectedGridType, setSelectedGridType] = useState('all');
+  const [showMyGridsOnly, setShowMyGridsOnly] = useState(false); // 新增: 只顯示我的網格
+  const [selectedGrid, setSelectedGrid] = useState(null);
+  const [showGridDetailModal, setShowGridDetailModal] = useState(false);
 
   // 新增垃圾桶相關狀態
   const [trashGrids, setTrashGrids] = useState([]);
   const [selectedGrids, setSelectedGrids] = useState([]);
   const [isTrashView, setIsTrashView] = useState(false);
+  const [trashGridsLoading, setTrashGridsLoading] = useState(true);
   const [adminUsers, setAdminUsers] = useState([]);
 
   // 災區垃圾桶相關狀態
   const [trashAreas, setTrashAreas] = useState([]);
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [isAreaTrashView, setIsAreaTrashView] = useState(false);
+  const [trashAreasLoading, setTrashAreasLoading] = useState(true);
   const [areaSearchTerm, setAreaSearchTerm] = useState('');
   const [gridSearchTerm, setGridSearchTerm] = useState('');
 
@@ -155,6 +169,12 @@ export default function AdminPage() {
   const [trashAnnouncements, setTrashAnnouncements] = useState([]);
   const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
   const [isAnnouncementTrashView, setIsAnnouncementTrashView] = useState(false);
+
+  // 物資垃圾桶相關狀態
+  const [trashSupplies, setTrashSupplies] = useState([]);
+  const [selectedSupplies, setSelectedSupplies] = useState([]);
+  const [isSupplyTrashView, setIsSupplyTrashView] = useState(false);
+  const [trashSuppliesLoading, setTrashSuppliesLoading] = useState(true);
 
   // 訊息提示狀態
   const [message, setMessage] = useState(null);
@@ -183,7 +203,7 @@ export default function AdminPage() {
   const getDefaultTab = useCallback(() => {
     if (canView('grids')) return 'grids'; // 優先開啟需求管理
     if (canView('disaster_areas')) return 'areas';
-    if (canView('volunteers')) return 'volunteers';
+    if (hasPermission('volunteers', 'view')) return 'volunteers';
     if (canView('supplies')) return 'supplies';
     if (canView('announcements')) return 'announcements';
     if (canView('users')) return 'users';
@@ -286,6 +306,7 @@ export default function AdminPage() {
 
       // 載入垃圾桶網格 - 所有登入用戶都可以查看（但會根據權限過濾）
       if (user) {
+        setTrashGridsLoading(true);
         try {
           const trashResponse = await getTrashGrids();
           const trashData = Array.isArray(trashResponse?.data)
@@ -296,6 +317,45 @@ export default function AdminPage() {
           setTrashGrids(trashData);
         } catch (error) {
           console.error('Failed to load trash grids:', error);
+        } finally {
+          setTrashGridsLoading(false);
+        }
+      } else {
+        setTrashGridsLoading(false);
+      }
+
+      // 載入垃圾桶災區
+      if (user && canView('trash_areas')) {
+        setTrashAreasLoading(true);
+        try {
+          const trashAreasResponse = await getTrashAreas();
+          const trashAreasData = Array.isArray(trashAreasResponse?.data)
+            ? trashAreasResponse.data
+            : Array.isArray(trashAreasResponse)
+            ? trashAreasResponse
+            : [];
+          setTrashAreas(trashAreasData);
+        } catch (error) {
+          console.error('Failed to load trash areas:', error);
+        } finally {
+          setTrashAreasLoading(false);
+        }
+      } else {
+        setTrashAreasLoading(false);
+      }
+
+      // 載入垃圾桶公告
+      if (user && canView('trash_announcements')) {
+        try {
+          const trashAnnouncementsResponse = await getTrashAnnouncements();
+          const trashAnnouncementsData = Array.isArray(trashAnnouncementsResponse?.data)
+            ? trashAnnouncementsResponse.data
+            : Array.isArray(trashAnnouncementsResponse)
+            ? trashAnnouncementsResponse
+            : [];
+          setTrashAnnouncements(trashAnnouncementsData);
+        } catch (error) {
+          console.error('Failed to load trash announcements:', error);
         }
       }
 
@@ -358,8 +418,9 @@ export default function AdminPage() {
     if (window.confirm(`確定要將災區 "${area.name}" 移至垃圾桶嗎？`)) {
       try {
         await moveAreaToTrash(area.id);
-        loadData();
-        loadTrashAreas(); // 重新載入垃圾桶數量
+        setSelectedAreas([]); // 清除勾選狀態
+        await loadData();
+        await loadTrashAreas(); // 重新載入垃圾桶數量
         alert('災區已移至垃圾桶');
       } catch (error) {
         console.error('Failed to move area to trash:', error);
@@ -389,11 +450,12 @@ export default function AdminPage() {
     }
 
     try {
+      const count = selectedAreas.length;
       await batchMoveAreasToTrash(selectedAreas);
-      setSelectedAreas([]);
-      loadData();
+      setSelectedAreas([]); // 清除勾選狀態
+      await loadData();
       await loadTrashAreas();
-      alert(`已將 ${selectedAreas.length} 個災區移至垃圾桶`);
+      alert(`已將 ${count} 個災區移至垃圾桶`);
     } catch (error) {
       console.error('Failed to batch delete areas:', error);
       alert('批量刪除災區失敗，請稍後再試。');
@@ -480,11 +542,14 @@ export default function AdminPage() {
 
   // 載入垃圾桶中的災區
   const loadTrashAreas = async () => {
+    setTrashAreasLoading(true);
     try {
       const areas = await getTrashAreas();
       setTrashAreas(areas || []);
     } catch (error) {
       console.error('Failed to load trash areas:', error);
+    } finally {
+      setTrashAreasLoading(false);
     }
   };
 
@@ -714,12 +779,9 @@ export default function AdminPage() {
   };
 
   const handleGridView = (grid) => {
-    // For now, show grid details in an alert. Later we can implement a detailed view
-    const shortageValue = grid.volunteer_needed > 0 ?
-      ((grid.volunteer_needed - grid.volunteer_registered) / grid.volunteer_needed) : 0;
-    const shortagePercentage = (shortageValue * 100).toFixed(0);
-
-    alert(`網格詳情: ${grid.code}\n志工需求: ${grid.volunteer_registered}/${grid.volunteer_needed}\n缺口率: ${shortagePercentage}%\n集合地點: ${grid.meeting_point || '未設定'}\n聯絡方式: ${grid.contact_info || '未設定'}`);
+    // 使用 GridDetailModal 顯示網格詳細資訊
+    setSelectedGrid(grid);
+    setShowGridDetailModal(true);
   };
 
   const handleGridDelete = async (grid) => {
@@ -784,14 +846,62 @@ export default function AdminPage() {
     return types[type] || '其他';
   };
 
+  // 輔助函數：計算一般用戶可見的網格數量（包含自己建立和報名的）
+  const getVisibleGridsCount = (gridsList, gridType = null) => {
+    if (!isRegularUser) {
+      // 管理員可看到所有網格
+      return gridType ? gridsList.filter(g => g.grid_type === gridType).length : gridsList.length;
+    }
+
+    // 一般用戶：自己建立的 + 自己報名的
+    const visibleGrids = gridsList.filter(g => {
+      if (gridType && g.grid_type !== gridType) return false;
+
+      // 自己建立的網格
+      if (g.created_by_id == user?.id) return true;
+
+      // 檢查是否報名了這個網格
+      const hasRegistration = registrations.some(
+        reg => reg.grid_id === g.id &&
+               (reg.user_id === user?.id || reg.created_by_id === user?.id) &&
+               reg.status !== 'cancelled'
+      );
+      return hasRegistration;
+    });
+
+    return visibleGrids.length;
+  };
+
   // 先根據 grid_type 過濾
   let filteredGrids = selectedGridType === 'all'
     ? grids
     : grids.filter(g => g.grid_type === selectedGridType);
 
-  // 一般用戶只能看到自己建立的網格
-  if (isRegularUser) {
+  // 「我的網格」過濾 (管理員可選擇性開啟)
+  if (showMyGridsOnly) {
     filteredGrids = filteredGrids.filter(g => g.created_by_id == user?.id);
+  }
+
+  // 一般用戶只能看到自己建立的網格或自己報名的網格
+  if (isRegularUser && !showMyGridsOnly) {
+    filteredGrids = filteredGrids.filter(g => {
+      // 自己建立的網格
+      if (g.created_by_id == user?.id) {
+        return true;
+      }
+
+      // 檢查是否報名了這個網格
+      const hasRegistration = registrations.some(
+        reg => reg.grid_id === g.id &&
+               (reg.user_id === user?.id || reg.created_by_id === user?.id) &&
+               reg.status !== 'cancelled'
+      );
+      if (hasRegistration) {
+        return true;
+      }
+
+      return false;
+    });
   }
 
   // 搜尋過濾
@@ -999,7 +1109,8 @@ export default function AdminPage() {
     }
   };
 
-  if (loading) {
+  // 正在切換角色或資料載入中，顯示 loading 狀態
+  if (loading || roleSwitching) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1022,7 +1133,7 @@ export default function AdminPage() {
   const hasAnyTabPermission =
     canView('disaster_areas') ||
     canView('grids') ||
-    canView('volunteers') ||
+    hasPermission('volunteers', 'view') ||
     canView('supplies') ||
     canView('announcements') ||
     canView('users') ||
@@ -1132,7 +1243,7 @@ export default function AdminPage() {
           {canView('grids') && (
             <TabsTrigger value="grids">需求管理</TabsTrigger>
           )}
-          {canView('volunteers') && (
+          {hasPermission('volunteers', 'view') && (
             <TabsTrigger value="volunteers">志工管理</TabsTrigger>
           )}
           {canView('supplies') && (
@@ -1227,7 +1338,7 @@ export default function AdminPage() {
                       className={isAreaTrashView ? 'bg-red-600 hover:bg-red-700' : ''}
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      垃圾桶 ({trashAreas.length})
+                      垃圾桶 ({trashAreasLoading ? '...' : trashAreas.length})
                     </Button>
                   )}
                 </div>
@@ -1489,7 +1600,7 @@ export default function AdminPage() {
                       setSelectedGrids([]);
                     }}
                   >
-                    網格列表 ({isRegularUser ? grids.filter(g => g.created_by_id == user?.id).length : grids.length})
+                    網格列表 ({getVisibleGridsCount(grids)})
                   </Button>
                   {canView('trash_grids') && (
                     <Button
@@ -1499,6 +1610,7 @@ export default function AdminPage() {
                         setIsTrashView(true);
                         setSelectedGrids([]);
                         // 切換到垃圾桶時重新載入垃圾桶資料
+                        setTrashGridsLoading(true);
                         try {
                           const trashResponse = await getTrashGrids();
                           const trashData = Array.isArray(trashResponse?.data)
@@ -1509,12 +1621,14 @@ export default function AdminPage() {
                           setTrashGrids(trashData);
                         } catch (error) {
                           console.error('Failed to load trash grids:', error);
+                        } finally {
+                          setTrashGridsLoading(false);
                         }
                       }}
                       className={isTrashView ? 'bg-red-600 hover:bg-red-700' : ''}
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      垃圾桶 ({filteredTrashGrids.length})
+                      垃圾桶 ({trashGridsLoading ? '...' : filteredTrashGrids.length})
                     </Button>
                   )}
                 </div>
@@ -1572,14 +1686,28 @@ export default function AdminPage() {
 
               {/* 網格類型篩選（僅在非垃圾桶視圖顯示） */}
               {!isTrashView && (
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <Button size="sm" variant={selectedGridType === 'all' ? 'default' : 'outline'} onClick={() => setSelectedGridType('all')}>全部 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id) : grids).length})</Button>
-                  <Button size="sm" variant={selectedGridType === 'manpower' ? 'default' : 'outline'} onClick={() => setSelectedGridType('manpower')}>人力任務 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id && g.grid_type === 'manpower') : grids.filter(g=>g.grid_type === 'manpower')).length})</Button>
-                  <Button size="sm" variant={selectedGridType === 'mud_disposal' ? 'default' : 'outline'} onClick={() => setSelectedGridType('mud_disposal')}>污泥暫置場 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id && g.grid_type === 'mud_disposal') : grids.filter(g=>g.grid_type === 'mud_disposal')).length})</Button>
-                  <Button size="sm" variant={selectedGridType === 'supply_storage' ? 'default' : 'outline'} onClick={() => setSelectedGridType('supply_storage')}>物資停放處 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id && g.grid_type === 'supply_storage') : grids.filter(g=>g.grid_type === 'supply_storage')).length})</Button>
-                  <Button size="sm" variant={selectedGridType === 'accommodation' ? 'default' : 'outline'} onClick={() => setSelectedGridType('accommodation')}>住宿地點 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id && g.grid_type === 'accommodation') : grids.filter(g=>g.grid_type === 'accommodation')).length})</Button>
-                  <Button size="sm" variant={selectedGridType === 'food_area' ? 'default' : 'outline'} onClick={() => setSelectedGridType('food_area')}>領吃食區域 ({(isRegularUser ? grids.filter(g => g.created_by_id == user?.id && g.grid_type === 'food_area') : grids.filter(g=>g.grid_type === 'food_area')).length})</Button>
-                </div>
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="show-my-grids"
+                        checked={showMyGridsOnly}
+                        onCheckedChange={setShowMyGridsOnly}
+                      />
+                      <Label htmlFor="show-my-grids" className="text-sm font-medium cursor-pointer">
+                        只顯示我建立的網格 ({grids.filter(g => g.created_by_id === user?.id).length} / {grids.length})
+                      </Label>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    <Button size="sm" variant={selectedGridType === 'all' ? 'default' : 'outline'} onClick={() => setSelectedGridType('all')}>全部 ({getVisibleGridsCount(grids)})</Button>
+                    <Button size="sm" variant={selectedGridType === 'manpower' ? 'default' : 'outline'} onClick={() => setSelectedGridType('manpower')}>人力任務 ({getVisibleGridsCount(grids, 'manpower')})</Button>
+                    <Button size="sm" variant={selectedGridType === 'mud_disposal' ? 'default' : 'outline'} onClick={() => setSelectedGridType('mud_disposal')}>污泥暫置場 ({getVisibleGridsCount(grids, 'mud_disposal')})</Button>
+                    <Button size="sm" variant={selectedGridType === 'supply_storage' ? 'default' : 'outline'} onClick={() => setSelectedGridType('supply_storage')}>物資停放處 ({getVisibleGridsCount(grids, 'supply_storage')})</Button>
+                    <Button size="sm" variant={selectedGridType === 'accommodation' ? 'default' : 'outline'} onClick={() => setSelectedGridType('accommodation')}>住宿地點 ({getVisibleGridsCount(grids, 'accommodation')})</Button>
+                    <Button size="sm" variant={selectedGridType === 'food_area' ? 'default' : 'outline'} onClick={() => setSelectedGridType('food_area')}>領吃食區域 ({getVisibleGridsCount(grids, 'food_area')})</Button>
+                  </div>
+                </>
               )}
 
               {/* 全選按鈕 */}
@@ -1604,6 +1732,15 @@ export default function AdminPage() {
                   const urgency = shortage >= 0.6 ? 'urgent' : shortage >= 0.4 ? 'moderate' : 'low';
                   const isSelected = selectedGrids.includes(grid.id);
 
+                  // 檢查是否是自己報名的網格（非自己建立）
+                  const isRegisteredGrid = isRegularUser &&
+                    grid.created_by_id != user?.id &&
+                    registrations.some(reg =>
+                      reg.grid_id === grid.id &&
+                      (reg.user_id === user?.id || reg.created_by_id === user?.id) &&
+                      reg.status !== 'cancelled'
+                    );
+
                   return (
                     <Card key={grid.id} className={`border-l-4 ${
                       isTrashView ? 'border-l-gray-400 bg-gray-50' :
@@ -1625,6 +1762,20 @@ export default function AdminPage() {
                             <h3 className="font-bold text-lg">{grid.code}</h3>
                           </div>
                           <div className="flex flex-col items-end gap-1">
+                            {/* 顯示是否為自己報名的網格 */}
+                            {isRegisteredGrid && (
+                              <Badge className="bg-purple-100 text-purple-800 text-xs">
+                                <Users className="w-3 h-3 mr-1" />
+                                已報名
+                              </Badge>
+                            )}
+                            {/* 顯示是否為自己建立的網格 */}
+                            {grid.created_by_id == user?.id && (
+                              <Badge className="bg-indigo-100 text-indigo-800 text-xs">
+                                <UserIcon className="w-3 h-3 mr-1" />
+                                我的網格
+                              </Badge>
+                            )}
                             {isTrashView && (
                               <Badge className="bg-red-100 text-red-800">
                                 已刪除
@@ -1671,7 +1822,8 @@ export default function AdminPage() {
                         <div className="mt-4 flex gap-2">
                           {!isTrashView ? (
                             <>
-                              {canEditGrid(grid) && (
+                              {/* 只有自己建立的網格或有管理權限才顯示編輯按鈕，報名的網格不能編輯 */}
+                              {canEditGrid(grid) && !isRegisteredGrid && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1689,8 +1841,8 @@ export default function AdminPage() {
                               >
                                 查看
                               </Button>
-                              {/* Delete: 根據權限顯示 */}
-                              {canDeleteGrid(grid) && (
+                              {/* 只有自己建立的網格或有管理權限才顯示刪除按鈕，報名的網格不能刪除 */}
+                              {canDeleteGrid(grid) && !isRegisteredGrid && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1760,7 +1912,7 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="volunteers">
-          {!canView('volunteers') ? (
+          {!hasPermission('volunteers', 'view') ? (
             <Card>
               <CardContent className="py-12">
                 <UnauthorizedAccess
@@ -1786,7 +1938,7 @@ export default function AdminPage() {
             <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>志工管理</CardTitle>
-              {canManage('volunteers') && (
+              {hasPermission('volunteers', 'manage') && (
                 <VolunteerImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
               )}
             </CardHeader>
@@ -1867,69 +2019,7 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           ) : (
-          <>
-            {/* 訊息提示 */}
-            {message && (
-              <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
-                message.type === 'success' ? 'bg-green-50 text-green-800' :
-                message.type === 'error' ? 'bg-red-50 text-red-800' :
-                message.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
-                'bg-blue-50 text-blue-800'
-              }`}>
-                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                {message.text}
-              </div>
-            )}
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>物資管理概覽</CardTitle>
-              {canManage('supplies') && (
-                <SupplyImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <Card className="border border-gray-200">
-                  <CardContent className="p-4 text-center">
-                    <Clock className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-gray-900">
-                      {donations.filter(d => d.status === 'pledged').length}
-                    </p>
-                    <p className="text-sm text-gray-600">已承諾</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-200">
-                  <CardContent className="p-4 text-center">
-                    <Package className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-gray-900">
-                      {donations.filter(d => d.status === 'in_transit').length}
-                    </p>
-                    <p className="text-sm text-gray-600">運送中</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-200">
-                  <CardContent className="p-4 text-center">
-                    <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-gray-900">
-                      {donations.filter(d => d.status === 'delivered').length}
-                    </p>
-                    <p className="text-sm text-gray-600">已送達</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="text-center">
-                <Link to={createPageUrl("Supplies")}>
-                  <Button className="bg-orange-600 hover:bg-orange-700">
-                    查看詳細物資管理
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-          </>
+            <SupplyManagement />
           )}
         </TabsContent>
 
@@ -2058,7 +2148,7 @@ export default function AdminPage() {
                                   )}
                                 </SelectContent>
                               </Select>
-                              {isSuperAdmin && user.id !== u.id && (
+                              {canManage('blacklist') && user.id !== u.id && (
                                 isBlacklisted ? (
                                   <Button
                                     variant="outline"
@@ -2175,7 +2265,9 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
+                    {canManage('blacklist') && (
+                      <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -2184,7 +2276,7 @@ export default function AdminPage() {
                       <RotateCcw className="w-4 h-4 mr-2" />
                       重新載入
                     </Button>
-                    {selectedBlacklistUsers.length > 0 && (
+                    {canDelete('blacklist') && selectedBlacklistUsers.length > 0 && (
                       <Button
                         variant="destructive"
                         size="sm"
@@ -2212,10 +2304,12 @@ export default function AdminPage() {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1">
-                              <Checkbox
-                                checked={selectedBlacklistUsers.includes(u.id)}
-                                onCheckedChange={() => handleBlacklistUserSelect(u.id)}
-                              />
+                              {canDelete('blacklist') && (
+                                <Checkbox
+                                  checked={selectedBlacklistUsers.includes(u.id)}
+                                  onCheckedChange={() => handleBlacklistUserSelect(u.id)}
+                                />
+                              )}
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center text-white font-bold">
                                 {u.name?.charAt(0) || u.email?.charAt(0) || '?'}
                               </div>
@@ -2245,15 +2339,17 @@ export default function AdminPage() {
                                 </div>
                               </div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRemoveFromBlacklist(u.id, u.name)}
-                              className="border-green-500 text-green-600 hover:bg-green-50"
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              移出黑名單
-                            </Button>
+                            {canManage('blacklist') && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveFromBlacklist(u.id, u.name)}
+                                className="border-green-500 text-green-600 hover:bg-green-50"
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                移出黑名單
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -2750,6 +2846,17 @@ export default function AdminPage() {
             loadData();
           }}
           grid={editingGrid}
+        />
+      )}
+
+      {/* Grid View Modal - 查看網格詳細資訊（唯讀模式） */}
+      {showGridDetailModal && selectedGrid && (
+        <GridViewModal
+          grid={selectedGrid}
+          onClose={() => {
+            setShowGridDetailModal(false);
+            setSelectedGrid(null);
+          }}
         />
       )}
     </div>

@@ -63,10 +63,19 @@ export async function checkPermission(role, permissionKey, action) {
 }
 
 /**
+ * 取得角色的所有權限（批量獲取，減少API請求）
+ * @param {string} role - 角色名稱
+ * @returns {Promise<{role: string, permissions: Object}>} 角色的所有權限
+ */
+export async function getAllPermissionsForRole(role) {
+  return await http.get(`/api/permissions/for-role?role=${role}`);
+}
+
+/**
  * 匯出權限設定為 CSV
  */
 export async function exportPermissions() {
-  console.log('[Export] 開始匯出權限設定');
+  // console.log('[Export] 開始匯出權限設定');
 
   const token = localStorage.getItem('sh_token');
   if (!token) {
@@ -83,8 +92,8 @@ export async function exportPermissions() {
     }
   );
 
-  console.log('[Export] 回應狀態:', response.status);
-  console.log('[Export] 回應類型:', response.headers.get('content-type'));
+  // console.log('[Export] 回應狀態:', response.status);
+  // console.log('[Export] 回應類型:', response.headers.get('content-type'));
 
   if (!response.ok) {
     let errorMessage = '匯出失敗';
@@ -99,8 +108,8 @@ export async function exportPermissions() {
   }
 
   const blob = await response.blob();
-  console.log('[Export] Blob 大小:', blob.size, 'bytes');
-  console.log('[Export] Blob 類型:', blob.type);
+  // console.log('[Export] Blob 大小:', blob.size, 'bytes');
+  // console.log('[Export] Blob 類型:', blob.type);
 
   if (blob.size === 0) {
     throw new Error('匯出的檔案是空的，請檢查權限設定');
@@ -115,7 +124,7 @@ export async function exportPermissions() {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 
-  console.log('[Export] 匯出完成');
+  // console.log('[Export] 匯出完成');
 }
 
 /**
