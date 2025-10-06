@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AskForLoginModal } from "@/components/login/AskForLoginModal";
 import {
   Users, Package, MessageSquare, AlertTriangle,
   Phone, MapPin, Clock, CheckCircle2, UserPlus,
@@ -300,17 +301,15 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className={`w-full ${user ? 'grid grid-cols-4' : 'grid grid-cols-3'}`}>
+          <TabsList className={`w-full grid grid-cols-4`}>
             <TabsTrigger value="info" className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               基本資訊
             </TabsTrigger>
-            {user && (
-              <TabsTrigger value="volunteer" className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
-                志工報名
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="volunteer" className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              志工報名
+            </TabsTrigger>
             <TabsTrigger value="supply" className="flex items-center gap-2">
               <PackagePlus className="w-4 h-4" />
               物資捐贈
@@ -406,7 +405,6 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
             </Card>
           </TabsContent>
 
-          {user && (
           <TabsContent value="volunteer">
             <Card>
               <CardHeader>
@@ -507,22 +505,21 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                   >
                     {submitting ? "提交中..." : "確認報名"}
                   </Button>
-                  {!user && (
-                    <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
-                      <p>請先登入以完成報名。您可以先查看需要填寫的欄位。</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => User.login()}
-                      >立即登入</Button>
-                    </div>
-                  )}
+
+                  {/* 登入要求 Dialog */}
+                  <div>       
+                    <AskForLoginModal
+                        open={!user}
+                        onClose={onClose}
+                        title="此功能需要登入。"
+                        description="請先登入以完成報名。"
+                    />
+                  </div>
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
-          )}
+          
 
           <TabsContent value="supply">
             <Card>
@@ -650,17 +647,16 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     >
                       {submitting ? "提交中..." : "確認捐贈"}
                     </Button>
-                    {!user && (
-                      <div className="text-xs text-gray-500 mt-2 text-center space-y-1">
-                        <p>請先登入以完成捐贈。您可以先查看需要填寫的欄位。</p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => User.login()}
-                        >立即登入</Button>
-                      </div>
-                    )}
+
+                    {/* 登入要求 Dialog */}
+                    <div>       
+                      <AskForLoginModal
+                          open={!user}
+                          onClose={onClose}
+                          title="此功能需要登入。"
+                          description="請先登入以完成物資捐贈。"
+                      />
+                    </div>
                   </form>
                 </div>
               </CardContent>

@@ -18,6 +18,7 @@ import { Grid } from '@/api/entities';
 import { User } from '@/api/entities';
 import "leaflet/dist/leaflet.css";
 import { Loader2, Info } from 'lucide-react';
+import { AskForLoginModal } from '../login/AskForLoginModal';
 
 const LocationPicker = ({ position, setPosition }) => {
   const map = useMap();
@@ -358,7 +359,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
 
             <div>
               <Label htmlFor="code">資訊地點（地標）*</Label>
-              <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：A-3, B-4"/>
+              <Input id="code" name="code" value={formData.code} onChange={handleInputChange} placeholder="例如：光復國中"/>
             </div>
 
             <div>
@@ -452,17 +453,16 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
               {submitting ? '建立中...' : '提交需求'}
             </Button>
           </div>
-          {!currentUser && (
-            <div className="text-xs text-gray-500 text-center space-y-1">
-              <p>請先登入以建立新救援資訊。</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => User.login()}
-              >立即登入</Button>
-            </div>
-          )}
+          
+          {/* 登入要求 Dialog */}
+          <div>       
+            <AskForLoginModal
+                open={!currentUser}
+                onClose={onClose}
+                title="此功能需要登入。"
+                description="請先登入以建立新救援資訊。"
+            />
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
