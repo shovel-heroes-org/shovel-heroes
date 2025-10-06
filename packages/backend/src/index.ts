@@ -1,3 +1,9 @@
+console.log('[1/10] Starting backend application...');
+console.log('NODE_VERSION:', process.version);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+
+console.log('[2/10] Loading dependencies...');
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -5,6 +11,7 @@ import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import cookie from '@fastify/cookie';
 
+console.log('[3/10] Loading route modules...');
 import { registerDisasterAreaRoutes } from './routes/disaster-areas.js';
 import { registerGridRoutes } from './routes/grids.js';
 import { registerVolunteerRegistrationRoutes } from './routes/volunteer-registrations.js';
@@ -17,13 +24,31 @@ import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
 import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware.js";
+// Auth routes (LINE)
+import { registerLineAuthRoutes } from './routes/auth-line.js';
+import { registerLineWebhookRoutes } from './routes/line-webhook.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { registerCSVRoutes } from './routes/csv.js';
+import { registerAuditLogRoutes } from './routes/audit-log.js';
+import { registerHttpAuditLogRoutes } from './routes/http-audit-logs.js';
+import permissionsRoutes from './routes/permissions.js';
 
+console.log('[4/10] Creating Fastify instance...');
 const app = Fastify({ logger: true });
 
+console.log('[5/10] Registering healthz endpoint...');
 app.get('/healthz', async () => ({ status: 'ok', db: app.hasDecorator('db') ? 'ready' : 'not-ready' }));
 
-await initDb(app);
+console.log('[6/10] Initializing database connection...');
+try {
+  await initDb(app);
+  console.log('[6/10] Database initialized successfully');
+} catch (err) {
+  console.error('[ERROR] Failed to initialize database:', err);
+  process.exit(1);
+}
 
+console.log('[7/10] Registering plugins...');
 await app.register(swagger, {
   openapi: {
     info: { title: 'Shovel Heroes Backend', version: '0.1.0' }
@@ -32,7 +57,9 @@ await app.register(swagger, {
 await app.register(swaggerUI, { routePrefix: '/docs' });
 await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-secret' });
+console.log('[7/10] Plugins registered successfully');
 
+console.log('[8/10] Registering routes...');
 registerDisasterAreaRoutes(app);
 registerGridRoutes(app);
 registerVolunteerRegistrationRoutes(app);
@@ -43,19 +70,14 @@ registerAnnouncementRoutes(app);
 registerUserRoutes(app);
 registerFunctionRoutes(app);
 registerLegacyRoutes(app);
-// Auth routes (LINE)
-import { registerLineAuthRoutes } from './routes/auth-line.js';
-import { registerAdminRoutes } from './routes/admin.js';
-import { registerCSVRoutes } from './routes/csv.js';
-import { registerAuditLogRoutes } from './routes/audit-log.js';
-import { registerHttpAuditLogRoutes } from './routes/http-audit-logs.js';
-import permissionsRoutes from './routes/permissions.js';
 registerLineAuthRoutes(app);
+registerLineWebhookRoutes(app);
 registerAdminRoutes(app);
 registerCSVRoutes(app);
 registerAuditLogRoutes(app);
 registerHttpAuditLogRoutes(app);
 await app.register(permissionsRoutes);
+console.log('[8/10] Routes registered successfully');
 
 // Global auth enforcement for all POST endpoints except a small allowlist.
 // Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
@@ -63,7 +85,8 @@ const PUBLIC_ALLOWLIST = new Set([
   '/auth/line/exchange', // need to obtain token (POST)
   '/auth/line/login',    // GET redirect
   '/auth/logout',        // GET logout
-  '/healthz'             // health check
+  '/healthz',            // health check
+  '/line/webhook'        // LINE webhook callback
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
@@ -76,6 +99,7 @@ app.addHook('preHandler', async (req, reply) => {
   }
 });
 
+console.log('[9/10] Setting up middleware hooks...');
 // HTTP 請求審計日誌中介軟體
 // 自動記錄所有 API 請求到 audit_logs 表，用於技術除錯和效能分析
 const AuditLogMiddleware = createAuditLogMiddleware(app);
@@ -83,13 +107,17 @@ app.addHook("onRequest", AuditLogMiddleware.start);
 app.addHook("onSend", AuditLogMiddleware.onSend);
 app.addHook("onResponse", AuditLogMiddleware.onResponse);
 app.addHook("onError", AuditLogMiddleware.onError);
+console.log('[9/10] Middleware hooks registered');
 
 async function start() {
+  console.log('[10/10] Starting server...');
   const basePort = Number(process.env.PORT) || 8787;
   let port = basePort;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
+      console.log(`Attempting to listen on port ${port}...`);
       await app.listen({ port, host: '0.0.0.0' });
+      console.log(`✓ Server successfully started on port ${port}`);
       if (port !== basePort) {
         app.log.warn(`Started on fallback port ${port} (base ${basePort} was busy)`);
       }
@@ -108,4 +136,7 @@ async function start() {
   process.exit(1);
 }
 
-start();
+start().catch((err) => {
+  console.error('Fatal error during startup:', err);
+  process.exit(1);
+});

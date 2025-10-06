@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
 import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
@@ -93,7 +94,7 @@ async function checkResourcePermission(
 }
 
 export function registerGridRoutes(app: FastifyInstance) {
-  app.get('/grids', async (req) => {
+  app.get('/grids', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
 
     // 從 JWT middleware 獲取用戶資訊 (req.user 由 users.ts 的 preHandler 設定)
@@ -129,7 +130,12 @@ export function registerGridRoutes(app: FastifyInstance) {
       canViewGridContact
     });
 
-    return filteredGrids;
+    // 計算 ETag（上游功能）
+    const etag = computeListEtag(filteredGrids as any, ['id', 'updated_at', 'created_at', 'volunteer_registered']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply.code(304).header('ETag', etag).header('Cache-Control', 'public, no-cache').send();
+    }
+    return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(filteredGrids);
   });
 
   app.post('/grids', async (req, reply) => {

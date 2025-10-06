@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag';
 import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
 
 const CreateSchema = z.object({
@@ -30,12 +31,21 @@ const UpdateSchema = z.object({
 
 export function registerAnnouncementRoutes(app: FastifyInstance) {
   // 檢視公告 - 所有人都可以檢視(但不包括已刪除的)
-  app.get('/announcements', async () => {
+  app.get('/announcements', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { rows } = await app.db.query(
       `SELECT * FROM announcements WHERE status != 'deleted' ORDER BY "order" ASC, created_at DESC`
     );
-    return rows;
+
+    // 計算 ETag（上游功能）
+    const weakEtag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'order']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, weakEtag)) {
+      return reply.code(304).header('ETag', weakEtag).send();
+    }
+    return reply
+      .header('ETag', weakEtag)
+      .header('Cache-Control', 'public, no-cache')
+      .send(rows);
   });
 
   // 建立公告 - 需要 create 權限
