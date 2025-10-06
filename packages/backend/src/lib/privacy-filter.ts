@@ -391,7 +391,7 @@ export async function filterGridPrivacy(
 }
 
 /**
- * 批次過濾網格聯絡資訊
+ * 批次過濾網格聯絡資訊（優化版本 - 使用批次查詢）
  */
 export async function filterGridsPrivacy(
   grids: Grid[],
@@ -399,10 +399,84 @@ export async function filterGridsPrivacy(
   dbPool: any,
   options: ContactPrivacyOptions = {}
 ): Promise<Grid[]> {
-  const filteredGrids = [];
-  for (const grid of grids) {
-    const filtered = await filterGridPrivacy(grid, user, dbPool, options);
-    filteredGrids.push(filtered);
+  const startTime = Date.now();
+  const { actingRole, canViewGridContact = false } = options;
+
+
+  // 若沒有權限，直接過濾所有網格
+  if (!canViewGridContact) {
+    return grids.map(grid => ({
+      ...grid,
+      contact_info: undefined,
+    }));
   }
-  return filteredGrids;
+
+  // 超級管理員和管理員可以看到所有網格聯絡資訊
+  if (isAdmin(user, actingRole)) {
+    return grids;
+  }
+
+  // 若沒有用戶資訊，隱藏所有聯絡資訊
+  if (!user) {
+    return grids.map(grid => ({
+      ...grid,
+      contact_info: undefined,
+    }));
+  }
+
+  // 批次查詢：取得使用者報名過的所有網格 ID
+  const gridIds = grids.map(g => g.id);
+  const volunteerGridIds = new Set<string>();
+  const donationGridIds = new Set<string>();
+
+
+  if (dbPool && gridIds.length > 0) {
+    const t1 = Date.now();
+    // 查詢志工報名記錄
+    const { rows: volunteerRows } = await dbPool.query(
+      'SELECT DISTINCT grid_id FROM volunteer_registrations WHERE grid_id = ANY($1) AND user_id = $2 AND status != $3',
+      [gridIds, user.id, 'cancelled']
+    );
+    volunteerRows.forEach((row: any) => volunteerGridIds.add(row.grid_id));
+
+    const t2 = Date.now();
+    // 查詢物資捐贈記錄
+    const { rows: donationRows } = await dbPool.query(
+      'SELECT DISTINCT grid_id FROM supply_donations WHERE grid_id = ANY($1) AND created_by_id = $2 AND status != $3',
+      [gridIds, user.id, 'cancelled']
+    );
+    donationRows.forEach((row: any) => donationGridIds.add(row.grid_id));
+  }
+
+  const t3 = Date.now();
+  // 過濾每個網格
+  const result = grids.map(grid => {
+    // 網格建立者本人可以看到
+    if (grid.created_by_id === user.id) {
+      return grid;
+    }
+
+    // 網格管理員可以看到
+    if (grid.grid_manager_id === user.id) {
+      return grid;
+    }
+
+    // 已報名的志工可以看到
+    if (volunteerGridIds.has(grid.id)) {
+      return grid;
+    }
+
+    // 已捐贈的捐贈者可以看到
+    if (donationGridIds.has(grid.id)) {
+      return grid;
+    }
+
+    // 其他人看不到聯絡資訊
+    return {
+      ...grid,
+      contact_info: undefined,
+    };
+  });
+
+  return result;
 }

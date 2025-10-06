@@ -237,9 +237,9 @@ export function registerSupplyDonationRoutes(app: FastifyInstance) {
         return false; // received and cancelled are terminal
       }
 
-      console.log(`Status transition check: ${currentStatus} -> ${status}`);
+      //console.log(`Status transition check: ${currentStatus} -> ${status}`);
       if (!canTransition(currentStatus, status)) {
-        console.log(`Illegal transition: ${currentStatus} -> ${status}`);
+        //console.log(`Illegal transition: ${currentStatus} -> ${status}`);
         return reply.status(400).send({ message: 'Illegal status transition' });
       }
 

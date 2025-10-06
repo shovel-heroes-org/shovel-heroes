@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { computeListEtag, ifNoneMatchSatisfied } from '../lib/etag.js';
 import { requireAuth, requirePermission } from '../middlewares/AuthMiddleware.js';
+import { filterGridsPrivacy } from '../lib/privacy-filter.js';
 
 const BoundsSchema = z.object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() });
 const SupplyNeedSchema = z.object({ name: z.string(), quantity: z.number(), unit: z.string(), received: z.number().optional() });
@@ -97,6 +98,8 @@ export function registerGridRoutes(app: FastifyInstance) {
   app.get('/grids', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
 
+    const startTime = Date.now();
+
     // 從 JWT middleware 獲取用戶資訊 (req.user 由 users.ts 的 preHandler 設定)
     const user = (req as any).user;
     const actingRole = req.headers['x-acting-role'] as string;
@@ -104,13 +107,16 @@ export function registerGridRoutes(app: FastifyInstance) {
     // 獲取作用角色（視角切換）
     const effectiveRole = actingRole || user?.role || 'guest';
 
+    const t1 = Date.now();
     // 檢查 view_grid_contact 權限
     const { rows: permissions } = await app.db.query(
       'SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = $2',
       [effectiveRole, 'view_grid_contact']
     );
     const canViewGridContact = permissions.length > 0 && permissions[0].can_view === 1;
+    // console.log(`[PERF] Permission check: ${Date.now() - t1}ms`);
 
+    const t2 = Date.now();
     // 查詢網格
     const { rows } = await app.db.query(`
       SELECT
@@ -122,19 +128,25 @@ export function registerGridRoutes(app: FastifyInstance) {
       FROM grids
       WHERE status != 'deleted'
       ORDER BY created_at DESC`);
+    // console.log(`[PERF] Query grids (${rows.length} rows): ${Date.now() - t2}ms`);
 
+    const t3 = Date.now();
     // 應用隱私過濾
-    const { filterGridsPrivacy } = await import('../lib/privacy-filter.js');
     const filteredGrids = await filterGridsPrivacy(rows, user, app.db, {
       actingRole: effectiveRole,
       canViewGridContact
     });
+    // console.log(`[PERF] Privacy filter: ${Date.now() - t3}ms`);
 
+    const t4 = Date.now();
     // 計算 ETag（上游功能）
     const etag = computeListEtag(filteredGrids as any, ['id', 'updated_at', 'created_at', 'volunteer_registered']);
     if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      // console.log(`[PERF] Total time (304): ${Date.now() - startTime}ms`);
       return reply.code(304).header('ETag', etag).header('Cache-Control', 'public, no-cache').send();
     }
+    // console.log(`[PERF] ETag compute: ${Date.now() - t4}ms`);
+    // console.log(`[PERF] Total time: ${Date.now() - startTime}ms`);
     return reply.header('ETag', etag).header('Cache-Control', 'public, no-cache').send(filteredGrids);
   });
 

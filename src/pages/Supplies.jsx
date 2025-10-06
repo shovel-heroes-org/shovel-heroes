@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Package, Truck, CheckCircle2, Clock, MapPin,
-  Phone, Calendar, AlertCircle, Plus, ShoppingCart, Edit
+  Phone, Calendar, AlertCircle, Plus, ShoppingCart, Edit,
+  CalendarClock
 } from "lucide-react";
 import AddSupplyRequestModal from "@/components/supplies/AddSupplyRequestModal";
 import EditSupplyDonationModal from "@/components/supplies/EditSupplyDonationModal";
 import GridDetailModal from "@/components/map/GridDetailModal"; // 新增導入
 import { useRequireLogin } from "@/hooks/useRequireLogin";
 import { usePermission } from "@/hooks/usePermission";
+import { formatCreatedDate } from "@/lib/utils";
+import { useSuppliesData } from "@/hooks/use-supplies-data";
 import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
-
 
 export default function SuppliesPage() {
   const [donations, setDonations] = useState([]);
@@ -442,6 +444,14 @@ export default function SuppliesPage() {
                     <CardContent className="p-4">
                       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                         <div className="flex-1">
+                            <div className="flex flex-row items-center gap-2 mb-2">
+                              <CalendarClock className="w-4 h-4 text-teal-700" />
+                              <span className="text-sm font-medium">
+                                {formatCreatedDate(
+                                    grids.find(g => g.id === request.gridId).created_date
+                                )}
+                              </span>
+                            </div>
                           <div className="flex items-center gap-3 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">
                               {request.supplyName}
@@ -452,6 +462,7 @@ export default function SuppliesPage() {
                             <Badge variant="outline" className="bg-blue-50 text-blue-700">
                               {request.gridCode}
                             </Badge>
+
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600 mb-2">
