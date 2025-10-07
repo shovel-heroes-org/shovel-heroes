@@ -166,9 +166,21 @@ export default function VolunteersPage() {
       window.__VOLUNTEERS_DEBUG__ = {
         canEditSelf: canEdit,
         canEditOthers: canManage,
+        canCreate: volunteersResponse.can_create,
         currentUserId: userId,
-        registrations: finalRegs
+        registrations: finalRegs,
+        apiResponse: volunteersResponse,
+        actingRole
       };
+
+      console.log('🔍 [Volunteers] 權限資訊:', {
+        canEditSelf: canEdit,
+        canEditOthers: canManage,
+        canCreate: volunteersResponse.can_create,
+        currentUserId: userId,
+        actingRole,
+        totalRegistrations: finalRegs.length
+      });
 
       setStats({
         total: finalRegs.length,

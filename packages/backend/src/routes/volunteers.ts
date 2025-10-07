@@ -178,12 +178,14 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
 
     // Debug log
     app.log.info({
+      actualRole,
       actingRole,
-      contactPermRows,
       hasContactViewPermission,
-      can_view_value: contactPermRows[0]?.can_view,
-      can_view_type: typeof contactPermRows[0]?.can_view
-    }, 'Contact permission check');
+      hasCreatePermission,
+      hasEditPermission,
+      hasManagePermission,
+      editPermRows
+    }, 'Volunteers permission check');
 
     const { grid_id, status, limit = 200, offset = 0, include_counts = 'true' } = req.query as any;
 
