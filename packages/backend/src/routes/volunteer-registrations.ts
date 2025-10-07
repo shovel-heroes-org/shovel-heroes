@@ -35,7 +35,7 @@ const UpdateSchema = z.object({
 });
 
 export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
-  app.get('/volunteer-registrations', async (req) => {
+  app.get('/volunteer-registrations', async (req, reply) => {
     if (!app.hasDecorator('db')) return { data: [], can_view_phone: false };
     const gridId = (req.query as any)?.grid_id;
 
@@ -105,14 +105,30 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       // 注意：隱私過濾函數會處理具體邏輯，這裡只要有權限即可
       const canViewPhones = hasContactPermission;
 
-      return {
-        data: filtered,
-        can_view_phone: canViewPhones,
-        can_create: hasCreatePermission,  // 建立報名的權限
-        can_edit: hasEditPermission,      // 編輯自己報名的權限
-        can_manage: hasManagePermission,  // 編輯別人報名的權限
-        user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
-      };
+      // Generate ETag for caching - only based on data content
+      const etag = computeListEtag(filtered as any, ['id', 'status', 'created_at', 'grid_id']);
+
+      if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+        return reply
+          .code(304)
+          .header('ETag', etag)
+          .header('Cache-Control', 'private, no-cache')
+          .header('Vary', 'Authorization, X-Acting-Role')
+          .send();
+      }
+
+      return reply
+        .header('ETag', etag)
+        .header('Cache-Control', 'private, no-cache')
+        .header('Vary', 'Authorization, X-Acting-Role')
+        .send({
+          data: filtered,
+          can_view_phone: canViewPhones,
+          can_create: hasCreatePermission,  // 建立報名的權限
+          can_edit: hasEditPermission,      // 編輯自己報名的權限
+          can_manage: hasManagePermission,  // 編輯別人報名的權限
+          user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
+        });
     }
 
     // 取得所有志工報名（需要分別處理每個網格的隱私）
@@ -139,14 +155,30 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     // 注意：隱私過濾函數會處理具體邏輯，這裡只要有權限即可
     const canViewPhones = hasContactPermission;
 
-    return {
-      data: filtered,
-      can_view_phone: canViewPhones,
-      can_create: hasCreatePermission,  // 建立報名的權限
-      can_edit: hasEditPermission,      // 編輯自己報名的權限
-      can_manage: hasManagePermission,  // 編輯別人報名的權限
-      user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
-    };
+    // Generate ETag for caching - only based on data content
+    const etag = computeListEtag(filtered as any, ['id', 'status', 'created_at', 'grid_id']);
+
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply
+        .code(304)
+        .header('ETag', etag)
+        .header('Cache-Control', 'private, no-cache')
+        .header('Vary', 'Authorization, X-Acting-Role')
+        .send();
+    }
+
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'private, no-cache')
+      .header('Vary', 'Authorization, X-Acting-Role')
+      .send({
+        data: filtered,
+        can_view_phone: canViewPhones,
+        can_create: hasCreatePermission,  // 建立報名的權限
+        can_edit: hasEditPermission,      // 編輯自己報名的權限
+        can_manage: hasManagePermission,  // 編輯別人報名的權限
+        user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
+      });
   });
   app.post('/volunteer-registrations', async (req, reply) => {
     const parsed = CreateSchema.safeParse(req.body);

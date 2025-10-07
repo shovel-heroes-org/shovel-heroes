@@ -334,17 +334,34 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     // 注意：前端會根據實際資料來判斷，這裡只要有權限即可
     const canViewPhones = hasContactViewPermission;
 
-    return {
-      data,
-      can_view_phone: canViewPhones,
-      can_create: hasCreatePermission,  // 建立報名的權限
-      can_edit: hasEditPermission,      // 編輯自己報名的權限
-      can_manage: hasManagePermission,  // 編輯別人報名的權限
-      user_id: user?.id || null,  // 前端需要知道當前用戶 ID 來判斷 isSelf
-      total,
-      status_counts,
-      limit: Number(limit),
-      page: Math.floor(Number(offset) / Number(limit)) + 1
-    };
+    // Generate ETag for caching - only based on data content
+    const etag = computeListEtag(data as any, ['id', 'grid_id', 'status', 'created_date']);
+
+    // Check if client's cached version is still valid
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'], etag)) {
+      return reply
+        .code(304)
+        .header('ETag', etag)
+        .header('Cache-Control', 'private, no-cache')
+        .header('Vary', 'Authorization, X-Acting-Role')
+        .send();
+    }
+
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'private, no-cache')
+      .header('Vary', 'Authorization, X-Acting-Role')
+      .send({
+        data,
+        can_view_phone: canViewPhones,
+        can_create: hasCreatePermission,  // 建立報名的權限
+        can_edit: hasEditPermission,      // 編輯自己報名的權限
+        can_manage: hasManagePermission,  // 編輯別人報名的權限
+        user_id: user?.id || null,  // 前端需要知道當前用戶 ID 來判斷 isSelf
+        total,
+        status_counts,
+        limit: Number(limit),
+        page: Math.floor(Number(offset) / Number(limit)) + 1
+      });
   });
 }

@@ -15,12 +15,29 @@ export function registerGridDiscussionRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { grid_id?: string } }>('/grid-discussions', async (req, reply) => {
     if (!app.hasDecorator('db')) return [];
     const { grid_id } = req.query;
+    let rows;
     if (grid_id) {
-      const { rows } = await app.db.query('SELECT * FROM grid_discussions WHERE grid_id=$1 ORDER BY created_at DESC', [grid_id]);
-      return rows;
+      const result = await app.db.query('SELECT * FROM grid_discussions WHERE grid_id=$1 ORDER BY created_at DESC', [grid_id]);
+      rows = result.rows;
+    } else {
+      const result = await app.db.query('SELECT * FROM grid_discussions ORDER BY created_at DESC');
+      rows = result.rows;
     }
-    const { rows } = await app.db.query('SELECT * FROM grid_discussions ORDER BY created_at DESC');
-    return rows;
+
+    // Generate ETag for caching
+    const etag = computeListEtag(rows as any, ['id', 'created_at', 'updated_at', 'content']);
+    if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+      return reply
+        .code(304)
+        .header('ETag', etag)
+        .header('Cache-Control', 'public, no-cache')
+        .send();
+    }
+
+    return reply
+      .header('ETag', etag)
+      .header('Cache-Control', 'public, no-cache')
+      .send(rows);
   });
 
   type CreateInput = z.infer<typeof CreateSchema>;
