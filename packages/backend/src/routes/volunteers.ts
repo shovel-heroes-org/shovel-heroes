@@ -146,10 +146,13 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     // 優先使用 actingRoleHeader,若未設定則使用 user?.role，若未登入則為 'guest'
     const actingRole = actingRoleHeader || user?.role || 'guest';
 
-    // 檢查基礎權限
+    // 實際角色（用於基礎訪問權限檢查）
+    const actualRole = user?.role || 'guest';
+
+    // 檢查基礎訪問權限（使用實際角色）
     const { rows: permRows } = await app.db.query(
       `SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = 'volunteers'`,
-      [actingRole]
+      [actualRole]
     );
 
     const hasViewPermission = permRows.length > 0 && (permRows[0].can_view === 1 || permRows[0].can_view === true);
