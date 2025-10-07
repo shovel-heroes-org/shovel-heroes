@@ -45,9 +45,11 @@ import {
   Download,
   Upload,
   Plus,
+  CalendarClock,
 } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequireLogin } from "@/hooks/useRequireLogin";
+import { formatCreatedDate } from "@/lib/utils";
 import SupplyRequestViewModal from "@/components/admin/SupplyRequestViewModal";
 import SupplyDonationViewModal from "@/components/admin/SupplyDonationViewModal";
 import EditSupplyRequestModal from "@/components/admin/EditSupplyRequestModal";
@@ -1260,9 +1262,9 @@ export default function SupplyManagement() {
                           </div>
 
                           {/* 建立時間 */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatDate(grid.created_at)}</span>
+                          <div className="flex items-center gap-2 text-sm mb-3">
+                            <CalendarClock className="w-4 h-4 text-teal-700" />
+                            <span className="font-medium">{formatCreatedDate(grid.created_at)}</span>
                           </div>
 
                           {/* 操作按鈕 */}
@@ -1564,7 +1566,7 @@ export default function SupplyManagement() {
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                             <MapPin className="w-4 h-4" />
                             <span>
-                              {relatedGrid.area_name ? relatedGrid.area_name :
+                              {relatedGrid.meeting_point ? relatedGrid.meeting_point :
                                donation.grid_code ? `網格 ${donation.grid_code}` : '未知地點'}
                             </span>
                           </div>
@@ -1590,9 +1592,9 @@ export default function SupplyManagement() {
                           </div>
 
                           {/* 捐贈時間 */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatDate(donation.created_at)}</span>
+                          <div className="flex items-center gap-2 text-sm mb-3">
+                            <CalendarClock className="w-4 h-4 text-teal-700" />
+                            <span className="font-medium">{formatCreatedDate(donation.created_at)}</span>
                           </div>
 
                           {/* 操作按鈕 */}

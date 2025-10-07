@@ -480,10 +480,6 @@ export default function SuppliesPage() {
                                 還需要: {request.remaining} {request.unit}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4" />
-                              <span>創建: {request.createdDate ? new Date(request.createdDate).toLocaleString('zh-TW') : '未記錄'}</span>
-                            </div>
                           </div>
 
                           <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
