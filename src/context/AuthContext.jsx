@@ -143,13 +143,33 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
+  // 檢查使用者是否被加入黑名單
+  const isBlacklisted = user?.is_blacklisted === true;
+
   return (
-    <AuthContext.Provider value={{ user, setUser, actingRole, setActingRole: setActingRoleWithStorage, toggleActingRole, loading, guestMode, roleSwitching }}>
+    <AuthContext.Provider value={{
+      user,
+      setUser,
+      actingRole,
+      setActingRole: setActingRoleWithStorage,
+      toggleActingRole,
+      loading,
+      guestMode,
+      roleSwitching,
+      isBlacklisted
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext) || { user: null, actingRole: 'user', loading: true, guestMode: false, roleSwitching: false };
+  return useContext(AuthContext) || {
+    user: null,
+    actingRole: 'user',
+    loading: true,
+    guestMode: false,
+    roleSwitching: false,
+    isBlacklisted: false
+  };
 }

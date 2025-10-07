@@ -3,19 +3,22 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, Eye } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, Eye, LogIn } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext.jsx';
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { useRequireLogin } from "@/hooks/useRequireLogin";
 import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
+import BlacklistedAccess from "@/components/common/BlacklistedAccess";
 import AddGridModal from "@/components/admin/AddGridModal";
 import { usePermission } from "@/hooks/usePermission";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const { user, actingRole, setActingRole, toggleActingRole, guestMode } = useAuth();
+  const { user, actingRole, setActingRole, toggleActingRole, guestMode, isBlacklisted, loading: authLoading } = useAuth();
+  const { isMobile } = useBreakpoint();
   const { hasPermission } = usePermission();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
@@ -28,12 +31,16 @@ export default function Layout({ children, currentPageName }) {
 
   // Load disaster areas & consent
   React.useEffect(() => {
-    DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
+    // 黑名單使用者不載入任何資料
+    if (!isBlacklisted) {
+      DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
+    }
+
     const consent = localStorage.getItem('sh-privacy-consent-v1');
     if (!consent) setShowConsent(true); else {
       try { const parsed = JSON.parse(consent); if (parsed.analytics) setAnalyticsAllowed(true); } catch {/* ignore */}
     }
-  }, []);
+  }, [isBlacklisted]);
 
   // Load GA only when analyticsAllowed becomes true
   React.useEffect(() => {
@@ -127,6 +134,12 @@ export default function Layout({ children, currentPageName }) {
     }
   };
 
+  // 黑名單檢查：優先於所有其他檢查
+  // 如果使用者被加入黑名單，直接顯示黑名單頁面，不載入任何資料
+  if (!authLoading && isBlacklisted) {
+    return <BlacklistedAccess />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
       {/* Header */}
@@ -171,9 +184,10 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center space-x-4 flex-shrink-0">
               <Button
                 onClick={handleNewGridClick}
+                size={isMobile ? "sm" : "default"}
                 className="bg-orange-600 hover:bg-orange-700 text-white flex items-center whitespace-nowrap"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
+                <UserPlus className="hidden md:inline w-4 h-4" />
                 我要人力
               </Button>
 
@@ -316,17 +330,23 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> 登出</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="flex gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer" size={isMobile ? "sm" : "default"}>
+                      <LogOut className="hidden md:inline w-4 h-4" />
+                      登出
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button onClick={() => User.login()} className="bg-blue-600 hover:bg-blue-700 text-white">登入</Button>
+                <Button onClick={() => User.login()} size={isMobile ? "sm" : "default"} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <LogIn className="hidden md:inline w-4 h-4" />
+                  登入
+                </Button>
               )}
 
               {/* Mobile Menu Button */}
               <Button
                 variant="ghost"
-                size="icon"
+                size={isMobile ? "xs" : "icon"}
                 className="sm:hidden"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >

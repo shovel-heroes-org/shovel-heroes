@@ -90,9 +90,18 @@ const PUBLIC_ALLOWLIST = new Set([
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
+  // 黑名單檢查：被加入黑名單的使用者除了 /me 端點外,其他 API 都拒絕存取
+  // 這個檢查必須在所有路由之前執行
+  const url = req.url.split('?')[0];
+  if (req.user && (req.user as any).is_blacklisted && url !== '/me') {
+    return reply.status(403).send({
+      message: 'Access denied: Account has been blacklisted',
+      error: 'ACCOUNT_BLACKLISTED'
+    });
+  }
+
   // Enforce auth for mutating methods; optionally could extend to GET later.
   if (!['POST','PUT','DELETE'].includes(req.method)) return;
-  const url = req.url.split('?')[0];
   if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });

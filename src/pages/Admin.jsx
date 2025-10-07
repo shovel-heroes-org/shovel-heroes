@@ -84,7 +84,7 @@ import {
 
 export default function AdminPage() {
   // Use global auth context so we can respect actingRole (admin vs user perspective)
-  const { user, actingRole, roleSwitching } = useAuth();
+  const { user, actingRole, roleSwitching, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 使用 usePermission hook 取代所有硬編碼的權限檢查
@@ -252,6 +252,12 @@ export default function AdminPage() {
   // 即使沒有權限，也會顯示「無權限訪問」訊息
 
   const loadData = useCallback(async () => {
+    // 未登入或訪客模式不載入資料
+    if (!user || isGuest) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -416,7 +422,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, canView, actingRole]);
+  }, [user, canView, actingRole, isGuest]);
 
   // user 來自 AuthContext，已集中管理，這裡不再自行抓取
 
@@ -1197,8 +1203,8 @@ export default function AdminPage() {
     }
   };
 
-  // 正在切換角色或資料載入中，顯示 loading 狀態
-  if (loading || roleSwitching) {
+  // 認證載入中或正在切換角色，顯示 loading 狀態
+  if (authLoading || roleSwitching) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

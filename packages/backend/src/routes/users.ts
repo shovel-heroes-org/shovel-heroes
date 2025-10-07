@@ -24,9 +24,10 @@ export function registerUserRoutes(app: FastifyInstance) {
       }
       // Optionally fetch user details from DB
       if (app.hasDecorator('db')) {
-        const { rows } = await app.db.query('SELECT id, name, email, avatar_url, role FROM users WHERE id = $1', [payload.sub]);
+        const { rows } = await app.db.query('SELECT id, name, email, avatar_url, role, is_blacklisted FROM users WHERE id = $1', [payload.sub]);
         if (rows[0]) {
           (req as any).user = rows[0];
+          // 黑名單檢查已移至 index.ts 的全域 preHandler hook
         } else {
           // user disappeared; treat as unauthenticated
         }
@@ -77,7 +78,7 @@ export function registerUserRoutes(app: FastifyInstance) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const countRes = await app.db.query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM users ${where}`, params);
     const total = countRes.rows[0]?.count || 0;
-    const dataQuery = `SELECT id, name, email, avatar_url, role, created_at, updated_at FROM users ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx+1}`;
+    const dataQuery = `SELECT id, name, email, avatar_url, role, is_blacklisted, created_at, updated_at FROM users ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx+1}`;
     const dataRes = await app.db.query(dataQuery, [...params, limit, offset]);
     const rows = dataRes.rows as any[];
     const etag = computeListEtag(rows as any, ['id', 'updated_at', 'created_at', 'role']);
@@ -128,8 +129,41 @@ export function registerUserRoutes(app: FastifyInstance) {
   app.get('/me', async (req, reply) => {
     const user = req.user;
     if (!user) return reply.status(401).send({ message: 'Unauthorized' });
+
+    // 黑名單使用者只回傳最少資訊,避免洩漏個人資料
+    if ((user as any).is_blacklisted) {
+      // 記錄到 log 以供審計,但不回傳給前端
+      req.log.warn({
+        event: 'blacklisted_user_access',
+        user_id: user.id,
+        user_email: (user as any).email,
+        user_name: (user as any).name,
+        timestamp: new Date().toISOString()
+      }, 'Blacklisted user accessed /me endpoint');
+
+      // 只回傳黑名單狀態,不洩漏其他資訊
+      const minimalPayload = { is_blacklisted: true };
+      const etag = makeWeakEtag(minimalPayload);
+      if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
+        return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization').send();
+      }
+      return reply
+        .header('ETag', etag)
+        .header('Cache-Control', 'private, no-cache')
+        .header('Vary', 'Authorization')
+        .send(minimalPayload);
+    }
+
+    // 一般使用者回傳完整資訊
     // Compute weak ETag from stable user fields (as returned by this endpoint)
-    const payload = { id: user.id, name: user.name, email: user.email, role: user.role, avatar_url: (user as any).avatar_url };
+    const payload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar_url: (user as any).avatar_url,
+      is_blacklisted: (user as any).is_blacklisted
+    };
     const etag = makeWeakEtag(payload);
     if (ifNoneMatchSatisfied(req.headers['if-none-match'] as string | undefined, etag)) {
       return reply.code(304).header('ETag', etag).header('Cache-Control', 'private, no-cache').header('Vary', 'Authorization').send();
