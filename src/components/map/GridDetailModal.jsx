@@ -628,7 +628,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           <Label htmlFor="supply_name">物資名稱 *</Label>
                           <Select
                               value={supplyForm.supply_name}
-                              onValueChange={(value) => setSupplyForm({...supplyForm, supply_name: value})}
+                              onValueChange={(value) => updateSupplyForm({...supplyForm, supply_name: value})}
                               required
                           >
                               <SelectTrigger>
