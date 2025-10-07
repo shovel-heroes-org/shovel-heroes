@@ -1098,7 +1098,13 @@ export function registerCSVRoutes(app: FastifyInstance) {
           );
 
           if (existing.length > 0) {
-            // 更新現有記錄（包含 name 欄位，用於向後兼容）
+            // 如果 skipDuplicates 為 true，跳過已存在的記錄
+            if (body.skipDuplicates) {
+              skipped++;
+              continue;
+            }
+
+            // 否則更新現有記錄（包含 name 欄位，用於向後兼容）
             await app.db.query(
               `UPDATE supply_donations SET
                 grid_id = $1, name = $2, supply_name = $3, quantity = $4, unit = $5,
@@ -1117,7 +1123,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // Check for duplicates (基於捐贈者電話、物資名稱和網格)
-        // 只有當電話和物資名稱都不為空時才檢查重複
+        // 只檢查有明確識別資訊的記錄（電話和物資名稱都不為空）
         if (body.skipDuplicates && donorPhone && supplyName) {
           const { rows: existing } = await app.db.query(
             'SELECT id FROM supply_donations WHERE donor_phone = $1 AND supply_name = $2 AND grid_id = $3',

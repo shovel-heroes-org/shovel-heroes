@@ -68,6 +68,8 @@ import {
   importTrashSuppliesFromCSV,
   exportTrashGridsToCSV,
   importTrashGridsFromCSV,
+  exportGridsToCSV,
+  importGridsFromCSV,
 } from "@/api/admin";
 
 export default function SupplyManagement() {
@@ -306,6 +308,8 @@ export default function SupplyManagement() {
       // 注意：這裡應該要有專門的 API，目前先使用一般的 Grid 刪除
       await Grid.delete(gridId);
       showMessage("已移至垃圾桶", "success");
+      // 清除該項目的選取狀態
+      setSelectedNeedsItems(prev => prev.filter(id => id !== gridId));
       loadGrids();
       loadTrashItems();
     } catch (error) {
@@ -353,6 +357,8 @@ export default function SupplyManagement() {
       const { http } = await import("@/api/rest/client");
       await http.post(`/grids/${gridId}/restore`, {});
       showMessage("已還原", "success");
+      // 清除該項目的選取狀態
+      setSelectedNeedsItems(prev => prev.filter(id => id !== gridId));
       loadGrids();
       loadTrashItems();
     } catch (error) {
@@ -465,6 +471,8 @@ export default function SupplyManagement() {
       const { http } = await import("@/api/rest/client");
       await http.delete(`/grids/${gridId}/permanent`);
       showMessage("已永久刪除", "success");
+      // 清除該項目的選取狀態
+      setSelectedNeedsItems(prev => prev.filter(id => id !== gridId));
       loadTrashItems();
     } catch (error) {
       console.error("永久刪除失敗:", error);
@@ -553,6 +561,8 @@ export default function SupplyManagement() {
     try {
       await moveSupplyToTrash(donationId);
       showMessage("已移至垃圾桶", "success");
+      // 清除該項目的選取狀態
+      setSelectedDonationsItems(prev => prev.filter(id => id !== donationId));
       loadDonations();
       loadTrashItems();
     } catch (error) {
@@ -565,6 +575,8 @@ export default function SupplyManagement() {
     try {
       await restoreSupplyFromTrash(donationId);
       showMessage("已還原", "success");
+      // 清除該項目的選取狀態
+      setSelectedDonationsItems(prev => prev.filter(id => id !== donationId));
       loadDonations();
       loadTrashItems();
     } catch (error) {
@@ -579,6 +591,8 @@ export default function SupplyManagement() {
     try {
       await permanentlyDeleteSupply(donationId);
       showMessage("已永久刪除", "success");
+      // 清除該項目的選取狀態
+      setSelectedDonationsItems(prev => prev.filter(id => id !== donationId));
       loadTrashItems();
     } catch (error) {
       console.error("永久刪除失敗:", error);
@@ -701,7 +715,8 @@ export default function SupplyManagement() {
           showMessage("垃圾桶物資需求匯出成功", "success");
         } else {
           // 正常物資需求匯出（使用 Grid 的 CSV）
-          showMessage("物資需求匯出功能待實作", "warning");
+          await exportGridsToCSV();
+          showMessage("物資需求匯出成功", "success");
         }
       }
     } catch (error) {
@@ -735,10 +750,7 @@ export default function SupplyManagement() {
             result = await importTrashGridsFromCSV(csvContent, true);
           } else {
             // 正常物資需求匯入（使用 Grid 的 CSV）
-            showMessage("物資需求匯入功能待實作", "warning");
-            setImporting(false);
-            event.target.value = '';
-            return;
+            result = await importGridsFromCSV(csvContent, true);
           }
         }
 
@@ -1016,18 +1028,6 @@ export default function SupplyManagement() {
                 </div>
 
                 <div className="flex gap-2">
-                  {/* 新增物資需求按鈕 - 參考物資管理中心權限 */}
-                  {!isNeedsTrashView && (
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={handleAddSupplyRequest}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      新增物資需求
-                    </Button>
-                  )}
-
                   {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
                   {canManage('supplies') && (
                     <>
@@ -1061,6 +1061,18 @@ export default function SupplyManagement() {
                       </Button>
                     </label>
                     </>
+                  )}
+
+                  {/* 新增物資需求按鈕 - 參考物資管理中心權限 */}
+                  {!isNeedsTrashView && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={handleAddSupplyRequest}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      新增物資需求
+                    </Button>
                   )}
                 </div>
               </div>

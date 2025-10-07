@@ -116,6 +116,7 @@ function collectManagerIds(
 
 interface ContactPrivacyOptions {
   actingRole?: string;
+  userActualRole?: string;  // 新增：使用者的實際角色（不受視角影響）
   gridManagerId?: string | string[] | null | undefined;
   extraManagerIds?: Array<string | null | undefined>;
   canViewContact?: boolean;
@@ -148,6 +149,7 @@ export function filterVolunteerPrivacy(
 ): VolunteerRegistration {
   const {
     actingRole,
+    userActualRole,  // 實際角色（不受視角影響）
     gridManagerId,
     extraManagerIds = [],
     canViewContact = false,
@@ -170,11 +172,14 @@ export function filterVolunteerPrivacy(
   // 第一步：檢查是否有隱私權限
   // 若角色沒有檢視權限，所有人都看不到聯絡資訊（包括志工本人）
   if (!canViewContact) {
-    //console.log('❌ canViewContact is FALSE - returning empty phone/email');
+    //console.log('❌ canViewContact is FALSE - hiding phone/email');
     return {
       ...registration,
-      volunteer_phone: '',
-      volunteer_email: '',
+      // 邏輯：
+      // - 如果有值（非 null/undefined/空字串）→ 設為 'NO_ACCESS_PERMISSION'（前端顯示權限提示）
+      // - 如果沒值（null/undefined/空字串）→ 保持原值（前端顯示「未提供」）
+      volunteer_phone: (registration.volunteer_phone && registration.volunteer_phone.trim() !== '') ? 'NO_ACCESS_PERMISSION' : registration.volunteer_phone,
+      volunteer_email: (registration.volunteer_email && registration.volunteer_email.trim() !== '') ? 'NO_ACCESS_PERMISSION' : registration.volunteer_email,
     };
   }
 
@@ -182,22 +187,20 @@ export function filterVolunteerPrivacy(
 
   // 第二步：有隱私權限後，檢查是否滿足身份條件
 
-  // 超級管理員和管理員可以看到所有資訊
-  if (isAdmin(user, actingRole)) {
+  // 檢查是否為高權限角色（實際角色 OR 視角角色）
+  const isHighPrivilegeActual = (user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'grid_manager');
+  const isHighPrivilegeActing = (actingRole === 'super_admin' || actingRole === 'admin' || actingRole === 'grid_manager');
+  const isHighPrivilegeRole = isHighPrivilegeActual || isHighPrivilegeActing;
+
+  // 檢查是否為網格建立者
+  const isCreator = user && gridCreatorId && user.id === gridCreatorId;
+
+  // 規則：高權限角色 + 是網格建立者 = 可以看到該網格所有志工的聯絡資訊
+  if (isHighPrivilegeRole && isCreator) {
     return registration;
   }
 
-  // 網格管理員角色或被指定為網格管理員可以看到該網格的聯絡資訊
-  if (hasManagerRole || hasManagerAssociation) {
-    return registration;
-  }
-
-  // 網格建立者可以看到該網格所有志工的聯絡資訊
-  if (user && gridCreatorId && user.id === gridCreatorId) {
-    return registration;
-  }
-
-  // 志工本人可以看到自己的聯絡資訊（包含 created_by_id 與 user_id）
+  // 規則：一般使用者和訪客只能看到自己的聯絡資訊
   if (isVolunteerSelf(user, registration)) {
     return registration;
   }
@@ -206,8 +209,11 @@ export function filterVolunteerPrivacy(
   // 一般用戶：即使有隱私權限，也看不到（因為不是志工本人/網格相關人員）
   return {
     ...registration,
-    volunteer_phone: '',
-    volunteer_email: '',
+    // 邏輯：
+    // - 如果有值（非 null/undefined/空字串）→ 設為 'NO_ACCESS_PERMISSION'（前端顯示權限提示）
+    // - 如果沒值（null/undefined/空字串）→ 保持原值（前端顯示「未提供」）
+    volunteer_phone: (registration.volunteer_phone && registration.volunteer_phone.trim() !== '') ? 'NO_ACCESS_PERMISSION' : registration.volunteer_phone,
+    volunteer_email: (registration.volunteer_email && registration.volunteer_email.trim() !== '') ? 'NO_ACCESS_PERMISSION' : registration.volunteer_email,
   };
 }
 

@@ -131,7 +131,12 @@ export default function VolunteersPage() {
         user_id: r.user_id || null,  // 保留 user_id (可能為 null)
         created_by_id: r.created_by_id || null,  // 保留 created_by_id (可能為 null)
         volunteer_name: r.volunteer_name || r.name || '匿名志工',
-        volunteer_phone: r.volunteer_phone || '',  // 避免 undefined
+        // 保留 volunteer_phone 的原始值
+        // 'NO_ACCESS_PERMISSION' = 有填但沒權限看
+        // null = 沒填電話
+        // '' = 沒填電話
+        // string = 有填且有權限看
+        volunteer_phone: r.volunteer_phone,
         status: r.status || 'pending',
         available_time: r.available_time || r.time || null,
         skills: Array.isArray(r.skills) ? r.skills : [],
@@ -448,13 +453,18 @@ export default function VolunteersPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Phone className="w-4 h-4" />
-                                  {registration.volunteer_phone ? (
-                                    <span>{registration.volunteer_phone}</span>
-                                  ) : registration.volunteer_phone === null ? (
-                                    <span className="text-gray-400 italic text-xs">未提供</span>
-                                  ) : (
-                                    <span className="text-gray-400 italic text-xs">(需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)</span>
-                                  )}
+                                  {(() => {
+                                    // 檢查是否為特殊字串 NO_ACCESS_PERMISSION
+                                    if (registration.volunteer_phone === 'NO_ACCESS_PERMISSION') {
+                                      return <span className="text-gray-400 italic text-xs">(需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)</span>;
+                                    }
+                                    // 有值：顯示電話
+                                    if (registration.volunteer_phone && typeof registration.volunteer_phone === 'string' && registration.volunteer_phone.trim() !== '') {
+                                      return <span>{registration.volunteer_phone}</span>;
+                                    }
+                                    // null 或空字串：使用者沒填電話
+                                    return <span className="text-gray-400 italic text-xs">未提供</span>;
+                                  })()}
                                 </div>
                                 {registration.available_time && (
                                   <div className="flex items-center gap-2">

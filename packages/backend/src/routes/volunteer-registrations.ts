@@ -94,12 +94,19 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       const filtered = filterVolunteersPrivacy(rows, user, gridCreatorId, {
         gridManagerId,
         actingRole,
+        userActualRole: user?.role,  // 傳遞實際角色
         canViewContact: hasContactPermission,
       });
 
+      // 權限判斷：
+      // 規則：高權限角色 + 是網格建立者 + view_volunteer_contact = 可看該網格所有電話
+      //       一般使用者/訪客 + view_volunteer_contact = 只能看自己的電話
+      // 注意：隱私過濾函數會處理具體邏輯，這裡只要有權限即可
+      const canViewPhones = hasContactPermission;
+
       return {
         data: filtered,
-        can_view_phone: hasContactPermission && (isUserAdmin || isGridCreator || isGridManager),
+        can_view_phone: canViewPhones,
         can_edit: hasEditPermission,
         can_manage: hasManagePermission,
         user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
@@ -119,14 +126,20 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       return filterVolunteerPrivacy(row, user, row.grid_creator_id, {
         gridManagerId: row.grid_manager_id,
         actingRole,
+        userActualRole: user?.role,  // 傳遞實際角色
         canViewContact: hasContactPermission,
       });
     });
 
-    // 對於列表查詢，只有管理員才能看到所有電話
+    // 對於列表查詢（所有網格）：
+    // 規則：高權限角色 + 是網格建立者 + view_volunteer_contact = 可看該網格所有電話
+    //       一般使用者/訪客 + view_volunteer_contact = 只能看自己的電話
+    // 注意：隱私過濾函數會處理具體邏輯，這裡只要有權限即可
+    const canViewPhones = hasContactPermission;
+
     return {
       data: filtered,
-      can_view_phone: hasContactPermission && isUserAdmin,
+      can_view_phone: canViewPhones,
       can_edit: hasEditPermission,
       can_manage: hasManagePermission,
       user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf

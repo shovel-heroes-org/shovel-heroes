@@ -278,6 +278,7 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
         {
           gridManagerId: r.grid_manager_id,
           actingRole,
+          userActualRole: user?.role,  // 傳遞實際角色
           canViewContact: hasContactViewPermission,
         }
       );
@@ -319,11 +320,17 @@ export function registerVolunteersRoutes(app: FastifyInstance) {
     const { rows: countRows } = await app.db.query(countSql, params.slice(0, params.length - 2));
     const total = countRows[0]?.c ?? data.length;
 
-    // can_view_phone 表示當前角色是否有隱私權限（前端可用來判斷是否顯示相關 UI）
-    // can_edit 和 can_manage 表示編輯權限
+    // can_view_phone 表示當前使用者是否可以看到電話
+    // 權限規則（必須同時滿足）：
+    // 1. 有 view_volunteer_contact 權限
+    // 2. 高權限角色（super_admin/admin/grid_manager，實際或視角任一） + 是網格建立者
+    //    OR 一般使用者/訪客只能看自己的
+    // 注意：前端會根據實際資料來判斷，這裡只要有權限即可
+    const canViewPhones = hasContactViewPermission;
+
     return {
       data,
-      can_view_phone: hasContactViewPermission,
+      can_view_phone: canViewPhones,
       can_edit: hasEditPermission,
       can_manage: hasManagePermission,
       user_id: user?.id || null,  // 前端需要知道當前用戶 ID 來判斷 isSelf
