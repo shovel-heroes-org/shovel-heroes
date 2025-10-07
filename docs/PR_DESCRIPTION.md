@@ -1960,17 +1960,168 @@ commit 歷史:
 ### 最近 Commit 歷史
 
 ```
+3910a00 - refactor: 移除物資捐贈檢視中重複的網格建立者資訊 (2025-10-07)
+736afdb - fix: 修正物資需求檢視志工聯絡資訊顯示邏輯 (2025-10-07)
+c65ebba - debug: 新增志工中心視角權限 debug 日誌 (2025-10-07)
+9baf168 - fix: 修正志工中心視角切換權限檢查邏輯 (2025-10-07)
+d5f1ec9 - docs: 更新 PR_DESCRIPTION.md - 新增志工中心編輯按鈕權限控制說明 (2025-10-07)
 9d9be25 - feat: 新增志工中心編輯按鈕權限控制 (2025-10-07)
 a30bfb5 - fix: 修正志工電話顯示權限和物資管理功能 (2025-10-07)
-7ef493d - fix: 修復物資管理顯示問題 (2025-10-07)
-5db285e - feat: 實作黑名單功能與隱私保護 (2025-10-07)
-f24eb75 - merge: 完成上游整合 - 解決所有衝突 (2025-10-07)
+```
+
+---
+
+## 🔧 最新修正：視角切換與物資檢視優化 (2025-10-07 下午)
+
+### 1. 修正志工中心視角切換權限檢查
+
+#### 問題描述
+當使用者切換到一般用戶視角時，會出現 "Forbidden - No permission to view volunteers" 錯誤。
+
+**原因**: 後端使用視角角色（actingRole）檢查基礎訪問權限，導致實際有權限的使用者無法訪問。
+
+#### 修正方案
+
+**檔案**: `packages/backend/src/routes/volunteers.ts`
+
+區分兩種權限檢查：
+1. **基礎訪問權限**：使用實際角色（actualRole）- 決定能否進入頁面
+2. **功能權限**：使用視角角色（actingRole）- 決定可執行的操作
+
+```typescript
+// 新增實際角色變數
+const actualRole = user?.role || 'guest';
+
+// 基礎訪問權限使用實際角色
+const { rows: permRows } = await app.db.query(
+  `SELECT can_view FROM role_permissions WHERE role = $1 AND permission_key = 'volunteers'`,
+  [actualRole]  // 使用 actualRole
+);
+
+// 功能權限使用視角角色
+const { rows: editPermRows } = await app.db.query(
+  `SELECT can_create, can_edit, can_manage FROM role_permissions WHERE role = $1 AND permission_key = 'volunteer_registrations'`,
+  [actingRole]  // 使用 actingRole
+);
+```
+
+#### 測試場景
+
+| 實際角色 | 視角角色 | 訪問志工中心 | 編輯權限 |
+|---------|---------|------------|---------|
+| user | guest | ✅ 可以 | ❌ 只能看自己的 |
+| user | user | ✅ 可以 | ✅ 可以編輯自己的 |
+| admin | user | ✅ 可以 | ✅ 只有 user 的權限 |
+
+### 2. 新增視角權限 Debug 日誌
+
+**檔案**:
+- `packages/backend/src/routes/volunteers.ts`
+- `src/pages/Volunteers.jsx`
+
+**後端 Log**:
+```javascript
+app.log.info({
+  actualRole,
+  actingRole,
+  hasEditPermission,
+  hasManagePermission,
+  editPermRows
+}, 'Volunteers permission check');
+```
+
+**前端 Console**:
+```javascript
+console.log('🔍 [Volunteers] 權限資訊:', {
+  canEditSelf,
+  canEditOthers,
+  canCreate,
+  currentUserId,
+  actingRole
+});
+```
+
+### 3. 修正物資需求檢視志工聯絡資訊顯示
+
+#### 問題描述
+在管理後台 > 物資管理 > 物資列表 > 檢視時，志工電話/Email 顯示為 `NO_ACCESS_PERMISSION` 時沒有顯示正確的權限提示。
+
+#### 修正內容
+
+**檔案**: `src/components/admin/SupplyRequestViewModal.jsx`
+
+新增三種狀態處理：
+
+| 後端回傳值 | 前端顯示 | 說明 |
+|-----------|---------|------|
+| `'NO_ACCESS_PERMISSION'` | (需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊) | 有填但無權限 |
+| `'0912-345-678'` | 0912-345-678 | 有值且有權限 |
+| `null` 或 `''` | 未提供 | 使用者沒填 |
+
+```jsx
+{(() => {
+  // 檢查是否為 NO_ACCESS_PERMISSION
+  if (volunteer.volunteer_phone === 'NO_ACCESS_PERMISSION') {
+    return (
+      <span className="text-gray-400 italic text-xs flex items-center gap-1">
+        <EyeOff className="w-3 h-3" />
+        (需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)
+      </span>
+    );
+  }
+  // 有值且有權限
+  if (volunteer.volunteer_phone && typeof volunteer.volunteer_phone === 'string' && volunteer.volunteer_phone.trim() !== '') {
+    return <span className="text-gray-700">{volunteer.volunteer_phone}</span>;
+  }
+  // null 或空字串：使用者沒填電話
+  return <span className="text-gray-400 italic text-xs">未提供</span>;
+})()}
+```
+
+### 4. 小幅重構
+
+**檔案**: `src/components/admin/SupplyDonationViewModal.jsx`
+
+移除重複顯示的網格建立者資訊區塊。
+
+---
+
+## 📊 最終統計與上游同步狀態
+
+### 與上游同步狀態
+
+```bash
+上游版本: 84e2965 (Merge pull request #98 from champsing/expiration)
+當前分支: merged/upstream-integration-20251006
+備份分支: myfork-final-20251007
+同步狀態: ✅ Already up to date (無衝突)
+```
+
+### 總體變更統計
+
+```
+總修改: 81 檔案
+新增程式碼: +23,309 行
+刪除程式碼: -1,263 行
+淨增加: +22,046 行
+
+主要新增功能:
+  1. 完整 RBAC 權限管理系統
+  2. 管理後台 (20 個權限項目)
+  3. 隱私保護機制（含視角切換支援）
+  4. 審計日誌系統
+  5. CSV 匯入/匯出功能
+  6. 黑名單功能
+  7. 志工電話權限控制
+  8. 志工中心編輯按鈕權限控制
+  9. 視角切換權限檢查修正
+  10. 物資檢視聯絡資訊顯示優化
 ```
 
 ---
 
 **最後更新**: 2025-10-07
-**功能狀態**: ✅ 後端與前端實作完成，待測試
+**功能狀態**: ✅ 所有功能實作完成並修正
 **上游同步**: ✅ 已與 upstream/main@84e2965 同步，無衝突
-**總變更**: 80 檔案, +21,312/-1,263 行
-**備份分支**: myfork-volunteer-permission-20251007
+**總變更**: 81 檔案, +23,309/-1,263 行
+**備份分支**: myfork-final-20251007
