@@ -22,6 +22,6 @@ export function formatCreatedDate(createdTimestamp) {
   else return createdDate.split("2025/")[1] + " " + createdTime;
 }
 
-export const updateLocalStorage = (key, value) => { window.localStorage.setItem(key, value); }
+export const updateLocalStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
 export const getLocalStorage = (key) => JSON.parse(window.localStorage.getItem(key));
-export const deleteLocalStorage = (key) => {  window.localStorage.removeItem(key);  }
+export const deleteLocalStorage = (key) => window.localStorage.removeItem(key);
