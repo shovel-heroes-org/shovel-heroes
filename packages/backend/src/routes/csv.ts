@@ -3,6 +3,7 @@ import { requirePermission } from '../middlewares/PermissionMiddleware.js';
 import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 import { createAdminAuditLog } from '../lib/audit-logger.js';
+import crypto from 'crypto';
 
 /**
  * 移除 BOM (Byte Order Mark) 字元
@@ -249,7 +250,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           areaId = areas[0].id;
         } else {
           // Create new disaster area
-          const newAreaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const newAreaId = `area_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
           await app.db.query(
             `INSERT INTO disaster_areas (id, name, center_lat, center_lng, status)
              VALUES ($1, $2, $3, $4, 'active')`,
@@ -259,7 +260,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // Create grid
-        const gridId = `grid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const gridId = `grid_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO grids (
             id, code, grid_type, disaster_area_id, volunteer_needed,
@@ -447,7 +448,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // Create disaster area
-        const areaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const areaId = `area_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO disaster_areas (
             id, name, county, township, description, center_lat, center_lng, status
@@ -639,7 +640,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           }
         }
 
-        const regId = `reg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const regId = `reg_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO volunteer_registrations (
             id, grid_id, volunteer_name, volunteer_phone, volunteer_email, available_time, status
@@ -1136,7 +1137,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // 創建新記錄（使用 CSV 中的 ID 或生成新的，包含 name 欄位用於向後兼容）
-        const donationId = recordId || `donation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const donationId = recordId || `donation_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO supply_donations (
             id, grid_id, name, supply_name, quantity, unit,
@@ -1295,7 +1296,8 @@ export function registerCSVRoutes(app: FastifyInstance) {
           }
         }
 
-        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // 使用加密安全的隨機數生成 userId
+        const userId = `user_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO users (id, name, email, role) VALUES ($1, $2, $3, $4)`,
           [userId, name, email, role]
@@ -1708,7 +1710,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           }
         }
 
-        const announcementId = `announcement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const announcementId = `announcement_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO announcements (id, title, body, priority, status, created_at, updated_date)
            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
@@ -1854,7 +1856,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // 只有當不存在相同標題的公告時，才插入新記錄
-        const announcementId = `announcement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const announcementId = `announcement_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO announcements (
             id, title, body, content, category, is_pinned, external_links,
@@ -2207,7 +2209,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
           areaId = areas[0].id;
         } else {
           // 建立新的災區（標記為已刪除的災區）
-          const newAreaId = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const newAreaId = `area_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
           await app.db.query(
             `INSERT INTO disaster_areas (id, name, center_lat, center_lng, status, deleted_at)
              VALUES ($1, $2, $3, $4, 'deleted', NOW())`,
@@ -2217,7 +2219,7 @@ export function registerCSVRoutes(app: FastifyInstance) {
         }
 
         // 插入新的垃圾桶網格
-        const gridId = `grid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const gridId = `grid_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         await app.db.query(
           `INSERT INTO grids (
             id, code, grid_type, disaster_area_id, volunteer_needed, volunteer_registered,
