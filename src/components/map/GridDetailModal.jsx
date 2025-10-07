@@ -22,21 +22,20 @@ import {
   PackagePlus, Send, Info,
   CalendarClock
 } from "lucide-react";
-import { formatCreatedDate } from "@/lib/utils";
+import { formatCreatedDate, getLocalStorage, updateLocalStorage, deleteLocalStorage } from "@/lib/utils";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info", onTabChange }) {
-  const updateLocalStorage = (targetFormName, targetForm) => 
-    { window.localStorage.setItem(targetFormName + "-" + grid.id, JSON.stringify(targetForm)); }
+  const updateLSGrid = (targetFormName, targetForm) => updateLocalStorage(targetFormName + "-" + grid.id, JSON.stringify(targetForm));
 
-  const getLocalStorage = (targetFormName) => JSON.parse(window.localStorage.getItem(targetFormName + "-" + grid.id));
-  const deleteLocalStorage = (targetFormName) => {  window.localStorage.removeItem(targetFormName + "-" + grid.id);  }
+  const getLSGrid = (targetFormName) => getLocalStorage(targetFormName + "-" + grid.id);
+  const deleteLSGrid = (targetFormName) => deleteLocalStorage(targetFormName + "-" + grid.id);
 
   // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
   if (!Array.isArray(grid.supplies_needed)) {
     grid = { ...grid, supplies_needed: [] };
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [volunteerForm, setVolunteerForm] = useState(getLocalStorage("volunteer", grid.id) || {
+  const [volunteerForm, setVolunteerForm] = useState(getLSGrid("volunteer", grid.id) || {
     volunteer_name: "",
     volunteer_phone: "",
     volunteer_email: "",
@@ -45,7 +44,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     equipment: "",
     notes: ""
   });
-  const [supplyForm, setSupplyForm] = useState(getLocalStorage("supply", grid.id) || {
+  const [supplyForm, setSupplyForm] = useState(getLSGrid("supply", grid.id) || {
     donor_name: "",
     donor_phone: "",
     donor_email: "",
@@ -56,7 +55,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     delivery_time: "",
     notes: ""
   });
-  const [discussionForm, setDiscussionForm] = useState(getLocalStorage("discussion", grid.id) || {
+  const [discussionForm, setDiscussionForm] = useState(getLSGrid("discussion", grid.id) || {
     author_name: "",
     message: ""
   });
@@ -183,7 +182,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
       });
       onUpdate();
       setActiveTab("info");
-      deleteLocalStorage("volunteer")
+      deleteLSGrid("volunteer")
     } catch (error) {
       console.error('Failed to register volunteer:', error);
       alert('報名失敗，請稍後再試。');
@@ -243,7 +242,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
       });
       onUpdate(); 
       setActiveTab("info");
-      deleteLocalStorage("supply")
+      deleteLSGrid("supply")
     } catch (error) {
       console.error('Failed to register supply:', error);
       alert('捐贈失敗，請稍後再試。');
@@ -281,7 +280,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         created_date: d.created_date || d.created_at || d.createdAt || d.created_at_date || null
       })) : [];
       setDiscussions(mapped);
-      deleteLocalStorage("discussion")
+      deleteLSGrid("discussion")
     } catch (error) {
       console.error('Failed to post discussion:', error);
       alert('發送訊息失敗，請稍後再試。');
@@ -292,17 +291,17 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
   const updateVolunteerForm = (newForm) => {  
     setVolunteerForm(newForm)
-    updateLocalStorage("volunteer", newForm)
+    updateLSGrid("volunteer", newForm)
   }
 
   const updateSupplyForm = (newForm) => {  
     setSupplyForm(newForm)
-    updateLocalStorage("supply", newForm)
+    updateLSGrid("supply", newForm)
   }
 
   const updateDiscussionForm = (newForm) => {  
     setDiscussionForm(newForm)
-    updateLocalStorage("discussion", newForm)
+    updateLSGrid("discussion", newForm)
   }
 
   return (
