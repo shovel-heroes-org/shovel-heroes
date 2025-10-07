@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { requireManagePermission } from '../middlewares/PermissionMiddleware.js';
+import { requirePermission, requireManagePermission } from '../middlewares/PermissionMiddleware.js';
 import { createAdminAuditLogFromRequest, AuditActionType, AuditResourceType } from '../lib/audit-logger.js';
 
 interface RolePermission {
@@ -27,9 +27,9 @@ interface UpdatePermissionBody {
 }
 
 export default async function permissionsRoutes(app: FastifyInstance) {
-  // 取得所有權限設定
+  // 取得所有權限設定 - 只需要檢視權限
   app.get('/api/permissions', {
-    preHandler: requireManagePermission('role_permissions')
+    preHandler: requirePermission('role_permissions', 'view')
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { rows } = await app.db.query(`
@@ -56,11 +56,11 @@ export default async function permissionsRoutes(app: FastifyInstance) {
     }
   });
 
-  // 取得特定角色的權限設定
+  // 取得特定角色的權限設定 - 只需要檢視權限
   app.get<{
     Params: { role: string }
   }>('/api/permissions/role/:role', {
-    preHandler: requireManagePermission('role_permissions')
+    preHandler: requirePermission('role_permissions', 'view')
   }, async (request, reply) => {
     try {
       const { role } = request.params;
@@ -81,9 +81,9 @@ export default async function permissionsRoutes(app: FastifyInstance) {
     }
   });
 
-  // 取得權限分類列表
+  // 取得權限分類列表 - 只需要檢視權限
   app.get('/api/permissions/categories', {
-    preHandler: requireManagePermission('role_permissions')
+    preHandler: requirePermission('role_permissions', 'view')
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { rows } = await app.db.query(`
@@ -102,12 +102,12 @@ export default async function permissionsRoutes(app: FastifyInstance) {
     }
   });
 
-  // 更新單一權限設定
+  // 更新單一權限設定 - 需要編輯權限（用於編輯權限項目名稱和說明）
   app.patch<{
     Params: { id: string },
     Body: UpdatePermissionBody
   }>('/api/permissions/:id', {
-    preHandler: requireManagePermission('role_permissions')
+    preHandler: requirePermission('role_permissions', 'edit')
   }, async (request, reply) => {
     try {
       const { id } = request.params;

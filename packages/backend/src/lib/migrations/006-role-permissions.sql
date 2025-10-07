@@ -141,6 +141,14 @@ ON CONFLICT (role, permission_key) DO UPDATE SET
   permission_name = '檢視志工聯絡資訊', permission_category = '隱私管理',
   description = '訪客無法檢視志工聯絡資訊';
 
+-- 權限設定
+INSERT INTO role_permissions (role, permission_key, permission_name, permission_category, can_view, can_create, can_edit, can_delete, can_manage, description)
+VALUES ('guest', 'role_permissions', '權限設定', '系統管理', 0, 0, 0, 0, 0, '無權限設定管理權限')
+ON CONFLICT (role, permission_key) DO UPDATE SET
+  can_view = 0, can_create = 0, can_edit = 0, can_delete = 0, can_manage = 0,
+  permission_name = '權限設定', permission_category = '系統管理',
+  description = '無權限設定管理權限';
+
 
 -- ========================================
 -- 一般使用者（user）權限
@@ -574,11 +582,11 @@ ON CONFLICT (role, permission_key) DO UPDATE SET
 
 -- 權限設定
 INSERT INTO role_permissions (role, permission_key, permission_name, permission_category, can_view, can_create, can_edit, can_delete, can_manage, description)
-VALUES ('admin', 'role_permissions', '權限設定', '系統管理', 1, 0, 0, 0, 0, '可檢視和部分編輯權限設定')
+VALUES ('admin', 'role_permissions', '權限設定', '系統管理', 1, 0, 1, 0, 1, '可檢視和管理權限設定')
 ON CONFLICT (role, permission_key) DO UPDATE SET
-  can_view = 1, can_create = 0, can_edit = 0, can_delete = 0, can_manage = 0,
+  can_view = 1, can_create = 0, can_edit = 1, can_delete = 0, can_manage = 1,
   permission_name = '權限設定', permission_category = '系統管理',
-  description = '可檢視和部分編輯權限設定';
+  description = '可檢視和管理權限設定';
 
 -- 使用者管理
 INSERT INTO role_permissions (role, permission_key, permission_name, permission_category, can_view, can_create, can_edit, can_delete, can_manage, description)

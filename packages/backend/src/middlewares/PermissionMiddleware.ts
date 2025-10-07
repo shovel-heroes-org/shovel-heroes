@@ -27,7 +27,9 @@ export function requirePermission(
     }
 
     const user = (request as any).user;
-    const userRole = user.role || 'guest';
+    // 支援視角切換：優先使用 X-Acting-Role header，否則使用真實角色
+    const actingRoleHeader = (request.headers['x-acting-role'] || (request.headers as any)['X-Acting-Role']) as string | undefined;
+    const userRole = actingRoleHeader || user.role || 'guest';
 
     // 取得 Fastify app 實例以訪問資料庫
     const app = request.server as any;
@@ -143,7 +145,9 @@ export function requireAnyPermission(
     }
 
     const user = (request as any).user;
-    const userRole = user.role || 'guest';
+    // 支援視角切換：優先使用 X-Acting-Role header，否則使用真實角色
+    const actingRoleHeader = (request.headers['x-acting-role'] || (request.headers as any)['X-Acting-Role']) as string | undefined;
+    const userRole = actingRoleHeader || user.role || 'guest';
     const app = request.server as any;
 
     if (!app.hasDecorator('db')) {

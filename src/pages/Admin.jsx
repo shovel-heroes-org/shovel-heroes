@@ -2154,31 +2154,6 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    {/* 建立用戶按鈕（目前功能未實作，反灰禁用） */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={true}
-                      className="opacity-50 cursor-not-allowed"
-                      title="此功能尚未開放"
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      建立用戶
-                    </Button>
-                    {/* 刪除用戶按鈕（目前功能未實作，反灰禁用） */}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={true}
-                      className="opacity-50 cursor-not-allowed"
-                      title="此功能尚未開放"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      刪除用戶
-                    </Button>
-                    {canManage('users') && (
-                      <UserImportExportButtons onImportSuccess={loadData} showMessage={showMessage} />
-                    )}
                     {canManage('blacklist') && selectedUsers.length > 0 && (
                       <Button
                         variant="destructive"
