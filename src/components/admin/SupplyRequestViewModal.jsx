@@ -288,36 +288,51 @@ export default function SupplyRequestViewModal({ grid, onClose }) {
                           </div>
 
                           {/* 志工聯絡資訊 - 根據權限顯示 */}
-                          {(volunteer.volunteer_phone || volunteer.volunteer_email) && (
-                            <div className="mt-3 pt-3 border-t border-gray-200 space-y-1">
-                              {volunteer.volunteer_phone && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Phone className="w-4 h-4 text-gray-400" />
-                                  {canViewVolunteerContact ? (
-                                    <span className="text-gray-700">{volunteer.volunteer_phone}</span>
-                                  ) : (
+                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-1">
+                            {/* 電話顯示邏輯 */}
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="w-4 h-4 text-gray-400" />
+                              {(() => {
+                                // 檢查是否為 NO_ACCESS_PERMISSION
+                                if (volunteer.volunteer_phone === 'NO_ACCESS_PERMISSION') {
+                                  return (
                                     <span className="text-gray-400 italic text-xs flex items-center gap-1">
                                       <EyeOff className="w-3 h-3" />
-                                      (需要相關權限查看)
+                                      (需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)
                                     </span>
-                                  )}
-                                </div>
-                              )}
-                              {volunteer.volunteer_email && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Mail className="w-4 h-4 text-gray-400" />
-                                  {canViewVolunteerContact ? (
-                                    <span className="text-gray-700">{volunteer.volunteer_email}</span>
-                                  ) : (
-                                    <span className="text-gray-400 italic text-xs flex items-center gap-1">
-                                      <EyeOff className="w-3 h-3" />
-                                      (需要相關權限查看)
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                                  );
+                                }
+                                // 有值且有權限
+                                if (volunteer.volunteer_phone && typeof volunteer.volunteer_phone === 'string' && volunteer.volunteer_phone.trim() !== '') {
+                                  return <span className="text-gray-700">{volunteer.volunteer_phone}</span>;
+                                }
+                                // null 或空字串：使用者沒填電話
+                                return <span className="text-gray-400 italic text-xs">未提供</span>;
+                              })()}
                             </div>
-                          )}
+
+                            {/* Email 顯示邏輯 */}
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="w-4 h-4 text-gray-400" />
+                              {(() => {
+                                // 檢查是否為 NO_ACCESS_PERMISSION
+                                if (volunteer.volunteer_email === 'NO_ACCESS_PERMISSION') {
+                                  return (
+                                    <span className="text-gray-400 italic text-xs flex items-center gap-1">
+                                      <EyeOff className="w-3 h-3" />
+                                      (需要隱私權限且為管理員/相關格主/志工本人才能查看聯絡資訊)
+                                    </span>
+                                  );
+                                }
+                                // 有值且有權限
+                                if (volunteer.volunteer_email && typeof volunteer.volunteer_email === 'string' && volunteer.volunteer_email.trim() !== '') {
+                                  return <span className="text-gray-700">{volunteer.volunteer_email}</span>;
+                                }
+                                // null 或空字串：使用者沒填 email
+                                return <span className="text-gray-400 italic text-xs">未提供</span>;
+                              })()}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
