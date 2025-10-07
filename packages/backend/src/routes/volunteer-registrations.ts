@@ -52,11 +52,12 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     );
     const hasContactPermission = contactPermRows.length > 0 && (contactPermRows[0].can_view === 1 || contactPermRows[0].can_view === true || contactPermRows[0].can_view === '1');
 
-    // 取得 volunteer_registrations 的編輯和管理權限
+    // 取得 volunteer_registrations 的建立、編輯和管理權限
     const { rows: editPermRows } = await app.db.query(
-      `SELECT can_edit, can_manage FROM role_permissions WHERE role = $1 AND permission_key = 'volunteer_registrations'`,
+      `SELECT can_create, can_edit, can_manage FROM role_permissions WHERE role = $1 AND permission_key = 'volunteer_registrations'`,
       [actingRole]
     );
+    const hasCreatePermission = editPermRows.length > 0 && (editPermRows[0].can_create === 1 || editPermRows[0].can_create === true || editPermRows[0].can_create === '1');
     const hasEditPermission = editPermRows.length > 0 && (editPermRows[0].can_edit === 1 || editPermRows[0].can_edit === true || editPermRows[0].can_edit === '1');
     const hasManagePermission = editPermRows.length > 0 && (editPermRows[0].can_manage === 1 || editPermRows[0].can_manage === true || editPermRows[0].can_manage === '1');
 
@@ -107,8 +108,9 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
       return {
         data: filtered,
         can_view_phone: canViewPhones,
-        can_edit: hasEditPermission,
-        can_manage: hasManagePermission,
+        can_create: hasCreatePermission,  // 建立報名的權限
+        can_edit: hasEditPermission,      // 編輯自己報名的權限
+        can_manage: hasManagePermission,  // 編輯別人報名的權限
         user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
       };
     }
@@ -140,8 +142,9 @@ export function registerVolunteerRegistrationRoutes(app: FastifyInstance) {
     return {
       data: filtered,
       can_view_phone: canViewPhones,
-      can_edit: hasEditPermission,
-      can_manage: hasManagePermission,
+      can_create: hasCreatePermission,  // 建立報名的權限
+      can_edit: hasEditPermission,      // 編輯自己報名的權限
+      can_manage: hasManagePermission,  // 編輯別人報名的權限
       user_id: user?.id  // 前端需要知道當前用戶 ID 來判斷 isSelf
     };
   });
