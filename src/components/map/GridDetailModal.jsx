@@ -25,7 +25,7 @@ import {
 import { formatCreatedDate, getLocalStorage, updateLocalStorage, deleteLocalStorage } from "@/lib/utils";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info", onTabChange }) {
-  const updateLSGrid = (targetFormName, targetForm) => updateLocalStorage(targetFormName + "-" + grid.id, JSON.stringify(targetForm));
+  const updateLSGrid = (targetFormName, targetForm) => updateLocalStorage(targetFormName + "-" + grid.id, targetForm);
 
   const getLSGrid = (targetFormName) => getLocalStorage(targetFormName + "-" + grid.id);
   const deleteLSGrid = (targetFormName) => deleteLocalStorage(targetFormName + "-" + grid.id);
