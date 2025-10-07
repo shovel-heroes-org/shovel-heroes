@@ -366,17 +366,6 @@ export default function SupplyDonationViewModal({ donation, grid, onClose }) {
                         </div>
                       </div>
                     )}
-
-                    {/* 網格建立者 */}
-                    {grid.created_by && (
-                      <div className="flex items-start gap-3">
-                        <User className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <div className="text-sm text-gray-600">網格建立者</div>
-                          <div className="font-medium">{grid.created_by}</div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
