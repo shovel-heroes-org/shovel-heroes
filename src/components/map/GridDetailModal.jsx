@@ -28,8 +28,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   const updateLocalStorage = (targetFormName, targetForm) => 
     { window.localStorage.setItem(targetFormName + "-" + grid.id, JSON.stringify(targetForm)); }
 
-  const getLocalStorage = (targetFormName) => JSON.parse(window.localStorage.getItem(targetFormName+ "-" + grid.id));
-  const deleteLocalStorage = (targetFormName) => {  window.localStorage.removeItem(targetFormName+ "-" + grid.id);  }
+  const getLocalStorage = (targetFormName) => JSON.parse(window.localStorage.getItem(targetFormName + "-" + grid.id));
+  const deleteLocalStorage = (targetFormName) => {  window.localStorage.removeItem(targetFormName + "-" + grid.id);  }
 
   // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
   if (!Array.isArray(grid.supplies_needed)) {
