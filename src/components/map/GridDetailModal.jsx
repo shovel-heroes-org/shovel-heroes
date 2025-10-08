@@ -35,7 +35,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     grid = { ...grid, supplies_needed: [] };
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [volunteerForm, setVolunteerForm] = useState(getLSGrid("volunteer", grid.id) || {
+  const [volunteerForm, setVolunteerForm] = useState(getLSGrid("volunteer") || {
     volunteer_name: "",
     volunteer_phone: "",
     volunteer_email: "",
@@ -44,7 +44,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     equipment: "",
     notes: ""
   });
-  const [supplyForm, setSupplyForm] = useState(getLSGrid("supply", grid.id) || {
+  const [supplyForm, setSupplyForm] = useState(getLSGrid("supply") || {
     donor_name: "",
     donor_phone: "",
     donor_email: "",
@@ -55,7 +55,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     delivery_time: "",
     notes: ""
   });
-  const [discussionForm, setDiscussionForm] = useState(getLSGrid("discussion", grid.id) || {
+  const [discussionForm, setDiscussionForm] = useState(getLSGrid("discussion") || {
     author_name: "",
     message: ""
   });

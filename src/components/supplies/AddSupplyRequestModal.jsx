@@ -45,8 +45,6 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
   };
 
   const handleGridChange = (value) => {
-        console.log(value);
-
     setSelectedGridId(value);
     updateLocalStorage("NewSupplyRequest", { grid: value, supplies: supplies });
   };

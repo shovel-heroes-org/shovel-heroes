@@ -200,17 +200,20 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    let newForm;
     setFormData((prev) => {
-      newForm = { ...prev, [name]: value };
+      const newForm = { ...prev, [name]: value };
+      updateLocalStorage("NewGrid", newForm);
       return newForm;
     });
-    updateLocalStorage("NewGrid", newForm);
   };
 
   const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    updateLocalStorage({ ...prev, [name]: value });
+    setFormData((prev) => {
+      const newForm = { ...prev, [name]: value };
+      updateLocalStorage("NewGrid", newForm);
+      return newForm;
+    });
+  
     if (name === 'disaster_area_id') {
       const area = disasterAreas.find(a => a.id === value);
       if (area) {

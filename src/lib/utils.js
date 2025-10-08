@@ -23,5 +23,8 @@ export function formatCreatedDate(createdTimestamp) {
 }
 
 export const updateLocalStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
-export const getLocalStorage = (key) => JSON.parse(window.localStorage.getItem(key));
+export const getLocalStorage = (key) => {
+  try { return JSON.parse(window.localStorage.getItem(key));}
+  catch (e) { return null; }
+}
 export const deleteLocalStorage = (key) => window.localStorage.removeItem(key);
