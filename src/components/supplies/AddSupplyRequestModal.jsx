@@ -17,9 +17,9 @@ import { AskForLoginModal } from '../login/AskForLoginModal';
 import { getLocalStorage, updateLocalStorage } from '@/lib/utils';
 
 export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grids }) {
-  const [selectedGridId, setSelectedGridId] = useState(getLocalStorage("NewSupplyRequest") ? getLocalStorage("NewSupplyRequest").grid : '');
-  const [supplies, setSupplies] = useState(getLocalStorage("NewSupplyRequest") ? getLocalStorage("NewSupplyRequest").supplies : [{ name: '', quantity: '', unit: '' }]);
-  const [submitting, setSubmitting] = useState(false);
+  const newSupplyRequestLS = getLocalStorage("NewSupplyRequest");
+  const [selectedGridId, setSelectedGridId] = useState(newSupplyRequestLS ? newSupplyRequestLS.grid : '');
+  const [supplies, setSupplies] = useState(newSupplyRequestLS ? newSupplyRequestLS.supplies : [{ name: '', quantity: '', unit: '' }]);  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [user, setUser] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);

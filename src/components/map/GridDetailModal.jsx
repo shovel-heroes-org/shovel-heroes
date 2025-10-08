@@ -290,18 +290,18 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
   };
 
   const updateVolunteerForm = (newForm) => {  
-    setVolunteerForm(newForm)
-    updateLSGrid("volunteer", newForm)
+    setVolunteerForm(newForm);
+    updateLSGrid("volunteer", newForm);
   }
 
   const updateSupplyForm = (newForm) => {  
-    setSupplyForm(newForm)
-    updateLSGrid("supply", newForm)
+    setSupplyForm(newForm);
+    updateLSGrid("supply", newForm);
   }
 
   const updateDiscussionForm = (newForm) => {  
-    setDiscussionForm(newForm)
-    updateLSGrid("discussion", newForm)
+    setDiscussionForm(newForm);
+    updateLSGrid("discussion", newForm);
   }
 
   return (
