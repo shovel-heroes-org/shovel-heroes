@@ -31,6 +31,7 @@ export function AuthProvider({ children }) {
         if (storedGuest && u) {
           setGuestMode(true);
           setActingRole('guest');
+          localStorage.setItem('sh-acting-role', 'guest');
         }
         // super_admin 可以切換到所有視角
         else if (u && u.role === 'super_admin') {
@@ -38,8 +39,10 @@ export function AuthProvider({ children }) {
           if (stored && validRoles.includes(stored)) {
             setActingRole(stored);
             setGuestMode(stored === 'guest');
+            localStorage.setItem('sh-acting-role', stored);
           } else {
             setActingRole('super_admin');
+            localStorage.setItem('sh-acting-role', 'super_admin');
           }
         }
         // admin 只能切換 user 和 admin
@@ -47,8 +50,10 @@ export function AuthProvider({ children }) {
           if (stored && ['admin', 'user', 'guest'].includes(stored)) {
             setActingRole(stored);
             setGuestMode(stored === 'guest');
+            localStorage.setItem('sh-acting-role', stored);
           } else {
             setActingRole('admin');
+            localStorage.setItem('sh-acting-role', 'admin');
           }
         }
         // grid_manager 可以切換 user 和 grid_manager
@@ -56,11 +61,14 @@ export function AuthProvider({ children }) {
           if (stored && ['grid_manager', 'user', 'guest'].includes(stored)) {
             setActingRole(stored);
             setGuestMode(stored === 'guest');
+            localStorage.setItem('sh-acting-role', stored);
           } else {
             setActingRole('grid_manager');
+            localStorage.setItem('sh-acting-role', 'grid_manager');
           }
         } else {
           setActingRole('user');
+          localStorage.setItem('sh-acting-role', 'user');
         }
 
         // 清除角色切換標記

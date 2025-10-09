@@ -259,16 +259,18 @@ export function registerHttpAuditLogRoutes(app: FastifyInstance) {
 
       let deleteQuery = 'DELETE FROM audit_logs';
       const params: any[] = [];
+      let result: any;
 
       // 如果指定天數，只刪除 N 天前的資料
       if (query.days) {
         const days = parseInt(query.days);
-        deleteQuery += ' WHERE created_at < NOW() - INTERVAL \'$1 days\'';
-        params.push(days);
+        deleteQuery += ` WHERE created_at < NOW() - INTERVAL '${days} days'`;
+        result = await app.db.query(deleteQuery);
+      } else {
+        result = await app.db.query(deleteQuery);
       }
 
-      const { rows } = await app.db.query(deleteQuery, params);
-      const deletedCount = rows.length;
+      const deletedCount = (result as any).rowCount || 0;
 
       // 記錄清除操作到管理日誌
       await createAdminAuditLogFromRequest(app, req, {

@@ -173,14 +173,14 @@ export default function VolunteersPage() {
         actingRole
       };
 
-      console.log('🔍 [Volunteers] 權限資訊:', {
-        canEditSelf: canEdit,
-        canEditOthers: canManage,
-        canCreate: volunteersResponse.can_create,
-        currentUserId: userId,
-        actingRole,
-        totalRegistrations: finalRegs.length
-      });
+      // console.log('🔍 [Volunteers] 權限資訊:', {
+      //   canEditSelf: canEdit,
+      //   canEditOthers: canManage,
+      //   canCreate: volunteersResponse.can_create,
+      //   currentUserId: userId,
+      //   actingRole,
+      //   totalRegistrations: finalRegs.length
+      // });
 
       setStats({
         total: finalRegs.length,

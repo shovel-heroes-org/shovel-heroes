@@ -1025,6 +1025,14 @@ export default function SupplyManagement() {
                     <AlertTriangle className="w-4 h-4 mr-2" />
                     急需物資
                   </Button>
+                  <Button
+                    size="sm"
+                    variant={showOnlyMyNeeds ? 'default' : 'outline'}
+                    onClick={() => setShowOnlyMyNeeds(!showOnlyMyNeeds)}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    我的物資
+                  </Button>
                 </div>
 
                 <div className="flex gap-2">
@@ -1149,13 +1157,6 @@ export default function SupplyManagement() {
                       className="pl-10"
                     />
                   </div>
-                  <Button
-                    size="sm"
-                    variant={showOnlyMyNeeds ? 'default' : 'outline'}
-                    onClick={() => setShowOnlyMyNeeds(!showOnlyMyNeeds)}
-                  >
-                    我的物資
-                  </Button>
                 </div>
               )}
 
@@ -1385,6 +1386,14 @@ export default function SupplyManagement() {
                       垃圾桶 ({trashDonations.length})
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant={showOnlyMyDonations ? 'default' : 'outline'}
+                    onClick={() => setShowOnlyMyDonations(!showOnlyMyDonations)}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    我的捐贈
+                  </Button>
                 </div>
 
                 {/* 批次操作按鈕 */}
@@ -1495,13 +1504,6 @@ export default function SupplyManagement() {
                       className="pl-10"
                     />
                   </div>
-                  <Button
-                    size="sm"
-                    variant={showOnlyMyDonations ? 'default' : 'outline'}
-                    onClick={() => setShowOnlyMyDonations(!showOnlyMyDonations)}
-                  >
-                    我的捐贈
-                  </Button>
                 </div>
               )}
 

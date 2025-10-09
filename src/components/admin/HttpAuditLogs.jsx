@@ -65,7 +65,7 @@ export default function HttpAuditLogs() {
 
   // 清除確認對話框
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [clearDays, setClearDays] = useState('30');
+  const [clearDays, setClearDays] = useState('all'); // 改為 'all' 而非空字串
 
   // 敏感資訊顯示開關
   const [showIpAddresses, setShowIpAddresses] = useState(false);
@@ -132,7 +132,8 @@ export default function HttpAuditLogs() {
   // 清除日誌
   const handleClear = async () => {
     try {
-      const days = clearDays ? parseInt(clearDays) : null;
+      // 如果是 'all' 則傳 null,否則傳數字
+      const days = clearDays === 'all' ? null : parseInt(clearDays);
       await clearHttpAuditLogs(days);
       setShowClearDialog(false);
       alert(days ? `已清除 ${days} 天前的日誌` : '已清除所有日誌');
@@ -520,7 +521,7 @@ export default function HttpAuditLogs() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認清除日誌</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription asChild>
               <div className="space-y-4">
                 <p>此操作無法復原，請謹慎操作。</p>
                 <div>
@@ -532,7 +533,7 @@ export default function HttpAuditLogs() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">清除所有日誌</SelectItem>
+                      <SelectItem value="all">清除所有日誌</SelectItem>
                       <SelectItem value="7">清除 7 天前的日誌</SelectItem>
                       <SelectItem value="30">清除 30 天前的日誌</SelectItem>
                       <SelectItem value="90">清除 90 天前的日誌</SelectItem>

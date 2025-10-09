@@ -331,8 +331,8 @@ export default function AdminPage() {
 
       }
 
-      // 載入垃圾桶網格 - 所有登入用戶都可以查看（但會根據權限過濾）
-      if (user) {
+      // 載入垃圾桶網格 - 需要 trash_grids 的 view 權限
+      if (user && canView('trash_grids')) {
         setTrashGridsLoading(true);
         try {
           const trashResponse = await getTrashGrids();
@@ -768,18 +768,21 @@ export default function AdminPage() {
   const handleClearAuditLogs = async () => {
     if (!window.confirm('確定要清除所有審計日誌嗎？\n\n此操作無法復原！')) return;
     try {
-      const response = await fetch('/api/admin/audit-logs/clear', {
+      // 使用 http client 自動處理 API_BASE 和 headers
+      await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:8787'}/admin/audit-logs/clear`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('sh_token') ? { 'Authorization': `Bearer ${localStorage.getItem('sh_token')}` } : {})
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to clear audit logs');
-
-      alert('審計日誌已清除！');
+      showMessage('審計日誌已清除！', 'success');
       loadAuditLogs(0); // 重新載入
     } catch (error) {
       console.error('Clear failed:', error);
-      alert('清除失敗，請稍後再試。');
+      showMessage('清除失敗，請稍後再試。', 'error');
     }
   };
 
