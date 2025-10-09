@@ -19,6 +19,7 @@ import { User } from '@/api/entities';
 import "leaflet/dist/leaflet.css";
 import { Loader2, Info } from 'lucide-react';
 import { AskForLoginModal } from '../login/AskForLoginModal';
+import { deleteLocalStorage, getLocalStorage, updateLocalStorage } from '@/lib/utils';
 
 const LocationPicker = ({ position, setPosition }) => {
   const map = useMap();
@@ -60,7 +61,7 @@ const MapController = ({ center, zoom }) => {
 }
 
 export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(getLocalStorage("NewGrid") || {
     code: '',
     grid_type: 'manpower',
     disaster_area_id: '',
@@ -162,7 +163,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       );
       
       // Reset form data and errors when modal opens
-      setFormData({
+      setFormData(getLocalStorage("NewGrid") || {
         code: '',
         grid_type: 'manpower',
         disaster_area_id: defaultArea ? defaultArea.id : '',
@@ -199,11 +200,20 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const newForm = { ...prev, [name]: value };
+      updateLocalStorage("NewGrid", newForm);
+      return newForm;
+    });
   };
 
   const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const newForm = { ...prev, [name]: value };
+      updateLocalStorage("NewGrid", newForm);
+      return newForm;
+    });
+  
     if (name === 'disaster_area_id') {
       const area = disasterAreas.find(a => a.id === value);
       if (area) {
@@ -302,6 +312,7 @@ export default function AddGridModal({ isOpen, onClose, onSuccess, disasterAreas
       
       await Grid.create({ ...payload, __turnstile_token: turnstileToken });
       onSuccess();
+      deleteLocalStorage("NewGrid");
     } catch (err) {
       console.error('Failed to create grid:', err);
       setError('建立網格失敗，請稍後再試。');

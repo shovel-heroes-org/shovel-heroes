@@ -21,3 +21,13 @@ export function formatCreatedDate(createdTimestamp) {
   else if (createdDate == qiantian) return "前天 " + createdTime;
   else return createdDate.split("2025/")[1] + " " + createdTime;
 }
+
+export const updateLocalStorage = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
+export const getLocalStorage = (key) => {
+  try { return JSON.parse(window.localStorage.getItem(key)); }
+  catch (e) { 
+    console.error("Error getting or parsing localStorage item:", e); 
+    return null;
+  }
+}
+export const deleteLocalStorage = (key) => window.localStorage.removeItem(key);

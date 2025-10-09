@@ -14,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Grid, User } from '@/api/entities';
 import { Plus, Trash2 } from 'lucide-react';
 import { AskForLoginModal } from '../login/AskForLoginModal';
+import { getLocalStorage, updateLocalStorage } from '@/lib/utils';
 
 export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grids }) {
-  const [selectedGridId, setSelectedGridId] = useState('');
-  const [supplies, setSupplies] = useState([{ name: '', quantity: '', unit: '' }]);
-  const [submitting, setSubmitting] = useState(false);
+  const newSupplyRequestLS = getLocalStorage("NewSupplyRequest");
+  const [selectedGridId, setSelectedGridId] = useState(newSupplyRequestLS ? newSupplyRequestLS.grid : '');
+  const [supplies, setSupplies] = useState(newSupplyRequestLS ? newSupplyRequestLS.supplies : [{ name: '', quantity: '', unit: '' }]);  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [user, setUser] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -43,10 +44,16 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
     setSupplies(newSupplies);
   };
 
+  const handleGridChange = (value) => {
+    setSelectedGridId(value);
+    updateLocalStorage("NewSupplyRequest", { grid: value, supplies: supplies });
+  };
+
   const handleSupplyChange = (index, field, value) => {
     const newSupplies = [...supplies];
     newSupplies[index][field] = value;
     setSupplies(newSupplies);
+    updateLocalStorage("NewSupplyRequest", { grid: selectedGridId, supplies: newSupplies });
   };
 
   const handleSubmit = async (e) => {
@@ -104,7 +111,7 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
         <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div>
             <Label htmlFor="grid-select" className="mb-2 block">救援網格 *</Label>
-            <Select value={selectedGridId} onValueChange={setSelectedGridId}>
+            <Select value={selectedGridId} onValueChange={(value) => handleGridChange(value)}>
               <SelectTrigger id="grid-select">
                 <SelectValue placeholder="請選擇網格" />
               </SelectTrigger>

@@ -22,15 +22,20 @@ import {
   PackagePlus, Send, Info,
   CalendarClock
 } from "lucide-react";
-import { formatCreatedDate } from "@/lib/utils";
+import { formatCreatedDate, getLocalStorage, updateLocalStorage, deleteLocalStorage } from "@/lib/utils";
 
 export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = "info", onTabChange }) {
+  const updateLSGrid = (targetFormName, targetForm) => updateLocalStorage(targetFormName + "-" + grid.id, targetForm);
+
+  const getLSGrid = (targetFormName) => getLocalStorage(targetFormName + "-" + grid.id);
+  const deleteLSGrid = (targetFormName) => deleteLocalStorage(targetFormName + "-" + grid.id);
+
   // Normalize supplies_needed to an array to avoid runtime errors if backend returns null
   if (!Array.isArray(grid.supplies_needed)) {
     grid = { ...grid, supplies_needed: [] };
   }
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [volunteerForm, setVolunteerForm] = useState({
+  const [volunteerForm, setVolunteerForm] = useState(getLSGrid("volunteer") || {
     volunteer_name: "",
     volunteer_phone: "",
     volunteer_email: "",
@@ -39,7 +44,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     equipment: "",
     notes: ""
   });
-  const [supplyForm, setSupplyForm] = useState({
+  const [supplyForm, setSupplyForm] = useState(getLSGrid("supply") || {
     donor_name: "",
     donor_phone: "",
     donor_email: "",
@@ -50,7 +55,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
     delivery_time: "",
     notes: ""
   });
-  const [discussionForm, setDiscussionForm] = useState({
+  const [discussionForm, setDiscussionForm] = useState(getLSGrid("discussion") || {
     author_name: "",
     message: ""
   });
@@ -74,6 +79,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         if (currentUser) {
           setUser(currentUser);
           const displayName = currentUser.name || currentUser.full_name || currentUser.email || '使用者';
+
           setVolunteerForm(prev => ({
             ...prev,
             volunteer_name: displayName,
@@ -157,13 +163,14 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
 
     setSubmitting(true);
     try {
+      
       await VolunteerRegistration.create({
         ...volunteerForm,
         grid_id: grid.id,
         skills: volunteerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
         equipment: volunteerForm.equipment.split(',').map(s => s.trim()).filter(Boolean),
       });
-
+      
       setVolunteerForm({
         ...volunteerForm,
         // Preserve name/email if pre-filled by user, clear others
@@ -173,9 +180,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         equipment: "",
         notes: ""
       });
-
       onUpdate();
       setActiveTab("info");
+      deleteLSGrid("volunteer")
     } catch (error) {
       console.error('Failed to register volunteer:', error);
       alert('報名失敗，請稍後再試。');
@@ -202,7 +209,6 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
       // Find the selected supply to get its unit
       const selectedSupply = grid.supplies_needed.find(s => s.name === supplyForm.supply_name);
       const unit = selectedSupply ? selectedSupply.unit : "";
-
       // 1. Create the donation record
       await SupplyDonation.create({
         ...supplyForm,
@@ -234,9 +240,9 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         delivery_time: "",
         notes: ""
       });
-
       onUpdate(); 
-      setActiveTab("info"); 
+      setActiveTab("info");
+      deleteLSGrid("supply")
     } catch (error) {
       console.error('Failed to register supply:', error);
       alert('捐贈失敗，請稍後再試。');
@@ -274,6 +280,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
         created_date: d.created_date || d.created_at || d.createdAt || d.created_at_date || null
       })) : [];
       setDiscussions(mapped);
+      deleteLSGrid("discussion")
     } catch (error) {
       console.error('Failed to post discussion:', error);
       alert('發送訊息失敗，請稍後再試。');
@@ -281,6 +288,21 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
       setSubmitting(false);
     }
   };
+
+  const updateVolunteerForm = (newForm) => {  
+    setVolunteerForm(newForm);
+    updateLSGrid("volunteer", newForm);
+  }
+
+  const updateSupplyForm = (newForm) => {  
+    setSupplyForm(newForm);
+    updateLSGrid("supply", newForm);
+  }
+
+  const updateDiscussionForm = (newForm) => {  
+    setDiscussionForm(newForm);
+    updateLSGrid("discussion", newForm);
+  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -430,7 +452,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       <Input
                         id="volunteer_name"
                         value={volunteerForm.volunteer_name}
-                        onChange={(e) => setVolunteerForm({...volunteerForm, volunteer_name: e.target.value})}
+                        onChange={(e) => updateVolunteerForm({...volunteerForm, volunteer_name: e.target.value})}
                         required
                       />
                     </div>
@@ -439,7 +461,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       <Input
                         id="volunteer_phone"
                         value={volunteerForm.volunteer_phone}
-                        onChange={(e) => setVolunteerForm({...volunteerForm, volunteer_phone: e.target.value})}
+                        onChange={(e) => updateVolunteerForm({...volunteerForm, volunteer_phone: e.target.value})}
                       />
                       <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                         <Info className="w-3 h-3"/>
@@ -454,7 +476,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       id="available_time"
                       placeholder="例：2024/1/15 上午 9:00-12:00"
                       value={volunteerForm.available_time}
-                      onChange={(e) => setVolunteerForm({...volunteerForm, available_time: e.target.value})}
+                      onChange={(e) => updateVolunteerForm({...volunteerForm, available_time: e.target.value})}
                     />
                   </div>
 
@@ -464,7 +486,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       id="skills"
                       placeholder="例：重機械操作, 電工, 水電"
                       value={volunteerForm.skills}
-                      onChange={(e) => setVolunteerForm({...volunteerForm, skills: e.target.value})}
+                      onChange={(e) => updateVolunteerForm({...volunteerForm, skills: e.target.value})}
                     />
                   </div>
 
@@ -474,8 +496,8 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       id="equipment"
                       placeholder="例：鏟子, 水桶, 雨鞋"
                       value={volunteerForm.equipment}
-                      onChange={(e) => setVolunteerForm({...volunteerForm, equipment: e.target.value})}
-                    />
+                      onChange={(e) => updateVolunteerForm({...volunteerForm, equipment: e.target.value})}
+                   />
                   </div>
 
                   <div>
@@ -483,7 +505,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                     <Textarea
                       id="volunteer_notes"
                       value={volunteerForm.notes}
-                      onChange={(e) => setVolunteerForm({...volunteerForm, notes: e.target.value})}
+                      onChange={(e) => updateVolunteerForm({...volunteerForm, notes: e.target.value})}
                     />
                   </div>
 
@@ -581,7 +603,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         <Input
                           id="donor_name"
                           value={supplyForm.donor_name}
-                          onChange={(e) => setSupplyForm({...supplyForm, donor_name: e.target.value})}
+                          onChange={(e) => updateSupplyForm({...supplyForm, donor_name: e.target.value})}
                           required
                         />
                       </div>
@@ -590,7 +612,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         <Input
                           id="donor_phone"
                           value={supplyForm.donor_phone}
-                          onChange={(e) => setSupplyForm({...supplyForm, donor_phone: e.target.value})}
+                          onChange={(e) => updateSupplyForm({...supplyForm, donor_phone: e.target.value})}
                           required
                         />
                         <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
@@ -605,7 +627,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           <Label htmlFor="supply_name">物資名稱 *</Label>
                           <Select
                               value={supplyForm.supply_name}
-                              onValueChange={(value) => setSupplyForm({...supplyForm, supply_name: value})}
+                              onValueChange={(value) => updateSupplyForm({...supplyForm, supply_name: value})}
                               required
                           >
                               <SelectTrigger>
@@ -626,7 +648,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           id="quantity"
                           type="number"
                           value={supplyForm.quantity}
-                          onChange={(e) => setSupplyForm({...supplyForm, quantity: e.target.value})}
+                          onChange={(e) => updateSupplyForm({...supplyForm, quantity: e.target.value})}
                           required
                           min="1"
                         />
@@ -639,7 +661,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                         id="delivery_time"
                         placeholder="例：今日下午 3:00"
                         value={supplyForm.delivery_time}
-                        onChange={(e) => setSupplyForm({...supplyForm, delivery_time: e.target.value})}
+                        onChange={(e) => updateSupplyForm({...supplyForm, delivery_time: e.target.value})}
                       />
                     </div>
 
@@ -648,7 +670,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                       <Textarea
                         id="supply_notes"
                         value={supplyForm.notes}
-                        onChange={(e) => setSupplyForm({...supplyForm, notes: e.target.value})}
+                        onChange={(e) => updateSupplyForm({...supplyForm, notes: e.target.value})}
                       />
                     </div>
 
@@ -715,7 +737,7 @@ export default function GridDetailModal({ grid, onClose, onUpdate, defaultTab = 
                           id="message"
                           placeholder="分享現場狀況、提問或協調事項..."
                           value={discussionForm.message}
-                          onChange={(e) => setDiscussionForm({...discussionForm, message: e.target.value})}
+                          onChange={(e) => updateDiscussionForm({...discussionForm, message: e.target.value})}
                           required
                         />
                       </div>
