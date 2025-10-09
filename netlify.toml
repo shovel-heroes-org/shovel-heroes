@@ -1,25 +1,37 @@
 [build]
-  command = "npm run build"
+  base = "."
+  command = "npm install && npm run build && npm run build:api"
   publish = "dist"
+  functions = "netlify/functions"
 
-# Force SPA routing (also covered by _redirects but this is a safety net)
+# Netlify Functions 配置
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["pg-native", "encoding"]
+
+# 環境變數（在 Netlify Dashboard 設定）
+# DATABASE_URL - Prisma Postgres 連接字串
+# LINE_CHANNEL_ID - LINE Login Channel ID
+# LINE_CHANNEL_SECRET - LINE Login Channel Secret
+# COOKIE_SECRET - Cookie 加密密鑰
+
+# API 路由重寫：將所有 /api/* 請求轉發到 Netlify Function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# SPA 路由：所有其他請求返回 index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Example: API proxy (uncomment and adjust if you want to proxy backend)
-# [[redirects]]
-#   from = "/api/*"
-#   to = "https://your-api.example.com/:splat"
-#   status = 200
-#   force = true
-
-# Security headers (optional baseline)
-# [[headers]]
-#  for = "/*"
-#  [headers.values]
-#    X-Frame-Options = "DENY"
-#    X-Content-Type-Options = "nosniff"
-#    Referrer-Policy = "strict-origin-when-cross-origin"
-#    Permissions-Policy = "geolocation=()"
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
