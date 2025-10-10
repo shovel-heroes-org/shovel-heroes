@@ -1,6 +1,6 @@
-[build]
-  command = "npm install && npm run build"
-  publish = "dist"
+#[build]
+#  command = "npm run build"
+#  publish = "dist"
 
 # Force SPA routing (also covered by _redirects but this is a safety net)
 [[redirects]]
