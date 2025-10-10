@@ -122,17 +122,6 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
     }
   };
 
-  const handleDelete = async () => {
-    if (announcement && window.confirm("確定要刪除這則公告嗎？")) {
-      try {
-        await Announcement.delete(announcement.id);
-        onClose();
-      } catch (error) {
-        console.error("Failed to delete announcement:", error);
-        alert("刪除公告失敗，請稍後再試。");
-      }
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -145,7 +134,9 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="title">標題 *</Label>
+            <Label htmlFor="title">
+              標題 <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="title"
               name="title"
@@ -156,7 +147,9 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
           </div>
 
           <div>
-            <Label htmlFor="category">分類 *</Label>
+            <Label htmlFor="category">
+              分類 <span className="text-red-500">*</span>
+            </Label>
             <Select 
               value={formData.category} 
               onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
@@ -175,7 +168,9 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
           </div>
 
           <div>
-            <Label htmlFor="content">內容 *</Label>
+            <Label htmlFor="content">
+              內容 <span className="text-red-500">*</span>
+            </Label>
             <Textarea
               id="content"
               name="content"
@@ -199,38 +194,43 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
 
           <div>
             <Label>外部連結</Label>
-            {formData.external_links.map((link, index) => (
-              <div key={index} className="flex gap-2 mt-2">
-                <Input
-                  placeholder="連結名稱"
-                  value={link.name}
-                  onChange={(e) => handleLinkChange(index, 'name', e.target.value)}
-                />
-                <Input
-                  placeholder="連結網址"
-                  value={link.url}
-                  onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveLink(index)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddLink}
-              className="mt-2"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              新增連結
-            </Button>
+            <div className="space-y-2 mt-2">
+              {formData.external_links.map((link, index) => (
+                <div key={index} className="flex gap-2 items-center">
+                  <Input
+                    placeholder="連結名稱"
+                    value={link.name}
+                    onChange={(e) => handleLinkChange(index, 'name', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="連結網址"
+                    value={link.url}
+                    onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveLink(index)}
+                    className="flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddLink}
+                className="w-full"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                新增連結
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -255,30 +255,17 @@ export default function AnnouncementModal({ isOpen, onClose, announcement }) {
           </div>
         </form>
 
-        <DialogFooter className="flex justify-between">
-          <div>
-            {announcement && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-              >
-                刪除公告
-              </Button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              type="submit"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? "儲存中..." : "儲存"}
-            </Button>
-          </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "儲存中..." : "儲存"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

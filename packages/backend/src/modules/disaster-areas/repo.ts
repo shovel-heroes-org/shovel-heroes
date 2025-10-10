@@ -23,7 +23,9 @@ export interface DisasterArea {
 
 export async function listDisasterAreas(app: FastifyInstance): Promise<DisasterArea[]> {
   if (!app.hasDecorator('db')) return [];
-  const { rows } = await app.db.query<DisasterArea>('SELECT * FROM disaster_areas ORDER BY created_at DESC');
+  const { rows } = await app.db.query<DisasterArea>(
+    `SELECT * FROM disaster_areas WHERE status != 'deleted' ORDER BY created_at DESC`
+  );
   return rows;
 }
 

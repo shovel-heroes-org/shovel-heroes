@@ -24,6 +24,14 @@ import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
 import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware.js";
+// Auth routes (LINE)
+import { registerLineAuthRoutes } from './routes/auth-line.js';
+import { registerLineWebhookRoutes } from './routes/line-webhook.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { registerCSVRoutes } from './routes/csv.js';
+import { registerAuditLogRoutes } from './routes/audit-log.js';
+import { registerHttpAuditLogRoutes } from './routes/http-audit-logs.js';
+import permissionsRoutes from './routes/permissions.js';
 
 console.log('[4/10] Creating Fastify instance...');
 const app = Fastify({ logger: true });
@@ -62,12 +70,14 @@ registerAnnouncementRoutes(app);
 registerUserRoutes(app);
 registerFunctionRoutes(app);
 registerLegacyRoutes(app);
-// Auth routes (LINE)
-import { registerLineAuthRoutes } from './routes/auth-line.js';
 registerLineAuthRoutes(app);
-// LINE webhook
-import { registerLineWebhookRoutes } from './routes/line-webhook.js';
 registerLineWebhookRoutes(app);
+registerAdminRoutes(app);
+registerCSVRoutes(app);
+registerAuditLogRoutes(app);
+registerHttpAuditLogRoutes(app);
+await app.register(permissionsRoutes);
+console.log('[8/10] Routes registered successfully');
 
 // Global auth enforcement for all POST endpoints except a small allowlist.
 // Assumes user injection happens in registerUserRoutes preHandler (JWT verification).
@@ -80,17 +90,27 @@ const PUBLIC_ALLOWLIST = new Set([
 ]);
 
 app.addHook('preHandler', async (req, reply) => {
+  // 黑名單檢查：被加入黑名單的使用者除了 /me 端點外,其他 API 都拒絕存取
+  // 這個檢查必須在所有路由之前執行
+  const url = req.url.split('?')[0];
+  if (req.user && (req.user as any).is_blacklisted && url !== '/me') {
+    return reply.status(403).send({
+      message: 'Access denied: Account has been blacklisted',
+      error: 'ACCOUNT_BLACKLISTED'
+    });
+  }
+
   // Enforce auth for mutating methods; optionally could extend to GET later.
   if (!['POST','PUT','DELETE'].includes(req.method)) return;
-  const url = req.url.split('?')[0];
   if (PUBLIC_ALLOWLIST.has(url)) return; // skip enforcement for explicitly public endpoints
   if (!req.user) {
     return reply.status(401).send({ message: 'Unauthorized' });
   }
 });
 
-
 console.log('[9/10] Setting up middleware hooks...');
+// HTTP 請求審計日誌中介軟體
+// 自動記錄所有 API 請求到 audit_logs 表，用於技術除錯和效能分析
 const AuditLogMiddleware = createAuditLogMiddleware(app);
 app.addHook("onRequest", AuditLogMiddleware.start);
 app.addHook("onSend", AuditLogMiddleware.onSend);

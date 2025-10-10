@@ -13,8 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Grid, User } from '@/api/entities';
 import { Plus, Trash2 } from 'lucide-react';
-import { AskForLoginModal } from '../login/AskForLoginModal';
-import { getLocalStorage, updateLocalStorage } from '@/lib/utils';
 
 export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grids }) {
   const newSupplyRequestLS = getLocalStorage("NewSupplyRequest");
@@ -110,8 +108,10 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
         </DialogHeader>
         <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div>
-            <Label htmlFor="grid-select" className="mb-2 block">救援網格 *</Label>
-            <Select value={selectedGridId} onValueChange={(value) => handleGridChange(value)}>
+            <Label htmlFor="grid-select" className="mb-2 block flex items-center gap-1">
+              救援網格 <span className="text-red-500">*</span>
+            </Label>
+            <Select value={selectedGridId} onValueChange={setSelectedGridId}>
               <SelectTrigger id="grid-select">
                 <SelectValue placeholder="請選擇網格" />
               </SelectTrigger>
@@ -128,7 +128,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               <div key={index} className="flex items-end gap-2 p-4 border rounded-lg">
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                    <div>
-                      <Label htmlFor={`supply-name-${index}`}>物資內容 *</Label>
+                      <Label htmlFor={`supply-name-${index}`} className="flex items-center gap-1">
+                        物資內容 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`supply-name-${index}`} 
                         value={supply.name} 
@@ -137,7 +139,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`quantity-${index}`}>需求數量 *</Label>
+                      <Label htmlFor={`quantity-${index}`} className="flex items-center gap-1">
+                        需求數量 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`quantity-${index}`} 
                         type="number" 
@@ -147,7 +151,9 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`unit-${index}`}>單位 *</Label>
+                      <Label htmlFor={`unit-${index}`} className="flex items-center gap-1">
+                        單位 <span className="text-red-500">*</span>
+                      </Label>
                       <Input 
                         id={`unit-${index}`} 
                         value={supply.unit} 
@@ -184,7 +190,7 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
             />
             <label htmlFor="terms-checkbox" className="text-sm text-gray-700 leading-relaxed">
-              我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊將提供需求方參考，以利志工與需求方互相聯繫。
+              我已經同意並理解：本站為緊急救災平台，我所提供的聯絡資訊(如電話、Email)將公開顯示於相關頁面，以利志工與需求方互相聯繫。我了解並同意此安排並自行評估提供資訊的風險。
             </label>
           </div>
 
@@ -201,17 +207,17 @@ export default function AddSupplyRequestModal({ isOpen, onClose, onSuccess, grid
               {submitting ? '新增中...' : '確認新增'}
             </Button>
           </div>
-          
-          {/* 登入要求 Dialog */}
-          <div>       
-            <AskForLoginModal
-                open={!user}
-                onClose={onClose}
-                title="此功能需要登入。"
-                description="請先登入以新增物資需求。"
-            />
-          </div>
-
+          {!user && (
+            <div className="text-xs text-gray-500 text-center space-y-1">
+              <p>請先登入以新增物資需求。</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => User.login()}
+              >立即登入</Button>
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

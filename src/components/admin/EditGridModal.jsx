@@ -102,7 +102,9 @@ export default function EditGridModal({ isOpen, onClose, onSuccess, grid }) {
             <h4 className="font-semibold text-lg border-b pb-2">基本資訊</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="code">網格代碼 *</Label>
+                <Label htmlFor="code">
+                  網格代碼 <span className="text-red-500">*</span>
+                </Label>
                 <Input id="code" name="code" value={formData.code} onChange={handleInputChange} />
               </div>
               <div>

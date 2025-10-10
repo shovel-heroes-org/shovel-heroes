@@ -162,7 +162,9 @@ export default function AddAreaModal({ isOpen, onClose, onSuccess }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name">災區名稱 *</Label>
+              <Label htmlFor="name">
+                災區名稱 <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="name"
                 name="name"
@@ -173,7 +175,9 @@ export default function AddAreaModal({ isOpen, onClose, onSuccess }) {
               />
             </div>
             <div>
-              <Label htmlFor="township">鄉鎮 *</Label>
+              <Label htmlFor="township">
+                鄉鎮 <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="township"
                 name="township"

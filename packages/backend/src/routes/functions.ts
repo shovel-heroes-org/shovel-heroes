@@ -5,16 +5,18 @@ export function registerFunctionRoutes(app: FastifyInstance) {
   app.post('/functions/fix-grid-bounds', async () => ({ done: true }));
 
   app.get('/functions/export-grids-csv', async (req, reply) => {
-    if (!app.hasDecorator('db')) return reply.type('text/csv').send('id,code\n');
+    if (!app.hasDecorator('db')) return reply.type('text/csv; charset=utf-8').send('\uFEFFid,code\n');
     const { rows } = await app.db.query('SELECT id, code, grid_type, disaster_area_id, status FROM grids ORDER BY created_at ASC');
     const header = 'id,code,grid_type,disaster_area_id,status';
     const lines = rows.map(r => [r.id, r.code, r.grid_type, r.disaster_area_id, r.status].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(','));
-    return reply.type('text/csv').send([header, ...lines].join('\n'));
+    const csvWithBOM = '\uFEFF' + [header, ...lines].join('\n');
+    return reply.type('text/csv; charset=utf-8').send(csvWithBOM);
   });
 
   app.get('/functions/grid-template', async (req, reply) => {
     const header = 'code,grid_type,disaster_area_id,center_lat,center_lng';
-    return reply.type('text/csv').send(header + '\n');
+    const csvWithBOM = '\uFEFF' + header + '\n';
+    return reply.type('text/csv; charset=utf-8').send(csvWithBOM);
   });
 
   app.post('/functions/import-grids-csv', async (req, reply) => {

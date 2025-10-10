@@ -27,8 +27,11 @@ function markRequestSubmitted() {
 import { DisasterArea, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AddGridModal from "@/components/admin/AddGridModal";
-import { MapPin, UserPlus, AlertTriangle } from "lucide-react";
+import { MapPin, UserPlus, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
+import { useAuth } from "@/context/AuthContext";
 
 export default function RequestHelpPage() {
   const [disasterAreas, setDisasterAreas] = useState([]);
@@ -36,6 +39,12 @@ export default function RequestHelpPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitBlocked, setSubmitBlocked] = useState(false);
+
+  // 取得訪客模式狀態
+  const { guestMode } = useAuth();
+
+  // 登入檢查
+  const createGridLogin = useRequireLogin("建立救援需求");
 
   useEffect(() => {
     const loadData = async () => {
@@ -90,7 +99,7 @@ export default function RequestHelpPage() {
                 <p className="text-lg text-gray-600">花蓮颱風救援對接平台</p>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
               <div className="flex items-center justify-center mb-6">
                 <UserPlus className="w-12 h-12 text-orange-600" />
@@ -110,7 +119,7 @@ export default function RequestHelpPage() {
                   <h3 className="font-semibold text-gray-900 mb-2">填寫需求</h3>
                   <p className="text-sm text-gray-600">描述您需要的人力支援類型與數量</p>
                 </div>
-                
+
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-white font-bold text-sm">2</span>
@@ -118,7 +127,7 @@ export default function RequestHelpPage() {
                   <h3 className="font-semibold text-gray-900 mb-2">標註位置</h3>
                   <p className="text-sm text-gray-600">在地圖上標註需要協助的確切位置</p>
                 </div>
-                
+
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-white font-bold text-sm">3</span>
@@ -128,42 +137,76 @@ export default function RequestHelpPage() {
                 </div>
               </div>
 
-              {!user && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm text-yellow-800">
-                        <strong>提醒：</strong>為了確保救援資訊的真實性，建議您先登入 Google 帳號。
-                        登入後可以更方便地管理您的救援需求。
+              {!user || guestMode ? (
+                // 未登入或訪客模式：顯示登入提示卡片
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8 mb-6">
+                  <div className="flex flex-col items-center text-center space-y-6">
+                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+                      <AlertTriangle className="w-8 h-8 text-white" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        請先登入以建立救援需求
+                      </h3>
+                      <p className="text-gray-700 max-w-md mx-auto">
+                        為了確保救援資訊的真實性與可追蹤性，請先使用 Line 帳號登入。
+                        登入後您可以建立、管理及追蹤您的救援需求。
                       </p>
                     </div>
+
+                    <div className="flex items-center gap-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <span>快速登入</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <span>管理需求</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <span>即時追蹤</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={() => User.login()}
+                      size="lg"
+                      className="bg-[#06C755] hover:bg-[#05B04D] text-white text-lg px-12 py-6 h-auto rounded-xl shadow-lg hover:shadow-xl transition-all font-medium"
+                    >
+                      <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                      </svg>
+                      使用 LINE 帳號登入
+                    </Button>
+
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                      我們使用 LINE 帳號登入以確保資料安全。登入後您的個人資訊將受到保護。
+                    </p>
                   </div>
                 </div>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button
-                  onClick={() => setShowModal(true)}
-                  size="lg"
-                  className="bg-orange-600 hover:bg-orange-700 text-white text-lg px-8 py-4 h-auto"
-                  disabled={submitBlocked}
-                  title={submitBlocked ? '請稍後再送出申請（10分鐘內僅限一次）' : ''}
-                >
-                  <UserPlus className="w-5 h-5 mr-3" />
-                  立即申請人力支援
-                </Button>
-                {!user && (
+              ) : (
+                // 已登入狀態：顯示申請按鈕
+                <div className="flex justify-center">
                   <Button
-                    onClick={() => User.login()}
+                    onClick={() => {
+                      // 檢查登入狀態
+                      if (createGridLogin.requireLogin(() => setShowModal(true))) {
+                        // 已登入，開啟彈窗
+                        return;
+                      }
+                    }}
                     size="lg"
-                    variant="outline"
-                    className="text-lg px-8 py-4 h-auto"
+                    className="bg-orange-600 hover:bg-orange-700 text-white text-lg px-12 py-6 h-auto rounded-xl shadow-lg hover:shadow-xl transition-all"
+                    disabled={submitBlocked}
+                    title={submitBlocked ? '請稍後再送出申請（10分鐘內僅限一次）' : ''}
                   >
-                    先登入 Google 帳號
+                    <UserPlus className="w-6 h-6 mr-3" />
+                    立即申請人力支援
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -218,9 +261,16 @@ export default function RequestHelpPage() {
           onClose={() => setShowModal(false)}
           onSuccess={handleSuccess}
           disasterAreas={disasterAreas}
-          userUUID={!user ? getOrCreateUUID() : undefined}
+          userUUID={!user || guestMode ? getOrCreateUUID() : undefined}
         />
       )}
+
+      {/* 登入請求對話框 */}
+      <LoginRequiredDialog
+        open={createGridLogin.showLoginDialog}
+        onOpenChange={createGridLogin.setShowLoginDialog}
+        action={createGridLogin.action}
+      />
     </div>
   );
 }

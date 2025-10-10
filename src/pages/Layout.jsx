@@ -3,32 +3,44 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, LogIn } from "lucide-react";
+import { MapPin, Package, Shield, Menu, X, Info, UserPlus, Users, User as UserIcon, LogOut, Eye, LogIn } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, DisasterArea } from "@/api/entities";
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
+import BlacklistedAccess from "@/components/common/BlacklistedAccess";
 import AddGridModal from "@/components/admin/AddGridModal";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const { user, actingRole, toggleActingRole } = useAuth();
+  const { user, actingRole, setActingRole, toggleActingRole, guestMode, isBlacklisted, loading: authLoading } = useAuth();
   const { isMobile } = useBreakpoint();
+  const { hasPermission } = usePermission();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [showNewGridModal, setShowNewGridModal] = React.useState(false);
   const [disasterAreas, setDisasterAreas] = React.useState([]);
   const [showConsent, setShowConsent] = React.useState(false);
   const [analyticsAllowed, setAnalyticsAllowed] = React.useState(false);
 
+  // 登入檢查
+  const createGridLogin = useRequireLogin("建立救援需求");
+
   // Load disaster areas & consent
   React.useEffect(() => {
-    DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
+    // 黑名單使用者不載入任何資料
+    if (!isBlacklisted) {
+      DisasterArea.list().then(setDisasterAreas).catch(()=>setDisasterAreas([]));
+    }
+
     const consent = localStorage.getItem('sh-privacy-consent-v1');
     if (!consent) setShowConsent(true); else {
       try { const parsed = JSON.parse(consent); if (parsed.analytics) setAnalyticsAllowed(true); } catch {/* ignore */}
     }
-  }, []);
+  }, [isBlacklisted]);
 
   // Load GA only when analyticsAllowed becomes true
   React.useEffect(() => {
@@ -84,15 +96,19 @@ export default function Layout({ children, currentPageName }) {
       { name: "救援地圖", url: createPageUrl("Map"), icon: MapPin },
       { name: "物資管理", url: createPageUrl("Supplies"), icon: Package },
     ];
-    if (user) {
-      base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
-      if (user.role === 'admin' && actingRole === 'admin') {
-        base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
+
+    // 訪客模式下不顯示需要登入的功能
+    if (user && actingRole !== 'guest') {
+      // 志工中心:必須有 volunteers 檢視權限才顯示
+      if (hasPermission('volunteers', 'view')) {
+        base.push({ name: "志工中心", url: createPageUrl("Volunteers"), icon: Users });
       }
+      // 所有登入用戶都可以看到管理後台（但功能受權限限制）
+      base.push({ name: "管理後台", url: createPageUrl("Admin"), icon: Shield });
     }
     base.push({ name: "關於我們", url: createPageUrl("About"), icon: Info });
     return base;
-  }, [user, actingRole]);
+  }, [user, actingRole, hasPermission]);
 
   const isActive = (url) => location.pathname === url;
 
@@ -102,21 +118,33 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const handleNewGridClick = () => {
-    // 如果當前在地圖頁面，先關閉地圖
-    if (location.pathname === createPageUrl("Map")) {
-      // 使用 localStorage 來通知 Map 組件關閉地圖
-      localStorage.setItem('collapseMapForModal', 'true');
-      // 立即觸發自定義事件，確保地圖即時收起
-      window.dispatchEvent(new Event('collapseMap'));
+    // 檢查登入狀態（包含訪客模式）
+    if (createGridLogin.requireLogin(() => {
+      // 如果當前在地圖頁面，先關閉地圖
+      if (location.pathname === createPageUrl("Map")) {
+        // 使用 localStorage 來通知 Map 組件關閉地圖
+        localStorage.setItem('collapseMapForModal', 'true');
+        // 立即觸發自定義事件，確保地圖即時收起
+        window.dispatchEvent(new Event('collapseMap'));
+      }
+      setShowNewGridModal(true);
+    })) {
+      // 已登入，執行回調
+      return;
     }
-    setShowNewGridModal(true);
   };
 
+  // 黑名單檢查：優先於所有其他檢查
+  // 如果使用者被加入黑名單，直接顯示黑名單頁面，不載入任何資料
+  if (!authLoading && isBlacklisted) {
+    return <BlacklistedAccess />;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-xxs">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col min-w-[436px]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-xxs">
-        <div className="px-4 min-w-xxs">
+      <header className="bg-white border-b border-gray-200 sticky top-0 shadow-sm flex-shrink-0 min-w-[436px] z-[60]">
+        <div className="px-4 min-w-[436px]">
           <div className="flex justify-between items-center h-16 gap-4">
             {/* Logo */}
             <Link to={createPageUrl("Map")} className="flex items-center space-x-3 flex-shrink-0">
@@ -168,14 +196,34 @@ export default function Layout({ children, currentPageName }) {
                   <DropdownMenuTrigger asChild>
                     <button
                       className="relative w-10 h-10 flex items-center justify-center overflow-visible group focus:outline-none flex-shrink-0"
-                      title={(user.role === 'admin' && actingRole === 'admin') ? '管理模式中' : (user.name || user.full_name || '使用者')}
+                      title={
+                        actingRole === 'guest' ? '訪客模式（未登入）' :
+                        actingRole === 'super_admin' ? '超級管理員模式' :
+                        actingRole === 'admin' ? '管理員模式' :
+                        actingRole === 'grid_manager' ? '網格管理者模式' :
+                        (user.name || user.full_name || '使用者')
+                      }
                     >
-                      {user.role === 'admin' && actingRole === 'admin' && (
+                      {(actingRole === 'admin' || actingRole === 'super_admin') && (
                         <>
                           {/* Soft outer ambient glow */}
-                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-pink-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className={`absolute inset-0 rounded-full blur-[3px] animate-pulse ${actingRole === 'super_admin' ? 'bg-purple-300/40' : 'bg-pink-300/30'}`} />
                           {/* Thin soft ring */}
-                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-pink-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                          <span aria-hidden="true" className={`absolute -inset-1 rounded-full ring-2 animate-[pulse_2.8s_ease-in-out_infinite] ${actingRole === 'super_admin' ? 'ring-purple-400/70' : 'ring-pink-400/60'}`} />
+                        </>
+                      )}
+                      {actingRole === 'grid_manager' && (
+                        <>
+                          {/* Grid manager glow - blue */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-blue-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-blue-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
+                        </>
+                      )}
+                      {actingRole === 'guest' && (
+                        <>
+                          {/* Guest mode glow - gray */}
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-gray-300/30 blur-[3px] animate-pulse" />
+                          <span aria-hidden="true" className="absolute -inset-1 rounded-full ring-2 ring-gray-400/60 animate-[pulse_2.8s_ease-in-out_infinite]" />
                         </>
                       )}
                       {/* Actual avatar circle */}
@@ -186,7 +234,7 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold text-sm">{(user.name || user.full_name || 'U').slice(0,1).toUpperCase()}</span>
                         )}
                       </span>
-                      {user.role === 'admin' && actingRole === 'admin' && (
+                      {(user.role === 'admin' || user.role === 'super_admin') && actingRole === 'admin' && (
                         <span className="sr-only">管理模式啟用</span>
                       )}
                     </button>
@@ -196,15 +244,94 @@ export default function Layout({ children, currentPageName }) {
                       <div className="font-medium text-gray-900 text-sm mb-0.5 flex items-center gap-2"><UserIcon className="w-4 h-4 text-blue-600" /><span>{user.name || user.full_name || '使用者'}</span></div>
                       <div>{user.email}</div>
                       <div className="mt-1 inline-flex items-center gap-1 flex-wrap">
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role || 'user'}</span>
-                        {user.role === 'admin' && (
-                          <button onClick={toggleActingRole} className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">視角: {actingRole === 'admin' ? '管理' : '一般'}</button>
-                        )}
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] tracking-wide text-gray-700">{user.role === 'super_admin' ? 'super_admin' : user.role || 'user'}</span>
+                        {user.role === 'super_admin' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'super_admin' ? '超管' : actingRole === 'admin' ? '管理' : actingRole === 'grid_manager' ? '格主' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('admin')}>
+                                <Shield className="w-4 h-4 mr-2" />
+                                管理員視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('super_admin')}>
+                                <Shield className="w-4 h-4 mr-2 text-purple-600" />
+                                超級管理員視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : user.role === 'admin' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'admin' ? '管理' : actingRole === 'grid_manager' ? '格主' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('admin')}>
+                                <Shield className="w-4 h-4 mr-2" />
+                                管理員視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : user.role === 'grid_manager' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 text-[10px] tracking-wide transition">
+                                視角: {actingRole === 'guest' ? '訪客' : actingRole === 'grid_manager' ? '格主' : '一般'}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setActingRole('guest')}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                訪客視角（未登入）
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setActingRole('user')}>
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                一般用戶視角
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActingRole('grid_manager')}>
+                                <Users className="w-4 h-4 mr-2" />
+                                網格管理者視角
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </div>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} className="flex gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer" size={isMobile ? "sm" : "default"}>
-                      <LogOut className="hidden md:inline w-4 h-4" /> 
+                      <LogOut className="hidden md:inline w-4 h-4" />
                       登出
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -262,7 +389,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 relative flex-shrink-0 mt-auto">
-        <div className="px-4 py-2 min-w-xxs">
+        <div className="px-4 py-2 min-w-[436px]">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded flex items-center justify-center">
@@ -288,17 +415,24 @@ export default function Layout({ children, currentPageName }) {
           isOpen={showNewGridModal}
           onClose={() => setShowNewGridModal(false)}
           onSuccess={() => {
-            
+
             setShowNewGridModal(false);
-            
-          
+
+
             window.location.reload(); // Reload to see the new grid
-          
-          
+
+
           }}
           disasterAreas={disasterAreas}
         />
       )}
+
+      {/* 登入請求對話框 */}
+      <LoginRequiredDialog
+        open={createGridLogin.showLoginDialog}
+        onOpenChange={createGridLogin.setShowLoginDialog}
+        action={createGridLogin.action}
+      />
       {/* Privacy & Cookie Consent Modal */}
       {showConsent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
@@ -347,7 +481,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
             <div className="border-t bg-white p-4 flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <button onClick={()=>handleConsentAccept({ analytics: analyticsAllowed })} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm">我已理解並同意</button>
+              <button onClick={()=>handleConsentAccept({ analytics: analyticsAllowed })} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg text-sm">我已理解並同意</button>
               <button onClick={handleConsentReject} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 rounded-lg text-sm">僅允許必要 Cookie</button>
             </div>
           </div>

@@ -1,64 +1,205 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { SupplyDonation } from "@/api/entities";
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { SupplyDonation, Grid, User } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Package, Truck, CheckCircle2, Clock, MapPin, 
-  Phone, Calendar, AlertCircle, Plus, ShoppingCart,
+import {
+  Package, Truck, CheckCircle2, Clock, MapPin,
+  Phone, Calendar, AlertCircle, Plus, ShoppingCart, Edit,
   CalendarClock
 } from "lucide-react";
 import AddSupplyRequestModal from "@/components/supplies/AddSupplyRequestModal";
+import EditSupplyDonationModal from "@/components/supplies/EditSupplyDonationModal";
 import GridDetailModal from "@/components/map/GridDetailModal"; // 新增導入
+import { useRequireLogin } from "@/hooks/useRequireLogin";
+import { usePermission } from "@/hooks/usePermission";
 import { formatCreatedDate } from "@/lib/utils";
 import { useSuppliesData } from "@/hooks/use-supplies-data";
+import LoginRequiredDialog from "@/components/common/LoginRequiredDialog";
 
 export default function SuppliesPage() {
-  const {
-    donations,
-    grids,
-    currentUser,
-    stats,
-    unfulfilledRequests,
-    isLoading,
-    mutate: reloadData
-  } = useSuppliesData();
-
+  const [donations, setDonations] = useState([]);
+  const [grids, setGrids] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAddRequestModal, setShowAddRequestModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    pledged: 0,
+    confirmed: 0,
+    delivered: 0
+  });
+  const [unfulfilledRequests, setUnfulfilledRequests] = useState([]);
   const [selectedGridForDonation, setSelectedGridForDonation] = useState(null); // 彈窗選取之網格
   const [gridDetailTab, setGridDetailTab] = useState('supply'); // 控制 GridDetailModal 分頁 (與 URL 同步)
+  const [mainTab, setMainTab] = useState("needed"); // 控制主 Tab (急需物資 / 物資捐贈清單)
   const initialQueryApplied = useRef(false);
+  const [editingDonation, setEditingDonation] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // 權限狀態
+  const [canViewDonorContact, setCanViewDonorContact] = useState(false);
+  const [canView, setCanView] = useState(false);
+  const [canCreate, setCanCreate] = useState(false);
+  const [canEditSelf, setCanEditSelf] = useState(false);
+  const [canEditOthers, setCanEditOthers] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // 權限檢查
+  const { canEdit, canManage, hasPermission } = usePermission();
+
+  // 檢查物資狀態管理權限
+  const hasStatusManagementPermission = hasPermission('supplies_status_management', 'view');
+
+  // 登入檢查
+  const addSupplyLogin = useRequireLogin("新增物資需求");
+  const donateSupplyLogin = useRequireLogin("捐贈物資");
+  const editSupplyLogin = useRequireLogin("編輯物資資訊");
 
   useEffect(() => {
-    // 首次載入後解析 URL 以開啟指定 grid/tab
-    if (!initialQueryApplied.current && grids.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const gridParam = params.get('grid');
-      const tabParam = params.get('tab');
+    loadData();
+  }, []);
 
-      if (gridParam) {
-        const found = grids.find(g => g.id === gridParam || g.code === gridParam);
-        if (found) {
-          setSelectedGridForDonation(found);
-          if (tabParam && ['info','volunteer','supply','discussion'].includes(tabParam)) {
-            setGridDetailTab(tabParam);
-          } else {
-            setGridDetailTab('supply');
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [donationsResponse, gridsData, userData] = await Promise.all([
+        SupplyDonation.list('-created_date'),
+        Grid.list(),
+        User.me().catch(() => null), // 用戶未登入時返回 null，避免 401 錯誤
+      ]);
+
+      // console.log('🔍 [Supplies] API 原始回應:', donationsResponse);
+
+      // 解析權限資訊
+      const donationsData = donationsResponse.data || donationsResponse;
+      setDonations(donationsData);
+      setGrids(gridsData);
+      setCurrentUser(userData);
+
+      // 設定權限狀態
+      if (donationsResponse.can_view_donor_contact !== undefined) {
+        setCanViewDonorContact(donationsResponse.can_view_donor_contact);
+      }
+      if (donationsResponse.can_view !== undefined) {
+        setCanView(donationsResponse.can_view);
+      }
+      if (donationsResponse.can_create !== undefined) {
+        setCanCreate(donationsResponse.can_create);
+      }
+      if (donationsResponse.can_edit !== undefined) {
+        setCanEditSelf(donationsResponse.can_edit);
+      }
+      if (donationsResponse.can_manage !== undefined) {
+        setCanEditOthers(donationsResponse.can_manage);
+      }
+      if (donationsResponse.can_delete !== undefined) {
+        setCanDelete(donationsResponse.can_delete);
+      }
+      if (donationsResponse.user_id !== undefined) {
+        setCurrentUserId(donationsResponse.user_id);
+      }
+
+      // console.log('🔐 [Supplies] 權限狀態:', {
+      //   canViewDonorContact: donationsResponse.can_view_donor_contact,
+      //   canView: donationsResponse.can_view,
+      //   canCreate: donationsResponse.can_create,
+      //   canEditSelf: donationsResponse.can_edit,
+      //   canEditOthers: donationsResponse.can_manage,
+      //   canDelete: donationsResponse.can_delete,
+      //   currentUserId: donationsResponse.user_id
+      // });
+
+      setStats({
+        total: donationsData.length,
+        pledged: donationsData.filter(d => d.status === 'pledged').length,
+        confirmed: donationsData.filter(d => d.status === 'confirmed').length,
+        delivered: donationsData.filter(d => d.status === 'delivered').length,
+      });
+
+      // Calculate unfulfilled supply requests
+      const unfulfilled = [];
+      gridsData.forEach(grid => {
+        if (grid.supplies_needed && grid.supplies_needed.length > 0) {
+          grid.supplies_needed.forEach(supply => {
+            const remaining = supply.quantity - (supply.received || 0);
+            if (remaining > 0) {
+              unfulfilled.push({
+                gridId: grid.id,
+                gridCode: grid.code,
+                gridType: grid.grid_type,
+                supplyName: supply.name,
+                totalNeeded: supply.quantity,
+                received: supply.received || 0,
+                remaining: remaining,
+                unit: supply.unit,
+                createdDate: grid.created_date // 新增：需求創建時間
+              });
+            }
+          });
+        }
+      });
+      setUnfulfilledRequests(unfulfilled);
+
+      // 首次載入後解析 URL 以開啟指定 grid/tab
+      if (!initialQueryApplied.current) {
+        const params = new URLSearchParams(window.location.search);
+        const gridParam = params.get('grid');
+        const tabParam = params.get('tab');
+        if (gridParam) {
+          const found = gridsData.find(g => g.id === gridParam || g.code === gridParam);
+          if (found) {
+            setSelectedGridForDonation(found);
+            if (tabParam && ['info','volunteer','supply','discussion'].includes(tabParam)) {
+              setGridDetailTab(tabParam);
+            } else {
+              setGridDetailTab('supply');
+            }
           }
         }
+        initialQueryApplied.current = true;
       }
-      initialQueryApplied.current = true;
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [grids]);
+  };
 
   const handleStatusUpdate = async (donationId, newStatus) => {
     try {
       await SupplyDonation.update(donationId, { status: newStatus });
-      reloadData();
+      loadData(); // Reload data to reflect the change
     } catch (error) {
       console.error(`Failed to update donation status to ${newStatus}:`, error);
       alert('更新狀態失敗，請稍後再試。');
+    }
+  };
+
+  const handleEditDonation = (donation) => {
+    // 檢查登入狀態（包含訪客模式）
+    if (editSupplyLogin.requireLogin(() => {
+      setEditingDonation(donation);
+      setShowEditModal(true);
+    })) {
+      // 已登入，執行回調
+      return;
+    }
+  };
+
+  const handleSaveEdit = async (updatedData) => {
+    try {
+      await SupplyDonation.update(editingDonation.id, updatedData);
+      setShowEditModal(false);
+      setEditingDonation(null);
+      loadData(); // 重新載入資料
+      alert('物資資訊更新成功！');
+    } catch (error) {
+      console.error('Failed to update donation:', error);
+      alert('更新失敗，請稍後再試。');
     }
   };
 
@@ -72,6 +213,7 @@ export default function SuppliesPage() {
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'in_transit': return 'bg-yellow-100 text-yellow-800';
       case 'delivered': return 'bg-green-100 text-green-800';
+      case 'received': return 'bg-green-200 text-green-900';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -83,6 +225,7 @@ export default function SuppliesPage() {
       case 'confirmed': return '已確認';
       case 'in_transit': return '運送中';
       case 'delivered': return '已送達';
+      case 'received': return '已收到';
       case 'cancelled': return '已取消';
       default: return status;
     }
@@ -125,26 +268,36 @@ export default function SuppliesPage() {
   };
 
   const handleAddSupplyRequest = () => {
-    setShowAddRequestModal(true);
+    // 檢查登入狀態（包含訪客模式）
+    if (addSupplyLogin.requireLogin(() => {
+      setShowAddRequestModal(true);
+    })) {
+      // 已登入，執行回調
+      return;
+    }
   };
 
   const handleDonateToRequest = async (request) => {
-    // 移除強制登入邏輯，允許未登入用戶直接開啟捐贈表單。
-    // 登入驗證將由 GridDetailModal 或 SupplyDonation 實體內部處理。
-    
-    // 找到對應的網格
-    const grid = grids.find(g => g.id === request.gridId);
-    if (grid) {
-      setSelectedGridForDonation(grid);
-      setGridDetailTab('supply');
-    } else {
-      alert('找不到對應的救援網格，請稍後再試。');
+    // 檢查登入狀態（包含訪客模式）
+    if (donateSupplyLogin.requireLogin(() => {
+      // 找到對應的網格
+      const grid = grids.find(g => g.id === request.gridId);
+      if (grid) {
+        setSelectedGridForDonation(grid);
+        setGridDetailTab('supply');
+      } else {
+        alert('找不到對應的救援網格，請稍後再試。');
+      }
+    })) {
+      // 已登入，執行回調
+      return;
     }
   };
 
   const handleDonationModalClose = () => {
     setSelectedGridForDonation(null);
     setGridDetailTab('supply');
+    loadData(); // 重新載入資料以更新進度
   };
 
   // URL 同步函式
@@ -184,7 +337,7 @@ export default function SuppliesPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [grids]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
@@ -193,7 +346,7 @@ export default function SuppliesPage() {
   }
 
   return (
-    <div className="px-4 py-[1.2rem] min-w-xxs">
+    <div className="px-4 py-[1.2rem] min-w-[436px]">
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
@@ -269,7 +422,7 @@ export default function SuppliesPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="needed" className="space-y-6">
+      <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="needed">
             <ShoppingCart className="w-4 h-4 mr-2" />
@@ -293,7 +446,7 @@ export default function SuppliesPage() {
                         <div className="flex-1">
                             <div className="flex flex-row items-center gap-2 mb-2">
                               <CalendarClock className="w-4 h-4 text-teal-700" />
-                              <span className="text-sm font-medium">  
+                              <span className="text-sm font-medium">
                                 {formatCreatedDate(
                                     grids.find(g => g.id === request.gridId).created_date
                                 )}
@@ -312,7 +465,7 @@ export default function SuppliesPage() {
 
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600 mb-2">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
                               <span>救援區域: {request.gridCode}</span>
@@ -330,8 +483,8 @@ export default function SuppliesPage() {
                           </div>
 
                           <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                            <div 
-                              className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+                            <div
+                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${(request.received / request.totalNeeded) * 100}%` }}
                             ></div>
                           </div>
@@ -341,7 +494,7 @@ export default function SuppliesPage() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          <Button 
+                          <Button
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => handleDonateToRequest(request)}
                           >
@@ -385,9 +538,36 @@ export default function SuppliesPage() {
                     <div className="space-y-4">
                       {filterDonations(tabValue).map((donation) => {
                         const grid = getGridInfo(donation.grid_id);
-                        const canViewPhone = currentUser && (
-                          currentUser.role === 'admin' || 
-                          (currentUser.role === 'grid_manager' && currentUser.id === grid.grid_manager_id)
+
+                        // 捐贈者本人判斷：需要同時滿足 created_by_id 和 donor_name 與使用者一致
+                        const isDonorSelf = currentUser && donation.created_by_id === currentUser.id && (
+                          !donation.donor_name ||
+                          donation.donor_name.trim() === '' ||
+                          donation.donor_name.trim() === currentUser.name?.trim()
+                        );
+
+                        // 是否為網格建立者或管理員
+                        const isGridOwner = currentUser && (
+                          currentUser.id === grid?.created_by_id ||  // 網格建立者
+                          currentUser.id === grid?.grid_manager_id   // 網格管理員
+                        );
+
+                        // 檢查是否有 view_donor_contact 隱私權限
+                        const hasDonorContactPermission = hasPermission('view_donor_contact', 'view');
+
+                        // 檢查是否有 supplies 管理權限（超管/管理員）
+                        const hasSuppliesManagePermission = canManage('supplies');
+
+                        // 聯絡資訊顯示邏輯：
+                        // 1. 超管/管理員 + 有隱私權限：可以看到所有人
+                        // 2. 網格建立者/管理員 + 有隱私權限：可以看到該網格的捐贈者
+                        // 3. 捐贈者本人 + 有隱私權限：可以看到自己的
+                        // 4. 其他人：看不到
+                        // 5. 如果隱私權限被取消，所有人都看不到（包括捐贈者本人和網格建立者）
+                        const canViewPhone = currentUser && hasDonorContactPermission && (
+                          hasSuppliesManagePermission ||  // 超管/管理員（需要隱私權限）
+                          isGridOwner ||                  // 網格建立者/管理員（需要隱私權限）
+                          isDonorSelf                     // 捐贈者本人（需要隱私權限）
                         );
 
                         return (
@@ -397,7 +577,7 @@ export default function SuppliesPage() {
                                 <div className="flex-1">
                                   <div className="flex items-center gap-3 mb-3">
                                     <h3 className="text-lg font-semibold text-gray-900">
-                                      {donation.supply_name}
+                                      {donation.supply_name || donation.name}
                                     </h3>
                                     <Badge className={getStatusColor(donation.status)}>
                                       {getStatusText(donation.status)}
@@ -420,12 +600,12 @@ export default function SuppliesPage() {
                                     <div className="flex items-center gap-2">
                                       <Phone className="w-4 h-4" />
                                       {canViewPhone ? (
-                                        <span>{donation.donor_name} - {donation.donor_phone}</span>
-                                      ) : (
-                                        <span className="flex items-center">
-                                          {donation.donor_name}
-                                          <span className="text-gray-400 italic text-xs ml-2">(僅限管理員/相關格主查看電話)</span>
+                                        <span>
+                                          {donation.donor_name || donation.donor_contact || '未提供'}
+                                          {donation.donor_phone && ` - ${donation.donor_phone}`}
                                         </span>
+                                      ) : (
+                                        <span className="text-gray-400 italic text-xs">(需要隱私權限且為管理員/相關格主/捐贈者本人才能查看聯絡資訊)</span>
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -453,13 +633,39 @@ export default function SuppliesPage() {
                                     </div>
                                   )}
 
-                                  <div className="mt-2 text-xs text-gray-500">
-                                    捐贈時間: {new Date(donation.created_date).toLocaleString('zh-TW')}
+                                  <div className="mt-2 space-y-1 text-xs text-gray-500">
+                                    <div>捐贈時間: {donation.created_at ? new Date(donation.created_at).toLocaleString('zh-TW') : '尚未記錄'}</div>
                                   </div>
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                  {donation.status === 'pledged' && (
+                                  {/* 編輯和刪除按鈕權限邏輯 */}
+                                  {(() => {
+                                    const isSelf = currentUserId && donation.created_by_id === currentUserId;
+
+                                    // 編輯權限：
+                                    // - 編輯自己：需要 supplies.can_edit + 是自己
+                                    // - 編輯他人：需要 supplies.can_manage
+                                    const canEditThis = (canEditSelf && isSelf) || (canEditOthers && !isSelf);
+
+                                    return (
+                                      <>
+                                        {canEditThis && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-blue-600 hover:text-blue-700"
+                                            onClick={() => handleEditDonation(donation)}
+                                          >
+                                            <Edit className="w-4 h-4 mr-1" />
+                                            編輯
+                                          </Button>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                  {/* 狀態按鈕需要物資狀態管理權限 */}
+                                  {hasStatusManagementPermission && donation.status === 'pledged' && (
                                     <>
                                       <Button
                                         size="sm"
@@ -478,7 +684,7 @@ export default function SuppliesPage() {
                                       </Button>
                                     </>
                                   )}
-                                  {donation.status === 'confirmed' && (
+                                  {hasStatusManagementPermission && donation.status === 'confirmed' && (
                                     <Button
                                       size="sm"
                                       className="bg-yellow-600 hover:bg-yellow-700"
@@ -487,7 +693,7 @@ export default function SuppliesPage() {
                                       標記運送中
                                     </Button>
                                   )}
-                                  {donation.status === 'in_transit' && (
+                                  {hasStatusManagementPermission && donation.status === 'in_transit' && (
                                     <Button
                                       size="sm"
                                       className="bg-green-600 hover:bg-green-700"
@@ -495,6 +701,21 @@ export default function SuppliesPage() {
                                     >
                                       確認送達
                                     </Button>
+                                  )}
+                                  {hasStatusManagementPermission && donation.status === 'delivered' && (
+                                    // 只有網格建立者、網格管理員或管理員可以確認收到
+                                    (currentUser?.role === 'admin' ||
+                                     currentUser?.role === 'super_admin' ||
+                                     currentUser?.id === grid?.created_by_id ||
+                                     currentUser?.id === grid?.grid_manager_id) && (
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-700 hover:bg-green-800"
+                                        onClick={() => handleStatusUpdate(donation.id, 'received')}
+                                      >
+                                        確認收到
+                                      </Button>
+                                    )
                                   )}
                                 </div>
                               </div>
@@ -517,25 +738,59 @@ export default function SuppliesPage() {
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {showAddRequestModal && (
         <AddSupplyRequestModal
           isOpen={showAddRequestModal}
           onClose={() => setShowAddRequestModal(false)}
           onSuccess={() => {
             setShowAddRequestModal(false);
-            reloadData();
+            loadData();
           }}
           grids={grids}
         />
       )}
-      
+
+      {/* 登入請求對話框 - 新增物資需求 */}
+      <LoginRequiredDialog
+        open={addSupplyLogin.showLoginDialog}
+        onOpenChange={addSupplyLogin.setShowLoginDialog}
+        action={addSupplyLogin.action}
+      />
+
+      {/* 登入請求對話框 - 捐贈物資 */}
+      <LoginRequiredDialog
+        open={donateSupplyLogin.showLoginDialog}
+        onOpenChange={donateSupplyLogin.setShowLoginDialog}
+        action={donateSupplyLogin.action}
+      />
+
+      {/* 登入請求對話框 - 編輯物資 */}
+      <LoginRequiredDialog
+        open={editSupplyLogin.showLoginDialog}
+        onOpenChange={editSupplyLogin.setShowLoginDialog}
+        action={editSupplyLogin.action}
+      />
+
+      {/* 編輯物資 Modal */}
+      {showEditModal && editingDonation && (
+        <EditSupplyDonationModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingDonation(null);
+          }}
+          donation={editingDonation}
+          onSave={handleSaveEdit}
+        />
+      )}
+
       {/* 新增：物資捐贈彈窗 */}
       {selectedGridForDonation && (
         <GridDetailModal
           grid={selectedGridForDonation}
           onClose={handleDonationModalClose}
-          onUpdate={reloadData}
+          onUpdate={loadData}
           defaultTab={gridDetailTab}
           onTabChange={setGridDetailTab}
         />
