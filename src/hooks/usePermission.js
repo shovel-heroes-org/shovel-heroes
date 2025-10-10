@@ -173,21 +173,37 @@ export function usePermission() {
   }, [hasPermission]);
 
   /**
-   * 視角切換時清除快取並批量重新載入權限
+   * 視角切換時批量重新載入權限（保留舊快取避免閃爍）
    */
   useEffect(() => {
-    // 清除舊的快取（因為角色改變了）
-    setPermissionCache({});
-    setPermissionsLoaded(false); // 重置載入狀態
+    // 重置載入狀態標記（但保留舊快取）
     isLoadingAllRef.current = false; // 重置載入狀態
     loadedRoleRef.current = null; // 清除已載入角色記錄
 
-    if (!user || !actingRole || actingRole === 'guest') {
-      setPermissionsLoaded(true); // 訪客模式不需要載入，直接標記為已載入
+    // 如果沒有角色,保持載入狀態(不清除快取,避免閃爍)
+    if (!actingRole) {
+      setPermissionsLoaded(false);
       return;
     }
 
+    // 如果沒有用戶,保持載入狀態(等待用戶資料載入)
+    // 注意:不清除快取和 permissionsLoaded,避免在用戶載入期間出現權限不足閃爍
+    if (!user) {
+      return;
+    }
+
+    if (actingRole === 'guest') {
+      // 訪客模式：清除快取並標記已載入
+      setPermissionCache({});
+      setPermissionsLoaded(true);
+      return;
+    }
+
+    // 先標記為未載入（但不清除快取，保留舊權限避免閃爍）
+    setPermissionsLoaded(false);
+
     // 批量載入所有權限（一次 API 請求取代多次請求）
+    // 載入完成後會自動更新快取並設置 permissionsLoaded = true
     loadAllPermissions();
   }, [user, actingRole]);
 
@@ -195,24 +211,29 @@ export function usePermission() {
    * 監聽權限更新事件，自動清除快取並批量重新載入
    */
   useEffect(() => {
-    const handlePermissionUpdate = () => {
+    const handlePermissionUpdate = async () => {
       // console.log('🔄 檢測到權限更新，清除快取並批量重新載入權限');
-      setPermissionCache({});
-      setPermissionsLoaded(false); // 重置載入狀態
+
+      // 先重置載入狀態標記，但不清除快取（保留舊的權限避免閃爍）
       isLoadingAllRef.current = false; // 重置載入狀態
       loadedRoleRef.current = null; // 清除已載入角色記錄
 
       // 批量重新載入所有權限
       if (user && actingRole && actingRole !== 'guest') {
-        setTimeout(() => {
-          loadAllPermissions();
-        }, 100);
+        // 先載入新的權限
+        await loadAllPermissions();
+        // 載入完成後才清除舊快取（避免載入期間出現權限不足）
+        // 新的快取已經在 loadAllPermissions 中設定了
+      } else {
+        // 如果是訪客或沒有用戶，直接清除快取
+        setPermissionCache({});
+        setPermissionsLoaded(true);
       }
     };
 
     window.addEventListener('permission-updated', handlePermissionUpdate);
     return () => window.removeEventListener('permission-updated', handlePermissionUpdate);
-  }, [user, actingRole]);
+  }, [user, actingRole, loadAllPermissions]);
 
   return {
     hasPermission,

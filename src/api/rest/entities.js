@@ -16,8 +16,10 @@ export const DisasterArea = buildEntity('/disaster-areas');
 export const Grid = buildEntity('/grids');
 export const VolunteerRegistration = {
   ...buildEntity('/volunteer-registrations'),
-  // Override update to use PATCH for editing
+  // Override update to use PATCH for editing registration details
   update: (id, data) => http.patch(`/volunteer-registrations/${id}`, data),
+  // Add updateStatus method to use PUT for status updates
+  updateStatus: (id, data) => http.put(`/volunteer-registrations/${id}`, data),
   // Simple client-side filter until backend supports query params
   filter: async (query = {}) => {
     const response = await http.get('/volunteer-registrations');

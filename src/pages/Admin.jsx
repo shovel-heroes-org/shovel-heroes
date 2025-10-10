@@ -443,7 +443,7 @@ export default function AdminPage() {
 
   const handleAreaDelete = async (area) => {
     if (!canDelete('disaster_areas')) {
-      alert('您沒有刪除災區的權限');
+      showMessage('您沒有刪除災區的權限', 'error');
       return;
     }
     if (window.confirm(`確定要將災區 "${area.name}" 移至垃圾桶嗎？`)) {
@@ -452,10 +452,10 @@ export default function AdminPage() {
         setSelectedAreas([]); // 清除勾選狀態
         await loadData();
         await loadTrashAreas(); // 重新載入垃圾桶數量
-        alert('災區已移至垃圾桶');
+        showMessage('災區已移至垃圾桶', 'success');
       } catch (error) {
         console.error('Failed to move area to trash:', error);
-        alert('移動災區至垃圾桶失敗，請稍後再試。');
+        showMessage('移動災區至垃圾桶失敗，請稍後再試。', 'error');
       }
     }
   };
@@ -472,7 +472,7 @@ export default function AdminPage() {
   // 批量刪除災區（移至垃圾桶）
   const handleBatchDeleteAreas = async () => {
     if (selectedAreas.length === 0) {
-      alert('請先選擇要刪除的災區');
+      showMessage('請先選擇要刪除的災區', 'error');
       return;
     }
 
@@ -486,10 +486,10 @@ export default function AdminPage() {
       setSelectedAreas([]); // 清除勾選狀態
       await loadData();
       await loadTrashAreas();
-      alert(`已將 ${count} 個災區移至垃圾桶`);
+      showMessage(`已將 ${count} 個災區移至垃圾桶`, 'success');
     } catch (error) {
       console.error('Failed to batch delete areas:', error);
-      alert('批量刪除災區失敗，請稍後再試。');
+      showMessage('批量刪除災區失敗，請稍後再試。', 'error');
     }
   };
 
@@ -499,10 +499,10 @@ export default function AdminPage() {
       await restoreAreaFromTrash(areaId);
       await loadData();
       await loadTrashAreas();
-      alert('災區已恢復');
+      showMessage('災區已恢復', 'success');
     } catch (error) {
       console.error('Failed to restore area:', error);
-      alert('恢復災區失敗，請稍後再試。');
+      showMessage('恢復災區失敗，請稍後再試。', 'error');
     }
   };
 
@@ -515,18 +515,18 @@ export default function AdminPage() {
     try {
       await permanentlyDeleteArea(areaId);
       await loadTrashAreas();
-      alert('災區已永久刪除');
+      showMessage('災區已永久刪除', 'success');
     } catch (error) {
       console.error('Failed to permanently delete area:', error);
       const message = error.response?.data?.message || '永久刪除災區失敗';
-      alert(message);
+      showMessage(message, 'error');
     }
   };
 
   // 批量還原災區
   const handleBatchRestoreAreas = async () => {
     if (selectedAreas.length === 0) {
-      alert('請先選擇要還原的災區');
+      showMessage('請先選擇要還原的災區', 'error');
       return;
     }
 
@@ -541,17 +541,17 @@ export default function AdminPage() {
       setSelectedAreas([]);
       await loadData();
       await loadTrashAreas();
-      alert(`已還原 ${selectedAreas.length} 個災區`);
+      showMessage(`已還原 ${selectedAreas.length} 個災區`, 'success');
     } catch (error) {
       console.error('Failed to batch restore areas:', error);
-      alert('批量還原災區失敗，請稍後再試。');
+      showMessage('批量還原災區失敗，請稍後再試。', 'error');
     }
   };
 
   // 批量永久刪除災區
   const handleBatchPermanentDeleteAreas = async () => {
     if (selectedAreas.length === 0) {
-      alert('請先選擇要永久刪除的災區');
+      showMessage('請先選擇要永久刪除的災區', 'error');
       return;
     }
 
@@ -563,11 +563,11 @@ export default function AdminPage() {
       await batchDeleteAreas(selectedAreas);
       setSelectedAreas([]);
       await loadTrashAreas();
-      alert(`已永久刪除 ${selectedAreas.length} 個災區`);
+      showMessage(`已永久刪除 ${selectedAreas.length} 個災區`, 'success');
     } catch (error) {
       console.error('Failed to batch delete areas:', error);
       const message = error.response?.data?.message || '批量永久刪除災區失敗';
-      alert(message);
+      showMessage(message, 'error');
     }
   };
 
@@ -607,10 +607,10 @@ export default function AdminPage() {
     try {
       await restoreAnnouncementFromTrash(announcementId);
       await loadTrashAnnouncements();
-      alert('公告已恢復');
+      showMessage('公告已恢復', 'success');
     } catch (error) {
       console.error('Failed to restore announcement:', error);
-      alert('恢復公告失敗，請稍後再試。');
+      showMessage('恢復公告失敗，請稍後再試。', 'error');
     }
   };
 
@@ -622,16 +622,16 @@ export default function AdminPage() {
     try {
       await permanentlyDeleteAnnouncement(announcementId);
       await loadTrashAnnouncements();
-      alert('公告已永久刪除');
+      showMessage('公告已永久刪除', 'success');
     } catch (error) {
       console.error('Failed to permanently delete announcement:', error);
-      alert('永久刪除公告失敗，請稍後再試。');
+      showMessage('永久刪除公告失敗，請稍後再試。', 'error');
     }
   };
 
   const handleBatchRestoreAnnouncements = async () => {
     if (selectedAnnouncements.length === 0) {
-      alert('請先選擇要還原的公告');
+      showMessage('請先選擇要還原的公告', 'error');
       return;
     }
 
@@ -641,16 +641,16 @@ export default function AdminPage() {
       }
       setSelectedAnnouncements([]);
       await loadTrashAnnouncements();
-      alert(`已還原 ${selectedAnnouncements.length} 則公告`);
+      showMessage(`已還原 ${selectedAnnouncements.length} 則公告`, 'success');
     } catch (error) {
       console.error('Failed to batch restore announcements:', error);
-      alert('批量還原公告失敗，請稍後再試。');
+      showMessage('批量還原公告失敗，請稍後再試。', 'error');
     }
   };
 
   const handleBatchPermanentDeleteAnnouncements = async () => {
     if (selectedAnnouncements.length === 0) {
-      alert('請先選擇要永久刪除的公告');
+      showMessage('請先選擇要永久刪除的公告', 'error');
       return;
     }
 
@@ -662,11 +662,11 @@ export default function AdminPage() {
       await batchDeleteAnnouncements(selectedAnnouncements);
       setSelectedAnnouncements([]);
       await loadTrashAnnouncements();
-      alert(`已永久刪除 ${selectedAnnouncements.length} 則公告`);
+      showMessage(`已永久刪除 ${selectedAnnouncements.length} 則公告`, 'success');
     } catch (error) {
       console.error('Failed to batch delete announcements:', error);
       const message = error.response?.data?.message || '批量永久刪除公告失敗';
-      alert(message);
+      showMessage(message, 'error');
     }
   };
 
@@ -677,7 +677,7 @@ export default function AdminPage() {
       setBlacklistedUsers(users || []);
     } catch (error) {
       console.error('Failed to load blacklisted users:', error);
-      alert('載入黑名單用戶失敗');
+      showMessage('載入黑名單用戶失敗', 'error');
     }
   };
 
@@ -691,7 +691,7 @@ export default function AdminPage() {
     if (!window.confirm(`確定要將用戶 "${userName}" 移出黑名單嗎？`)) return;
     try {
       await removeUserFromBlacklist(userId);
-      alert('用戶已移出黑名單');
+      showMessage('用戶已移出黑名單', 'success');
       // 從選取列表中移除該用戶
       setSelectedBlacklistUsers(prev => prev.filter(id => id !== userId));
       // 重新載入黑名單列表和用戶管理列表
@@ -701,7 +701,7 @@ export default function AdminPage() {
       ]);
     } catch (error) {
       console.error('Failed to remove user from blacklist:', error);
-      alert('移出黑名單失敗');
+      showMessage('移出黑名單失敗', 'error');
     }
   };
 
@@ -790,7 +790,7 @@ export default function AdminPage() {
     if (!window.confirm(`確定要永久刪除 ${selectedBlacklistUsers.length} 個黑名單用戶嗎？\n\n此操作無法復原！`)) return;
     try {
       await batchDeleteBlacklistedUsers(selectedBlacklistUsers);
-      alert(`已永久刪除 ${selectedBlacklistUsers.length} 個黑名單用戶`);
+      showMessage(`已永久刪除 ${selectedBlacklistUsers.length} 個黑名單用戶`, 'success');
       setSelectedBlacklistUsers([]);
       // 重新載入黑名單列表和用戶管理列表
       await Promise.all([
@@ -799,7 +799,7 @@ export default function AdminPage() {
       ]);
     } catch (error) {
       console.error('Failed to batch delete blacklisted users:', error);
-      alert('批量刪除失敗：' + (error.message || '請稍後再試'));
+      showMessage('批量刪除失敗：' + (error.message || '請稍後再試'), 'error');
     }
   };
 
@@ -807,7 +807,7 @@ export default function AdminPage() {
     if (!window.confirm(`確定要將用戶 "${userName}" 加入黑名單嗎？\n\n被加入黑名單的用戶將無法使用系統功能。`)) return;
     try {
       await addUserToBlacklist(userId);
-      alert('用戶已加入黑名單');
+      showMessage('用戶已加入黑名單', 'success');
       // 重新載入黑名單列表和用戶管理列表
       await Promise.all([
         loadBlacklistedUsers(), // 同步更新黑名單頁面
@@ -815,7 +815,7 @@ export default function AdminPage() {
       ]);
     } catch (error) {
       console.error('Failed to add user to blacklist:', error);
-      alert('加入黑名單失敗：' + (error.message || '請稍後再試'));
+      showMessage('加入黑名單失敗：' + (error.message || '請稍後再試'), 'error');
     }
   };
 
@@ -829,7 +829,7 @@ export default function AdminPage() {
   // 批量加入黑名單
   const handleBatchAddToBlacklist = async () => {
     if (selectedUsers.length === 0) {
-      alert('請先選擇要加入黑名單的用戶');
+      showMessage('請先選擇要加入黑名單的用戶', 'error');
       return;
     }
 
@@ -840,7 +840,7 @@ export default function AdminPage() {
       for (const userId of selectedUsers) {
         await addUserToBlacklist(userId);
       }
-      alert(`已將 ${selectedUsers.length} 個用戶加入黑名單`);
+      showMessage(`已將 ${selectedUsers.length} 個用戶加入黑名單`, 'success');
       setSelectedUsers([]);
       // 重新載入黑名單列表和用戶管理列表
       await Promise.all([
@@ -849,7 +849,7 @@ export default function AdminPage() {
       ]);
     } catch (error) {
       console.error('Failed to batch add users to blacklist:', error);
-      alert('批量加入黑名單失敗：' + (error.message || '請稍後再試'));
+      showMessage('批量加入黑名單失敗：' + (error.message || '請稍後再試'), 'error');
     }
   };
 
@@ -867,13 +867,13 @@ export default function AdminPage() {
 
   const handleGridDelete = async (grid) => {
     if (!user) {
-      alert('需登入才能刪除網格');
+      showMessage('需登入才能刪除網格', 'error');
       return;
     }
 
     // 使用 canDeleteGrid 函數進行權限檢查
     if (!canDeleteGrid(grid)) {
-      alert('您沒有刪除此網格的權限');
+      showMessage('您沒有刪除此網格的權限', 'error');
       return;
     }
 
@@ -907,11 +907,11 @@ export default function AdminPage() {
           throw err;
         }
 
-        alert(`網格 "${grid.code}" 及其相關記錄已成功刪除`);
+        showMessage(`網格 "${grid.code}" 及其相關記錄已成功刪除`, 'success');
         loadData(); // Reload data
       } catch (error) {
         console.error('Failed to delete grid:', error);
-        alert('刪除網格失敗，請稍後再試。如果問題持續，請聯絡系統管理員。');
+        showMessage('刪除網格失敗，請稍後再試。如果問題持續，請聯絡系統管理員。', 'error');
       }
     }
   };
@@ -1028,12 +1028,12 @@ export default function AdminPage() {
   const handleRoleChange = async (targetUserId, newRole) => {
     // 檢查是否有編輯權限
     if (!canEdit('users')) {
-      alert('您沒有編輯用戶權限');
+      showMessage('您沒有編輯用戶權限', 'error');
       return;
     }
 
     if (user.id === targetUserId) {
-      alert('您無法變更自己的權限');
+      showMessage('您無法變更自己的權限', 'error');
       return;
     }
 
@@ -1042,7 +1042,7 @@ export default function AdminPage() {
     const newRoleLevel = getRoleLevel(newRole);
 
     if (newRoleLevel > currentUserLevel) {
-      alert('您無法將用戶設定為比您更高的權限等級');
+      showMessage('您無法將用戶設定為比您更高的權限等級', 'error');
       return;
     }
 
@@ -1051,11 +1051,11 @@ export default function AdminPage() {
     if (window.confirm(`確定要將用戶 ${targetUser?.full_name || ''} 的權限變更為 ${newRole} 嗎？`)) {
       try {
         await updateUserRole(targetUserId, newRole);
-        alert('用戶權限已更新');
+        showMessage('用戶權限已更新', 'success');
         loadData();
       } catch (error) {
         console.error('Failed to update user role:', error);
-        alert('更新權限失敗，請稍後再試。');
+        showMessage('更新權限失敗，請稍後再試。', 'error');
       }
     }
   };
@@ -1082,138 +1082,129 @@ export default function AdminPage() {
 
   const handleBatchMoveToTrash = async () => {
     if (!canView('trash_grids')) {
-      alert('您沒有批量刪除的權限');
+      showMessage('您沒有批量刪除的權限', 'error');
       return;
     }
 
     if (selectedGrids.length === 0) {
-      alert('請先選擇要刪除的網格');
+      showMessage('請先選擇要刪除的網格', 'error');
       return;
     }
 
     if (window.confirm(`確定要將 ${selectedGrids.length} 個網格移至垃圾桶嗎？`)) {
       try {
         await batchMoveGridsToTrash(selectedGrids);
-        alert(`已將 ${selectedGrids.length} 個網格移至垃圾桶`);
+        showMessage(`已將 ${selectedGrids.length} 個網格移至垃圾桶`, 'success');
         setSelectedGrids([]);
         loadData();
       } catch (error) {
         console.error('Failed to move grids to trash:', error);
-        alert('批量刪除失敗，請稍後再試。');
+        showMessage('批量刪除失敗，請稍後再試。', 'error');
       }
     }
   };
 
   const handleBatchRestore = async () => {
     if (!canView('trash_grids')) {
-      alert('您沒有還原的權限');
+      showMessage('您沒有還原的權限', 'error');
       return;
     }
 
     if (selectedGrids.length === 0) {
-      alert('請先選擇要還原的網格');
+      showMessage('請先選擇要還原的網格', 'error');
       return;
     }
 
     if (window.confirm(`確定要還原 ${selectedGrids.length} 個網格嗎？`)) {
       try {
         await Promise.all(selectedGrids.map(id => restoreGridFromTrash(id)));
-        alert(`已還原 ${selectedGrids.length} 個網格`);
+        showMessage(`已還原 ${selectedGrids.length} 個網格`, 'success');
         setSelectedGrids([]);
         loadData();
       } catch (error) {
         console.error('Failed to restore grids:', error);
-        alert('批量還原失敗，請稍後再試。');
+        showMessage('批量還原失敗，請稍後再試。', 'error');
       }
     }
   };
 
   const handleBatchPermanentDelete = async () => {
     if (!canDelete('trash_grids')) {
-      alert('您沒有永久刪除的權限');
+      showMessage('您沒有永久刪除的權限', 'error');
       return;
     }
 
     if (selectedGrids.length === 0) {
-      alert('請先選擇要永久刪除的網格');
+      showMessage('請先選擇要永久刪除的網格', 'error');
       return;
     }
 
     if (window.confirm(`⚠️ 警告：確定要永久刪除 ${selectedGrids.length} 個網格嗎？\n此操作無法復原！`)) {
       try {
         await batchDeleteGrids(selectedGrids);
-        alert(`已永久刪除 ${selectedGrids.length} 個網格`);
+        showMessage(`已永久刪除 ${selectedGrids.length} 個網格`, 'success');
         setSelectedGrids([]);
         loadData();
       } catch (error) {
         console.error('Failed to permanently delete grids:', error);
-        alert('永久刪除失敗，請稍後再試。');
+        showMessage('永久刪除失敗，請稍後再試。', 'error');
       }
     }
   };
 
   const handleMoveToTrash = async (grid) => {
     if (!canDeleteGrid(grid)) {
-      alert('您沒有刪除此網格的權限');
+      showMessage('您沒有刪除此網格的權限', 'error');
       return;
     }
 
     if (window.confirm(`確定要將網格 "${grid.code}" 移至垃圾桶嗎？`)) {
       try {
         await moveGridToTrash(grid.id);
-        alert(`網格 "${grid.code}" 已移至垃圾桶`);
+        showMessage(`網格 "${grid.code}" 已移至垃圾桶`, 'success');
         loadData();
       } catch (error) {
         console.error('Failed to move grid to trash:', error);
-        alert('刪除失敗，請稍後再試。');
+        showMessage('刪除失敗，請稍後再試。', 'error');
       }
     }
   };
 
   const handleRestoreFromTrash = async (grid) => {
     if (!canView('trash_grids')) {
-      alert('您沒有還原的權限');
+      showMessage('您沒有還原的權限', 'error');
       return;
     }
 
     if (window.confirm(`確定要還原網格 "${grid.code}" 嗎？`)) {
       try {
         await restoreGridFromTrash(grid.id);
-        alert(`網格 "${grid.code}" 已還原`);
+        showMessage(`網格 "${grid.code}" 已還原`, 'success');
         loadData();
       } catch (error) {
         console.error('Failed to restore grid:', error);
-        alert('還原失敗，請稍後再試。');
+        showMessage('還原失敗，請稍後再試。', 'error');
       }
     }
   };
 
   const handlePermanentDelete = async (grid) => {
     if (!canDelete('trash_grids')) {
-      alert('您沒有永久刪除的權限');
+      showMessage('您沒有永久刪除的權限', 'error');
       return;
     }
 
     if (window.confirm(`⚠️ 警告：確定要永久刪除網格 "${grid.code}" 嗎？\n此操作無法復原！`)) {
       try {
         await permanentlyDeleteGrid(grid.id);
-        alert(`網格 "${grid.code}" 已永久刪除`);
+        showMessage(`網格 "${grid.code}" 已永久刪除`, 'success');
         loadData();
       } catch (error) {
         console.error('Failed to permanently delete grid:', error);
-        alert('永久刪除失敗，請稍後再試。');
+        showMessage('永久刪除失敗，請稍後再試。', 'error');
       }
     }
   };
-
-  // 認證載入中或正在切換角色，顯示 loading 狀態
-  if (authLoading || roleSwitching) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   // 權限檢查：訪客模式顯示無權限頁面
   // 一般用戶可以訪問管理後台來管理自己的資源
@@ -1226,7 +1217,19 @@ export default function AdminPage() {
     );
   }
 
+  // 認證載入中或正在切換角色或權限未載入完成，顯示 loading 狀態
+  // 注意：此檢查必須在訪客檢查之後，因為訪客不需要載入權限
+  if (authLoading || roleSwitching || !permissionsLoaded) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   // 檢查是否有任何頁籤的檢視權限
+  // 重要：此檢查必須在確保 permissionsLoaded = true 之後才執行
+  // 因為當權限未載入時，所有 canView() 都會返回 false，導致誤判
   const hasAnyTabPermission =
     canView('disaster_areas') ||
     canView('grids') ||
@@ -1333,7 +1336,7 @@ export default function AdminPage() {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           {canView('disaster_areas') && (
             <TabsTrigger value="areas">災區管理</TabsTrigger>
           )}
@@ -1388,9 +1391,9 @@ export default function AdminPage() {
               </div>
             )}
             <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>災區管理</CardTitle>
-              <div className="flex items-center gap-3">
+            <CardHeader className="flex flex-row items-start justify-between gap-4 flex-wrap">
+              <CardTitle className="whitespace-nowrap">災區管理</CardTitle>
+              <div className="flex items-center gap-3 flex-wrap">
                 {canManage('grids') && (
                   <AreaImportExportButtons
                     onImportSuccess={loadData}
@@ -1669,9 +1672,9 @@ export default function AdminPage() {
               </div>
             )}
             <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>地區需求調整</CardTitle>
-              <div className="flex items-center gap-3">
+            <CardHeader className="flex flex-row items-start justify-between gap-4 flex-wrap">
+              <CardTitle className="whitespace-nowrap">地區需求調整</CardTitle>
+              <div className="flex items-center gap-3 flex-wrap">
                 {canManage('grids') && (
                   <GridImportExportButtons onImportSuccess={loadData} showMessage={showMessage} isTrashView={isTrashView} />
                 )}
@@ -2214,8 +2217,8 @@ export default function AdminPage() {
                         'border-gray-200 hover:border-blue-300'
                       } transition-colors`}>
                         <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-3 flex-1 min-w-[250px]">
                               {/* 勾選框 */}
                               {canManage('blacklist') && !isBlacklisted && (
                                 <Checkbox
@@ -2229,10 +2232,10 @@ export default function AdminPage() {
                                   {u.full_name?.charAt(0) || u.email?.charAt(0) || '?'}
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`font-semibold text-lg ${isBlacklisted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{u.full_name}</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className={`font-semibold text-lg whitespace-nowrap ${isBlacklisted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{u.full_name}</p>
                                     {isBlacklisted && (
-                                      <Badge className="bg-red-600 text-white text-xs">
+                                      <Badge className="bg-red-600 text-white text-xs whitespace-nowrap">
                                         <XCircle className="w-3 h-3 mr-1" />
                                         黑名單
                                       </Badge>
@@ -2242,16 +2245,16 @@ export default function AdminPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 flex-wrap">
                               <div className="text-right">
                                 <Badge
                                   variant="secondary"
-                                  className={
+                                  className={`whitespace-nowrap ${
                                     u.role === 'super_admin' ? 'bg-purple-100 text-purple-800' :
                                     u.role === 'admin' ? 'bg-red-100 text-red-800' :
                                     u.role === 'grid_manager' ? 'bg-blue-100 text-blue-800' :
                                     'bg-gray-100 text-gray-800'
-                                  }
+                                  }`}
                                 >
                                   {u.role === 'super_admin' ? '超級管理員' :
                                    u.role === 'admin' ? '管理員' :
@@ -2265,12 +2268,12 @@ export default function AdminPage() {
                                 disabled={!canEdit('users') || user.id === u.id || isBlacklisted}
                               >
                                 <SelectTrigger className="w-36">
-                                  <SelectValue placeholder={
-                                    u.role === 'super_admin' ? '超級管理員' :
-                                    u.role === 'admin' ? '管理員' :
-                                    u.role === 'grid_manager' ? '網格管理者' :
-                                    '一般用戶'
-                                  } />
+                                  <SelectValue>
+                                    {u.role === 'super_admin' ? '超級管理員' :
+                                     u.role === 'admin' ? '管理員' :
+                                     u.role === 'grid_manager' ? '網格管理者' :
+                                     '一般用戶'}
+                                  </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="user">
@@ -2310,7 +2313,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="border-green-500 text-green-600 hover:bg-green-50"
+                                    className="border-green-500 text-green-600 hover:bg-green-50 whitespace-nowrap"
                                     onClick={() => handleRemoveFromBlacklist(u.id, u.full_name)}
                                   >
                                     移出黑名單
@@ -2319,6 +2322,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="destructive"
                                     size="sm"
+                                    className="whitespace-nowrap"
                                     onClick={() => handleAddToBlacklist(u.id, u.full_name)}
                                   >
                                     加入黑名單
@@ -2412,9 +2416,9 @@ export default function AdminPage() {
             <Card>
               <CardHeader>
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
-                      <CardTitle className="flex items-center gap-2 text-red-600">
+                      <CardTitle className="flex items-center gap-2 text-red-600 whitespace-nowrap">
                         <XCircle className="w-5 h-5" />
                         黑名單用戶管理
                       </CardTitle>
@@ -2422,7 +2426,7 @@ export default function AdminPage() {
                         管理被加入黑名單的用戶。只有超級管理員可以查看和管理黑名單。
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {canManage('blacklist') && (
                         <BlacklistImportExportButtons onImportSuccess={loadBlacklistedUsers} showMessage={showMessage} />
                       )}
@@ -2430,6 +2434,7 @@ export default function AdminPage() {
                         variant="outline"
                         size="sm"
                         onClick={loadBlacklistedUsers}
+                        className="whitespace-nowrap"
                       >
                         <RotateCcw className="w-4 h-4 mr-2" />
                         重新載入
@@ -2439,6 +2444,7 @@ export default function AdminPage() {
                           variant="destructive"
                           size="sm"
                           onClick={handleBatchDeleteBlacklistUsers}
+                          className="whitespace-nowrap"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           批量永久刪除 ({selectedBlacklistUsers.length})
@@ -2492,8 +2498,8 @@ export default function AdminPage() {
                         }`}
                       >
                         <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-3 flex-1 min-w-[250px]">
                               {canDelete('blacklist') && (
                                 <Checkbox
                                   checked={selectedBlacklistUsers.includes(u.id)}
@@ -2504,26 +2510,26 @@ export default function AdminPage() {
                                 {u.name?.charAt(0) || u.email?.charAt(0) || '?'}
                               </div>
                               <div className="flex-1">
-                                <p className="font-semibold text-lg text-gray-900">{u.name}</p>
+                                <p className="font-semibold text-lg text-gray-900 whitespace-nowrap">{u.name}</p>
                                 <p className="text-sm text-gray-600">{u.email}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <Badge variant="secondary" className="bg-red-100 text-red-800 whitespace-nowrap">
                                     黑名單
                                   </Badge>
                                   <Badge
                                     variant="secondary"
-                                    className={
+                                    className={`whitespace-nowrap ${
                                       u.role === 'admin' || u.role === 'super_admin'
                                         ? 'bg-orange-100 text-orange-800'
                                         : 'bg-gray-100 text-gray-800'
-                                    }
+                                    }`}
                                   >
                                     {u.role === 'super_admin' ? '超級管理員' :
                                      u.role === 'admin' ? '管理員' :
                                      u.role === 'grid_manager' ? '網格管理者' :
                                      '一般用戶'}
                                   </Badge>
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">
                                     加入時間：{new Date(u.created_at).toLocaleDateString('zh-TW')}
                                   </span>
                                 </div>
@@ -2534,7 +2540,7 @@ export default function AdminPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleRemoveFromBlacklist(u.id, u.name)}
-                                className="border-green-500 text-green-600 hover:bg-green-50"
+                                className="border-green-500 text-green-600 hover:bg-green-50 whitespace-nowrap"
                               >
                                 <CheckCircle2 className="w-4 h-4 mr-2" />
                                 移出黑名單
@@ -2701,10 +2707,9 @@ export default function AdminPage() {
 
                 {/* 篩選和操作 */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>管理操作審計日誌</span>
-                      <div className="flex gap-2">
+                  <CardHeader className="flex flex-row items-start justify-between gap-4 flex-wrap">
+                    <CardTitle className="whitespace-nowrap">管理操作審計日誌</CardTitle>
+                    <div className="flex gap-2 flex-wrap">
                         <Button
                           variant="outline"
                           size="sm"
@@ -2731,7 +2736,6 @@ export default function AdminPage() {
                           清除日誌
                         </Button>
                       </div>
-                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {/* 篩選區域 */}

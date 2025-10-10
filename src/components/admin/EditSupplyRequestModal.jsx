@@ -22,7 +22,8 @@ export default function EditSupplyRequestModal({
   isOpen,
   onClose,
   grid,
-  onSave
+  onSave,
+  showMessage
 }) {
   const [formData, setFormData] = useState({
     supplies_needed: []
@@ -75,7 +76,11 @@ export default function EditSupplyRequestModal({
     );
 
     if (hasInvalidSupply) {
-      alert('請確保所有物資都填寫了名稱和單位');
+      if (showMessage) {
+        showMessage('請確保所有物資都填寫了名稱和單位', 'error');
+      } else {
+        alert('請確保所有物資都填寫了名稱和單位');
+      }
       return;
     }
 

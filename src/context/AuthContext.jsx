@@ -77,7 +77,9 @@ export function AuthProvider({ children }) {
           setRoleSwitching(false);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     })();
     const handler = () => {

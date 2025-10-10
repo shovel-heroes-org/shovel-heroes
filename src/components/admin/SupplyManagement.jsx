@@ -1034,42 +1034,40 @@ export default function SupplyManagement() {
                     我的物資
                   </Button>
                 </div>
+              </div>
 
-                <div className="flex gap-2">
-                  {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
-                  {canManage('supplies') && (
-                    <>
+              {/* CSV 匯入匯出按鈕 - 需要 supplies 管理權限 */}
+              {canManage('supplies') && (
+                <div className="flex gap-2 mb-4 justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleExportCSV}
+                    disabled={exporting}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {exporting ? '匯出中...' : '匯出CSV'}
+                  </Button>
+
+                  <label className="relative inline-block cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportCSV}
+                      disabled={importing}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleExportCSV}
-                      disabled={exporting}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                      disabled={importing}
+                      className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer pointer-events-none"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      {exporting ? '匯出中...' : '匯出CSV'}
+                      <Upload className="w-4 h-4 mr-2" />
+                      {importing ? '匯入中...' : '匯入CSV'}
                     </Button>
-
-                    <label className="relative inline-block cursor-pointer">
-                      <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleImportCSV}
-                        disabled={importing}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={importing}
-                        className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 cursor-pointer pointer-events-none"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        {importing ? '匯入中...' : '匯入CSV'}
-                      </Button>
-                    </label>
-                    </>
-                  )}
+                  </label>
 
                   {/* 新增物資需求按鈕 - 參考物資管理中心權限 */}
                   {!isNeedsTrashView && (
@@ -1083,7 +1081,7 @@ export default function SupplyManagement() {
                     </Button>
                   )}
                 </div>
-              </div>
+              )}
 
               {/* 批次操作按鈕 */}
               {selectedNeedsItems.length > 0 && (() => {
@@ -1725,6 +1723,7 @@ export default function SupplyManagement() {
           }}
           grid={editingGrid}
           onSave={handleSaveNeed}
+          showMessage={showMessage}
         />
       )}
 

@@ -17,7 +17,7 @@ import { usePermission } from "@/hooks/usePermission";
 import EditVolunteerModal from "@/components/volunteers/EditVolunteerModal";
 
 export default function VolunteersPage() {
-  const { user, actingRole } = useAuth();
+  const { user, actingRole, loading: authLoading, roleSwitching } = useAuth();
   const [registrations, setRegistrations] = useState([]);
   const [grids, setGrids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ export default function VolunteersPage() {
   });
 
   // 權限檢查
-  const { canEdit, canManage, hasPermission } = usePermission();
+  const { canEdit, canManage, hasPermission, permissionsLoaded } = usePermission();
 
   // 志工報名相關權限（volunteer_registrations）
   const canEditVolunteer = hasPermission('volunteer_registrations', 'edit');
@@ -210,8 +210,8 @@ export default function VolunteersPage() {
 
   const handleStatusUpdate = async (registration, newStatus) => {
     try {
-      // Update volunteer registration status - no client-side permission check here as per requirement
-      await VolunteerRegistration.update(registration.id, { status: newStatus });
+      // Update volunteer registration status using PUT method (for status management permissions)
+      await VolunteerRegistration.updateStatus(registration.id, { status: newStatus });
 
       // If confirming a volunteer, update the grid's registered count
       if (newStatus === 'confirmed' && registration.status === 'pending') {
@@ -290,7 +290,25 @@ export default function VolunteersPage() {
     return filtered;
   }, [registrations, selectedGrid, selectedStatus]);
 
-  if (loading) {
+  // 檢查實際角色 (actingRole 可能為 undefined, 需要回退到 user.role)
+  const effectiveRole = actingRole || user?.role || 'guest';
+
+  // 權限檢查：訪客模式顯示無權限頁面
+  if (!user || effectiveRole === 'guest') {
+    return (
+      <UnauthorizedAccess
+        title="無權限訪問志工中心"
+        message={!user ?
+          "志工中心需要登入後才能使用。請先登入以查看和管理志工報名資訊。" :
+          "訪客模式無法訪問志工中心。請切換到其他角色以查看和管理志工報名資訊。"
+        }
+      />
+    );
+  }
+
+  // 資料載入中或正在切換角色或權限未載入完成，顯示 loading 狀態
+  // 注意：此檢查必須在訪客檢查之後，因為訪客不需要載入權限
+  if (loading || authLoading || roleSwitching || !permissionsLoaded) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -299,29 +317,9 @@ export default function VolunteersPage() {
   }
 
   // 權限檢查：必須有 volunteers 檢視權限才能訪問志工中心
+  // 重要：此檢查必須在確保 permissionsLoaded = true 之後才執行
   const canViewVolunteers = hasPermission('volunteers', 'view');
 
-  if (!user) {
-    return (
-      <UnauthorizedAccess
-        title="無權限訪問志工中心"
-        message="志工中心需要登入後才能使用。請先登入以查看和管理志工報名資訊。"
-      />
-    );
-  }
-
-  // 檢查實際角色 (actingRole 可能為 undefined, 需要回退到 user.role)
-  const effectiveRole = actingRole || user.role || 'guest';
-  if (effectiveRole === 'guest') {
-    return (
-      <UnauthorizedAccess
-        title="無權限訪問志工中心"
-        message="訪客模式無法訪問志工中心。請切換到其他角色以查看和管理志工報名資訊。"
-      />
-    );
-  }
-
-  // 權限檢查：必須有 view_volunteer_contact 檢視權限
   if (!canViewVolunteers) {
     return (
       <UnauthorizedAccess

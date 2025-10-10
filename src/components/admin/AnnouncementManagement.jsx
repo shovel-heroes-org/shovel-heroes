@@ -133,16 +133,17 @@ export default function AnnouncementManagement() {
         await moveAnnouncementToTrash(id);
         await loadAnnouncements();
         await loadTrashAnnouncements();
+        showMessage("已移至垃圾桶", "success");
       } catch (error) {
         console.error("移至垃圾桶失敗:", error);
-        alert("移至垃圾桶失敗，請稍後再試。");
+        showMessage("移至垃圾桶失敗，請稍後再試。", "error");
       }
     }
   };
 
   const handleBatchDelete = async () => {
     if (selectedAnnouncements.length === 0) {
-      alert("請先選擇要移至垃圾桶的公告");
+      showMessage("請先選擇要移至垃圾桶的公告", "error");
       return;
     }
 
@@ -152,9 +153,10 @@ export default function AnnouncementManagement() {
         setSelectedAnnouncements([]);
         await loadAnnouncements();
         await loadTrashAnnouncements();
+        showMessage(`已將 ${selectedAnnouncements.length} 則公告移至垃圾桶`, "success");
       } catch (error) {
         console.error("批次移至垃圾桶失敗:", error);
-        alert("批次移至垃圾桶失敗，請稍後再試。");
+        showMessage("批次移至垃圾桶失敗，請稍後再試。", "error");
       }
     }
   };
@@ -164,10 +166,10 @@ export default function AnnouncementManagement() {
       await restoreAnnouncementFromTrash(id);
       await loadTrashAnnouncements();
       await loadAnnouncements();
-      alert("公告已恢復");
+      showMessage("公告已恢復", "success");
     } catch (error) {
       console.error("恢復公告失敗:", error);
-      alert("恢復公告失敗，請稍後再試。");
+      showMessage("恢復公告失敗，請稍後再試。", "error");
     }
   };
 
@@ -176,17 +178,17 @@ export default function AnnouncementManagement() {
       try {
         await permanentlyDeleteAnnouncement(id);
         await loadTrashAnnouncements();
-        alert("公告已永久刪除");
+        showMessage("公告已永久刪除", "success");
       } catch (error) {
         console.error("永久刪除失敗:", error);
-        alert("永久刪除失敗，請稍後再試。");
+        showMessage("永久刪除失敗，請稍後再試。", "error");
       }
     }
   };
 
   const handleBatchRestore = async () => {
     if (selectedAnnouncements.length === 0) {
-      alert("請先選擇要還原的公告");
+      showMessage("請先選擇要還原的公告", "error");
       return;
     }
 
@@ -197,16 +199,16 @@ export default function AnnouncementManagement() {
       setSelectedAnnouncements([]);
       await loadTrashAnnouncements();
       await loadAnnouncements();
-      alert(`已還原 ${selectedAnnouncements.length} 則公告`);
+      showMessage(`已還原 ${selectedAnnouncements.length} 則公告`, "success");
     } catch (error) {
       console.error("批次還原失敗:", error);
-      alert("批次還原失敗，請稍後再試。");
+      showMessage("批次還原失敗，請稍後再試。", "error");
     }
   };
 
   const handleBatchPermanentDelete = async () => {
     if (selectedAnnouncements.length === 0) {
-      alert("請先選擇要永久刪除的公告");
+      showMessage("請先選擇要永久刪除的公告", "error");
       return;
     }
 
@@ -215,10 +217,10 @@ export default function AnnouncementManagement() {
         await batchDeleteAnnouncements(selectedAnnouncements);
         setSelectedAnnouncements([]);
         await loadTrashAnnouncements();
-        alert(`已永久刪除 ${selectedAnnouncements.length} 則公告`);
+        showMessage(`已永久刪除 ${selectedAnnouncements.length} 則公告`, "success");
       } catch (error) {
         console.error("批次永久刪除失敗:", error);
-        alert("批次永久刪除失敗，請稍後再試。");
+        showMessage("批次永久刪除失敗，請稍後再試。", "error");
       }
     }
   };
@@ -302,9 +304,9 @@ export default function AnnouncementManagement() {
       )}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 whitespace-nowrap">
                 <AlertCircle className="w-5 h-5" />
                 公告管理
               </CardTitle>
@@ -312,7 +314,7 @@ export default function AnnouncementManagement() {
                 管理系統公告與志工須知
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {canManage('announcements') && (
                 <AnnouncementImportExportButtons
                   onImportSuccess={() => {
@@ -433,8 +435,8 @@ export default function AnnouncementManagement() {
             )}
 
             {/* 公告列表 */}
-            <div className="border rounded-lg">
-              <Table>
+            <div className="border rounded-lg overflow-x-auto">
+              <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
                     {((!isTrashView && canDelete('announcements')) || (isTrashView && canView('trash_announcements'))) && (
@@ -449,12 +451,12 @@ export default function AnnouncementManagement() {
                         />
                       </TableHead>
                     )}
-                    <TableHead>標題</TableHead>
-                    <TableHead>分類</TableHead>
-                    {!isTrashView && <TableHead>排序</TableHead>}
-                    {!isTrashView && <TableHead>置頂</TableHead>}
-                    <TableHead>建立時間</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
+                    <TableHead className="whitespace-nowrap">標題</TableHead>
+                    <TableHead className="whitespace-nowrap">分類</TableHead>
+                    {!isTrashView && <TableHead className="whitespace-nowrap">排序</TableHead>}
+                    {!isTrashView && <TableHead className="whitespace-nowrap">置頂</TableHead>}
+                    <TableHead className="whitespace-nowrap">建立時間</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -485,34 +487,34 @@ export default function AnnouncementManagement() {
                         <TableCell className="font-medium">
                           {announcement.title}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <Badge
                             className={`${getCategoryColor(
                               announcement.category
-                            )}`}
+                            )} whitespace-nowrap`}
                           >
                             {getCategoryName(announcement.category)}
                           </Badge>
                         </TableCell>
                         {!isTrashView && (
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {announcement.order || 0}
                           </TableCell>
                         )}
                         {!isTrashView && (
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {announcement.is_pinned && (
-                              <Badge className="bg-red-100 text-red-800">
+                              <Badge className="bg-red-100 text-red-800 whitespace-nowrap">
                                 <Pin className="w-3 h-3 mr-1" />
                                 置頂
                               </Badge>
                             )}
                           </TableCell>
                         )}
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-sm text-gray-600 whitespace-nowrap">
                           {formatDate(announcement.created_at)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
                           <div className="flex justify-end gap-2">
                             {!isTrashView ? (
                               <>
