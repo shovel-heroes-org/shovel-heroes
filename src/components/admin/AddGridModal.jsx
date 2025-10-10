@@ -19,8 +19,6 @@ import { User } from '@/api/entities';
 import "leaflet/dist/leaflet.css";
 import { Loader2, Info, AlertTriangle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Info } from 'lucide-react';
-import { AskForLoginModal } from '../login/AskForLoginModal';
 import { deleteLocalStorage, getLocalStorage, updateLocalStorage } from '@/lib/utils';
 
 const LocationPicker = ({ position, setPosition }) => {
