@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Mail, Star, ExternalLink, AlertTriangle, MessageCircle } from 'lucide-react';
 import { GithubIcon } from '@/components/icons/GithubIcon';
+import { UserPlus, Github } from "lucide-react";
 
 export default function AboutPage() {
   return (
