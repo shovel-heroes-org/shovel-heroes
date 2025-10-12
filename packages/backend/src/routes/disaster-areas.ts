@@ -52,9 +52,17 @@ export function registerDisasterAreaRoutes(app: FastifyInstance) {
     const { id } = req.params as any;
     const parsed = UpdateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ message: 'Invalid payload', issues: parsed.error.issues });
-    const updated = await updateDisasterArea(app, id, parsed.data);
-    if (!updated) return reply.status(404).send({ message: 'Not found' });
-    return updated;
+    try {
+      const updated = await updateDisasterArea(app, id, parsed.data);
+      if (!updated) return reply.status(404).send({ message: 'Not found' });
+      return updated;
+    } catch (err: any) {
+      if (err && err.message && err.message.includes('Invalid field name')) {
+        app.log.warn({ msg: 'Invalid field name attempted', endpoint: 'PUT /disaster-areas/:id', error: err.message });
+        return reply.status(400).send({ message: 'Invalid field name' });
+      }
+      throw err;
+    }
   });
 
   app.delete('/disaster-areas/:id', async (req, reply) => {

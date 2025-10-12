@@ -135,10 +135,23 @@ export function registerGridRoutes(app: FastifyInstance) {
       return reply.status(403).send({ message: 'Forbidden' });
     }
     const fields = body.data;
+    // Whitelist allowed column names to prevent SQL injection.
+    // NOTE: Remember to update this list if the schema changes.
+    const ALLOWED_FIELDS = new Set([
+      'code', 'grid_type', 'disaster_area_id', 'volunteer_needed',
+      'meeting_point', 'risks_notes', 'contact_info', 'center_lat',
+      'center_lng', 'bounds', 'status', 'supplies_needed',
+      'grid_manager_id', 'completion_photo'
+    ]);
     const set: string[] = [];
     const values: any[] = [];
     let i = 1;
     for (const [k, v] of Object.entries(fields)) {
+      // Validate column name against whitelist
+      if (!ALLOWED_FIELDS.has(k)) {
+        app.log.warn({ msg: 'Invalid field name attempted', attemptedField: k, endpoint: 'PUT /grids/:id', userId: req.user?.id });
+        return reply.status(400).send({ message: 'Invalid field name' });
+      }
       set.push(`${k}=$${i++}`);
       if (k === 'bounds' || k === 'supplies_needed') {
         values.push(v ? JSON.stringify(v) : null);
