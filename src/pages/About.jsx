@@ -143,11 +143,9 @@ export default function AboutPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
 
         {/* 免責聲明 */}
-        <Card className="border-l-4 border-l-red-500 bg-red-50">
+        <Card className="border-l-4 border-l-red-500 bg-red-50 mt-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-red-800">
               <AlertTriangle className="w-6 h-6" />
@@ -177,6 +175,7 @@ export default function AboutPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
     </div>
   );
 }
