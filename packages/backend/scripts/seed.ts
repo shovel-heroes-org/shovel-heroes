@@ -108,7 +108,7 @@ async function seed(options: SeedOptions = DEFAULT_OPTIONS) {
     console.log(`📍 Seeding grids (${options.gridsPerArea} per area)...`);
     const gridIds: string[] = [];
     const gridTypes = ['residential', 'commercial', 'public_facility', 'road', 'agriculture'];
-    const statusOptions = ['open', 'in_progress', 'completed', 'blocked'];
+    const statusOptions = ['open', 'completed', 'preparing'];
 
     for (const areaId of disasterAreaIds) {
       const areaResult = await pool.query(
@@ -156,12 +156,26 @@ async function seed(options: SeedOptions = DEFAULT_OPTIONS) {
             centerLng,
             JSON.stringify(bounds),
             status,
-            JSON.stringify({
-              water: faker.number.int({ min: 0, max: 100 }),
-              food: faker.number.int({ min: 0, max: 50 }),
-              medical: faker.number.int({ min: 0, max: 20 }),
-              tools: faker.number.int({ min: 0, max: 30 }),
-            }),
+            JSON.stringify([
+              {
+                name: '礦泉水',
+                quantity: faker.number.int({ min: 0, max: 100 }),
+                unit: '箱',
+                received: faker.number.int({ min: 0, max: 100 }),
+              },
+              {
+                name: '便當',
+                quantity: faker.number.int({ min: 0, max: 100 }),
+                unit: '份',
+                received: faker.number.int({ min: 0, max: 100 }),
+              },
+              {
+                name: '急救包',
+                quantity: faker.number.int({ min: 0, max: 100 }),
+                unit: '個',
+                received: faker.number.int({ min: 0, max: 100 }),
+              },
+            ]),
             managerId,
             status === 'completed' ? faker.image.url() : null,
             creatorId,
@@ -177,7 +191,7 @@ async function seed(options: SeedOptions = DEFAULT_OPTIONS) {
     // Seed volunteer registrations
     console.log(`🙋 Seeding volunteer registrations...`);
     let volunteerCount = 0;
-    const registrationStatus = ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled'];
+    const registrationStatus = ['pending', 'confirmed', 'arrived', 'completed', 'declined', 'cancelled'];
 
     for (const gridId of gridIds) {
       const numVolunteers = faker.number.int({ min: 0, max: options.volunteersPerGrid! });
@@ -204,7 +218,7 @@ async function seed(options: SeedOptions = DEFAULT_OPTIONS) {
             JSON.stringify(faker.helpers.arrayElements(['挖土', '搬運', '清潔', '修繕', '醫療'], { min: 1, max: 3 })),
             JSON.stringify(faker.helpers.arrayElements(['鏟子', '手套', '雨鞋', '工具箱'], { min: 0, max: 2 })),
             status,
-            status === 'checked_in' || status === 'completed' ? faker.date.recent() : null,
+            status === 'arrived' || status === 'completed' ? faker.date.recent() : null,
             faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.5 }),
             true,
             faker.date.recent({ days: 30 }),
@@ -331,7 +345,7 @@ async function seed(options: SeedOptions = DEFAULT_OPTIONS) {
           JSON.stringify(
             faker.helpers.maybe(
               () => [
-                { title: faker.lorem.words(3), url: faker.internet.url() },
+                { name: faker.lorem.words(3), url: faker.internet.url() },
               ],
               { probability: 0.5 }
             ) || []
