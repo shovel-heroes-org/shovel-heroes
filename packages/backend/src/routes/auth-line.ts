@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
+import { signToken } from '../lib/auth.js';
 
 interface LineTokenResponse {
   access_token: string;
@@ -41,7 +42,6 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
   const CLIENT_SECRET = process.env.LINE_CHANNEL_SECRET || process.env.LINE_CLIENT_SECRET;
   const REDIRECT_URI = process.env.LINE_REDIRECT_URI || process.env.PUBLIC_BASE_URL + '/auth/line/callback';
   const FRONTEND_RETURN = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
-  const JWT_SECRET = process.env.AUTH_JWT_SECRET || 'dev-jwt-secret-change-me';
 
   if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI) {
     app.log.warn('[line-auth] Missing LINE env vars, LINE login disabled');
@@ -96,13 +96,9 @@ export function registerLineAuthRoutes(app: FastifyInstance) {
         VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = COALESCE(EXCLUDED.email, users.email), avatar_url = EXCLUDED.avatar_url`,
         [userId, claims.sub, name, email, avatar]);
-      // Issue JWT (very basic); payload minimal
-      // Issue JWT with short lived exp (2h). Future: add refresh token rotation.
-      const now = Math.floor(Date.now()/1000);
-      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({ sub: userId, name, avatar, role: 'user', iat: now, exp: now + 2*60*60 })).toString('base64url');
-      const h = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
-      const jwt = `${header}.${payload}.${h}`;
+      // Issue short-lived JWT (2h). Future: add refresh token rotation.
+      const now = Math.floor(Date.now() / 1000);
+      const jwt = signToken({ sub: userId, name, avatar, role: 'user', iat: now, exp: now + 2 * 60 * 60 });
       return { token: jwt, user: { id: userId, name, avatar_url: avatar, email } };
     } catch (err: any) {
       app.log.error({ err }, '[line-auth] exchange failed');

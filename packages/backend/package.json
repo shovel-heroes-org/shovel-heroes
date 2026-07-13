@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "verify:auth": "tsx scripts/verify-auth.ts",
     "import:legacy": "tsx scripts/import-base44.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:clean": "tsx scripts/seed.ts --users 0 --disasterAreas 0"

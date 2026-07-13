@@ -23,7 +23,13 @@ import { registerFunctionRoutes } from './routes/functions.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerVolunteersRoutes } from './routes/volunteers.js';
 import { initDb } from './lib/db-init.js';
+import { assertAuthConfig } from './lib/auth.js';
 import { createAuditLogMiddleware } from "./middlewares/AuditLogMiddleware.js";
+
+console.log('[3.5/10] Validating auth configuration...');
+// Fail fast in production if JWT/cookie secrets are missing or left at the
+// public dev defaults (forgeable tokens). No-op outside production.
+assertAuthConfig();
 
 console.log('[4/10] Creating Fastify instance...');
 const app = Fastify({ logger: true });
