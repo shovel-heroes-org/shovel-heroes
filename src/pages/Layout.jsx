@@ -340,7 +340,11 @@ export default function Layout({ children, currentPageName }) {
                   <Link to={createPageUrl('Privacy')} className="block mt-2 text-blue-600 hover:underline text-xs">閱讀完整隱私與 Cookie 政策</Link>
                 </div>
                 <label className="flex items-start gap-2 text-xs sm:text-sm bg-gray-100 p-3 rounded cursor-pointer">
-                  <input type="checkbox" id="analytics-opt" className="mt-0.5" defaultChecked onChange={(e)=>setAnalyticsAllowed(e.target.checked)} />
+                  {/* Controlled checkbox: keeps the visible state in sync with the
+                      recorded consent (an uncontrolled defaultChecked box could
+                      look ticked while analyticsAllowed was still false). Defaults
+                      to unticked so analytics is an affirmative opt-in. */}
+                  <input type="checkbox" id="analytics-opt" className="mt-0.5" checked={analyticsAllowed} onChange={(e)=>setAnalyticsAllowed(e.target.checked)} />
                   <span>我同意使用匿名分析 Cookie（可協助改善平台效能）。</span>
                 </label>
                 <div className="text-[10px] sm:text-xs text-gray-500">點擊同意即表示您理解並接受上述條款。</div>
