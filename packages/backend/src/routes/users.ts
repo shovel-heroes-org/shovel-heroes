@@ -1,36 +1,27 @@
 import type { FastifyInstance } from 'fastify';
-import crypto from 'crypto';
 import { makeWeakEtag, ifNoneMatchSatisfied, computeListEtag } from '../lib/etag.js';
+import { verifyToken } from '../lib/auth.js';
 import { z } from 'zod';
 
 export function registerUserRoutes(app: FastifyInstance) {
-  // Simple auth stub: if Authorization provided, set a fake user id (or from header)
-  const JWT_SECRET = process.env.AUTH_JWT_SECRET || 'dev-jwt-secret-change-me';
+  // Populate req.user from a signed Bearer JWT. Signature/alg/expiry are all
+  // validated in verifyToken (see lib/auth.ts); role/identity come from the DB
+  // row keyed by the token `sub`, never from the token payload.
   app.addHook('preHandler', async (req) => {
     const auth = req.headers['authorization'];
     if (!auth || !auth.startsWith('Bearer ')) return;
     const token = auth.slice('Bearer '.length).trim();
-    const parts = token.split('.');
-    if (parts.length !== 3) return;
-    const [headerB64, payloadB64, sig] = parts;
-    const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${headerB64}.${payloadB64}`).digest('base64url');
-    if (expected !== sig) return; // invalid signature
-    try {
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-      if (!payload.sub) return;
-      if (payload.exp && Date.now()/1000 > payload.exp) {
-        return; // expired
+    const claims = verifyToken(token);
+    if (!claims) return; // invalid / expired / wrong alg
+    // Fetch user details from DB (authoritative source for role)
+    if (app.hasDecorator('db')) {
+      const { rows } = await app.db.query('SELECT id, name, email, avatar_url, role FROM users WHERE id = $1', [claims.sub]);
+      if (rows[0]) {
+        (req as any).user = rows[0];
+      } else {
+        // user disappeared; treat as unauthenticated
       }
-      // Optionally fetch user details from DB
-      if (app.hasDecorator('db')) {
-        const { rows } = await app.db.query('SELECT id, name, email, avatar_url, role FROM users WHERE id = $1', [payload.sub]);
-        if (rows[0]) {
-          (req as any).user = rows[0];
-        } else {
-          // user disappeared; treat as unauthenticated
-        }
-      }
-    } catch { /* ignore */ }
+    }
   });
 
   app.get('/users', async (req, reply) => {
